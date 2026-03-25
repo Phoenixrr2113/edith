@@ -102,9 +102,13 @@ echo "[launch] Dashboard started (PID $DASHBOARD_PID) at http://localhost:$DASHB
 # --- Start Edith with auto-restart on file changes ---
 echo "[launch] Starting Edith..."
 
+# Use a PID file for cross-process communication (fswatch runs in subshell)
+EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
+
 start_edith() {
   bun "$DIR/edith.ts" &
   EDITH_PID=$!
+  echo "$EDITH_PID" > "$EDITH_PIDFILE"
   echo "[launch] Edith started (PID $EDITH_PID)"
 }
 
@@ -113,24 +117,29 @@ start_edith
 # --- Cleanup on exit ---
 cleanup() {
   echo "[launch] Shutting down..."
-  kill $EDITH_PID 2>/dev/null
+  # Read current PID from file (may have changed via file watcher restart)
+  if [ -f "$EDITH_PIDFILE" ]; then
+    kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
+    rm -f "$EDITH_PIDFILE"
+  fi
   kill $DASHBOARD_PID 2>/dev/null
   [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"
-  # Keep session-id so Edith resumes context on restart
-  # (auto-recovery handles corrupted sessions)
   exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
 
-# --- File watcher: restart Edith on .ts changes ---
+# --- File watcher: restart Edith on .ts/md changes ---
 if command -v fswatch >/dev/null 2>&1; then
   (
-    fswatch -o -e "node_modules" -e ".git" -i "\\.ts$" "$DIR/edith.ts" "$DIR/mcp/" "$DIR/prompts/" | while read -r; do
+    fswatch -o -e "node_modules" -e ".git" -e "logs" -i "\\.ts$" -i "\\.md$" \
+      "$DIR/edith.ts" "$DIR/lib/" "$DIR/mcp/" "$DIR/prompts/" | while read -r; do
       echo "[launch] File change detected, restarting Edith..."
-      kill $EDITH_PID 2>/dev/null
+      [ -f "$EDITH_PIDFILE" ] && kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
       sleep 2
-      start_edith
+      bun "$DIR/edith.ts" &
+      echo "$!" > "$EDITH_PIDFILE"
+      echo "[launch] Edith restarted (PID $!)"
     done
   ) &
   WATCHER_PID=$!
@@ -139,5 +148,11 @@ else
   echo "[launch] fswatch not found — auto-restart disabled. Install: brew install fswatch"
 fi
 
-# Wait for Edith to exit (keeps shell alive so trap works)
-wait $EDITH_PID
+# Keep shell alive — re-wait if Edith gets restarted by fswatch
+while true; do
+  if [ -f "$EDITH_PIDFILE" ]; then
+    wait "$(cat "$EDITH_PIDFILE")" 2>/dev/null
+  else
+    sleep 5
+  fi
+done

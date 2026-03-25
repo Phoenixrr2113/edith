@@ -1,82 +1,24 @@
 /**
- * Edith Channel — MCP tool server.
+ * Edith MCP tool server.
  * Tools: send_message, send_image, schedule, locations, reminders, calendar, email, image gen.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { sendMessage, sendPhoto, tgCall } from "../lib/telegram";
+import { STATE_DIR, CHAT_ID, logEvent } from "../lib/state";
+import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
 
 // --- Config ---
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
-if (!BOT_TOKEN) {
-  console.error("TELEGRAM_BOT_TOKEN not set");
-  process.exit(1);
-}
-
-const TG = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
 const SCHEDULE_FILE = join(STATE_DIR, "schedule.json");
 const LOCATIONS_FILE = join(STATE_DIR, "locations.json");
 const REMINDERS_FILE = join(STATE_DIR, "reminders.json");
 const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
-const EVENTS_FILE = join(STATE_DIR, "events.jsonl");
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "";
-const ALLOWED_CHAT = Number(process.env.TELEGRAM_CHAT_ID ?? "0");
-mkdirSync(STATE_DIR, { recursive: true });
-
-function logEvent(type: string, data: Record<string, any> = {}): void {
-  try {
-    appendFileSync(EVENTS_FILE, JSON.stringify({ ts: new Date().toISOString(), type, ...data }) + "\n", "utf-8");
-  } catch {}
-}
-
-// --- Telegram helpers ---
-async function tgCall(method: string, body?: Record<string, any>): Promise<any> {
-  const res = await fetch(`${TG}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json();
-  if (!json.ok) throw new Error(`Telegram ${method}: ${json.description}`);
-  return json.result;
-}
-
-async function sendMessage(chatId: number, text: string): Promise<void> {
-  const chunks = [];
-  for (let i = 0; i < text.length; i += 4096) {
-    chunks.push(text.slice(i, i + 4096));
-  }
-  for (const chunk of chunks) {
-    try {
-      await tgCall("sendMessage", { chat_id: chatId, text: chunk, parse_mode: "Markdown" });
-    } catch {
-      await tgCall("sendMessage", { chat_id: chatId, text: chunk });
-    }
-  }
-}
-
-async function sendPhoto(chatId: number, photoData: string, caption?: string): Promise<void> {
-  const base64Match = photoData.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!base64Match) throw new Error("Invalid image data format");
-
-  const [, , base64Data] = base64Match;
-  const imageBuffer = Buffer.from(base64Data, "base64");
-  const formData = new FormData();
-  formData.append("chat_id", String(chatId));
-  formData.append("photo", new Blob([imageBuffer]), "image.png");
-  if (caption) formData.append("caption", caption);
-
-  const res = await fetch(`${TG}/sendPhoto`, { method: "POST", body: formData });
-  const json = await res.json();
-  if (!json.ok) throw new Error(`Telegram sendPhoto: ${json.description}`);
-}
-
-// --- File helpers ---
-import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
+const ALLOWED_CHAT = CHAT_ID;
 
 function loadSchedule(): ScheduleEntry[] {
   if (!existsSync(SCHEDULE_FILE)) return [];
