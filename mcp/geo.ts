@@ -5,28 +5,12 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
-const ROOT = join(import.meta.dir, "..");
-const REMINDERS_PATH = join(ROOT, "reminders.json");
-const LOCATIONS_PATH = join(ROOT, "locations.json");
+const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
+const REMINDERS_PATH = join(STATE_DIR, "reminders.json");
+const LOCATIONS_PATH = join(STATE_DIR, "locations.json");
 
-export interface LocationEntry {
-  name: string;
-  label: string;
-  lat: number;
-  lon: number;
-  radiusMeters: number;
-}
-
-export interface Reminder {
-  id: string;
-  text: string;
-  type: "location" | "time";
-  location?: string;
-  radiusMeters?: number;
-  fireAt?: string;
-  fired: boolean;
-  created: string;
-}
+import type { LocationEntry, Reminder } from "./types";
+export type { LocationEntry, Reminder };
 
 export interface LocationTransition {
   type: "arrived" | "departed";

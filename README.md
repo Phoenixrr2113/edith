@@ -14,7 +14,7 @@ launch-edith.sh
         ├── Scheduler      → claude -p (ephemeral task sessions)
         └── Events         → ~/.edith/events.jsonl → dashboard
 
-MCP tools (channel/server.ts):
+MCP tools (mcp/server.ts):
   send_message, get_calendar, get_emails,
   save_reminder, list_reminders, mark_reminder_fired,
   save_location, list_locations,
@@ -30,8 +30,8 @@ Docker:
 | File | What |
 |------|------|
 | `edith.ts` | Persistent orchestrator — Telegram polling, scheduler, event logging |
-| `channel/server.ts` | MCP tool server — messaging, reminders, locations, schedule, Google |
-| `channel/geo.ts` | Haversine distance + geofencing |
+| `mcp/server.ts` | MCP tool server — messaging, reminders, locations, schedule, Google |
+| `mcp/geo.ts` | Haversine distance + geofencing |
 | `dashboard.ts` | Monitoring dashboard |
 | `CLAUDE.md` | Edith's identity, protocols, memory instructions |
 | `.claude/skills/*.md` | 4 scheduled skills (morning-brief, midday-check, evening-wrap, check-reminders) |

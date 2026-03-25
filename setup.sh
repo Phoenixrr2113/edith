@@ -70,7 +70,7 @@ echo "  ok Cognee at http://localhost:8001, n8n at http://localhost:5679"
 # --- Install MCP server deps ---
 echo ""
 echo "Installing MCP server dependencies..."
-cd channel && bun install && cd ..
+cd mcp && bun install && cd ..
 echo "  ok MCP server ready"
 
 # --- Create directories ---

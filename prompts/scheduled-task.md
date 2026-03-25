@@ -2,9 +2,9 @@ Run this task: {{prompt}}
 
 Current time: {{time}}.
 
-Write your findings to the taskboard file at {{taskboardPath}}. Append a new section with this format:
+If you have findings worth recording, write them to the taskboard at {{taskboardPath}}. Use this format:
 ## {{timestamp}} — {{taskName}}
 <your findings here>
 
-If something needs Randy's attention, use the send_message tool to message him (chat_id: {{chatId}}).
-If nothing is actionable, still write a brief note to the taskboard but do NOT message Randy.
+If something needs Randy's attention, also use send_message (chat_id: {{chatId}}).
+If nothing is actionable and nothing to report, do NOT write to the taskboard and do NOT message. Silent exit.

@@ -26,9 +26,9 @@ echo ""
 
 # --- Test 1: MCP tools load ---
 echo "Test 1: MCP tools load in -p mode"
-TOOLS=$(claude -p "List only the MCP tool names, one per line. No descriptions." --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',''))" 2>/dev/null)
+TOOLS=$(claude -p "List only the MCP tool names, one per line. No descriptions." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',''))" 2>/dev/null)
 
-if echo "$TOOLS" | grep -q "edith__send_message"; then
+if echo "$TOOLS" | grep -q "send_message"; then
   pass "edith send_message tool found"
 else
   fail "edith send_message tool NOT found"
@@ -44,7 +44,7 @@ echo ""
 
 # --- Test 2: Cognee round-trip ---
 echo "Test 2: Cognee store and retrieve"
-COGNEE_RESULT=$(claude -p 'Use the cognee cognify tool to store this text: "Edith test fact: Randy likes espresso." Then immediately use the cognee search tool with search_type CHUNKS to search for "espresso". Report whether you found the test fact.' --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:500])" 2>/dev/null)
+COGNEE_RESULT=$(claude -p 'Use the cognee cognify tool to store this text: "Edith test fact: Randy likes espresso." Then immediately use the cognee search tool with search_type CHUNKS to search for "espresso". Report whether you found the test fact.' --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:500])" 2>/dev/null)
 
 if echo "$COGNEE_RESULT" | grep -qi "espresso\|found\|success"; then
   pass "Cognee store + retrieve works"
@@ -57,7 +57,7 @@ echo ""
 # --- Test 3: Reply tool sends Telegram message ---
 echo "Test 3: send_message tool sends Telegram message"
 CHAT_ID="${TELEGRAM_CHAT_ID}"
-REPLY_RESULT=$(claude -p "Use the mcp__edith__send_message tool to send text '🧪 Edith test — send_message works' with chat_id ${CHAT_ID}. Report success or failure." --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
+REPLY_RESULT=$(claude -p "Use the send_message tool to send text '🧪 Edith test — send_message works' with chat_id ${CHAT_ID}. Report success or failure." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if echo "$REPLY_RESULT" | grep -qi "sent\|success\|delivered"; then
   pass "send_message tool sent Telegram message"
@@ -77,7 +77,7 @@ TASK_RESULT=$(claude -p "Write the following to the file $TASKBOARD (append, don
 ## $(date -u +%Y-%m-%dT%H:%M:%S)Z — test-task
 - Test entry: scheduler integration works
 
-Report success." --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
+Report success." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if [ -f "$TASKBOARD" ] && grep -q "scheduler integration works" "$TASKBOARD"; then
   pass "Taskboard write works"
@@ -92,7 +92,7 @@ echo "Test 5: Full dispatch (simulates edith.ts message flow)"
 SESSION_ID=$(uuidgen)
 DISPATCH_RESULT=$(claude -p "[Message from Randy via Telegram] Hello Edith, this is an end-to-end test. Just confirm you received this.
 
-[Reply using the send_message tool with chat_id ${CHAT_ID}.]" --permission-mode bypassPermissions --session-id "$SESSION_ID" --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:500])" 2>/dev/null)
+[Reply using the send_message tool with chat_id ${CHAT_ID}.]" --permission-mode bypassPermissions --mcp-config .mcp.json --resume "$SESSION_ID" --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:500])" 2>/dev/null)
 
 if echo "$DISPATCH_RESULT" | grep -qi "sent\|replied\|confirm\|received\|hello"; then
   pass "Full dispatch simulation works"
@@ -102,7 +102,7 @@ fi
 
 # --- Test 6: Google Calendar via n8n ---
 echo "Test 6: get_calendar tool (via n8n)"
-CAL_RESULT=$(claude -p "Use the get_calendar tool with hoursAhead 12. Report what you get back — events or empty." --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
+CAL_RESULT=$(claude -p "Use the get_calendar tool with hoursAhead 12. Report what you get back — events or empty." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if echo "$CAL_RESULT" | grep -qi "event\|calendar\|no.*event\|empty\|clear\|nothing\|item"; then
   pass "get_calendar tool works"
@@ -114,7 +114,7 @@ echo ""
 
 # --- Test 7: Gmail via n8n ---
 echo "Test 7: get_emails tool (via n8n)"
-GMAIL_RESULT=$(claude -p "Use the get_emails tool with hoursBack 24 and maxResults 3. Report how many emails you got back." --permission-mode bypassPermissions --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
+GMAIL_RESULT=$(claude -p "Use the get_emails tool with hoursBack 24 and maxResults 3. Report how many emails you got back." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if echo "$GMAIL_RESULT" | grep -qi "email\|message\|found\|result\|unread"; then
   pass "get_emails tool works"

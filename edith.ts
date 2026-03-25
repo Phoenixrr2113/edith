@@ -12,19 +12,22 @@
  *   Timer    ──> edith.ts ──> claude -p (ephemeral)       ──> taskboard / send_message tool
  */
 import { spawn } from "child_process";
-import { mkdirSync, existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync } from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 import {
   checkLocationReminders,
   checkLocationTransitions,
   checkTimeReminders,
   markFired,
-} from "./channel/geo.ts";
+} from "./mcp/geo";
 
 // --- Config ---
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const CHAT_ID = Number(process.env.TELEGRAM_CHAT_ID ?? "0");
+const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
 const SMS_BOT_ID = process.env.TELEGRAM_SMS_BOT_ID ?? "";
+// Accept messages from: group chat, Randy's DMs, or SMS relay bot
+const ALLOWED_CHATS = new Set([CHAT_ID, USER_ID].filter(Boolean));
 const INBOX_DIR = join(process.env.HOME ?? "~", ".edith", "inbox");
 const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
 const OFFSET_FILE = join(STATE_DIR, "tg-offset");
@@ -198,7 +201,7 @@ function rotateTaskboard(): void {
   const content = readTaskboard();
   if (!content.trim()) return;
 
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - 12 * 60 * 60 * 1000;
   const sections = content.split(/(?=^## )/m);
 
   // Keep recent entries
@@ -250,7 +253,12 @@ async function sendMessage(chatId: number, text: string): Promise<void> {
     chunks.push(text.slice(i, i + 4096));
   }
   for (const chunk of chunks) {
-    await tgCall("sendMessage", { chat_id: chatId, text: chunk, parse_mode: "Markdown" });
+    try {
+      await tgCall("sendMessage", { chat_id: chatId, text: chunk, parse_mode: "Markdown" });
+    } catch {
+      // Markdown parse failed — retry as plain text
+      await tgCall("sendMessage", { chat_id: chatId, text: chunk });
+    }
   }
 }
 
@@ -345,7 +353,7 @@ async function dispatchToClaude(prompt: string, opts: DispatchOptions = {}): Pro
     const args = [
       "-p", prompt,
       "--permission-mode", "bypassPermissions",
-      "--mcp-config", ".mcp.json",
+      "--mcp-config", join(import.meta.dir, ".mcp.json"),
       "--output-format", "json",
       "--append-system-prompt-file", SYSTEM_PROMPT_FILE,
     ];
@@ -579,9 +587,10 @@ async function poll(): Promise<void> {
         const chatId = msg.chat?.id;
         if (!chatId) continue;
 
-        // Security: Only process messages from Randy's chat
-        if (chatId !== CHAT_ID) {
-          // Suppress repeated logs for known bots/users
+        // Security: Only process messages from Randy's authorized chats or the SMS bot
+        const fromId = msg.from?.id;
+        const isSmsBot = SMS_BOT_ID && String(fromId) === SMS_BOT_ID;
+        if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
           if (!recentlyIgnored.has(chatId)) {
             console.log(`[edith] Ignoring message from unauthorized chat: ${chatId}`);
             recentlyIgnored.add(chatId);
@@ -653,8 +662,7 @@ async function poll(): Promise<void> {
 
         // Text message
         if (msg.text) {
-          const isSms = SMS_BOT_ID && String(msg.from?.id) === SMS_BOT_ID;
-          const source = isSms ? "SMS" : "Telegram";
+          const source = isSmsBot ? "SMS" : "Telegram";
           await dispatchToConversation(chatId, msg.message_id,
             `[Message from Randy via ${source}] ${msg.text}`
           );
@@ -779,14 +787,44 @@ function stopCaffeinate(): void {
   }
 }
 
-process.on("SIGINT", () => { stopCaffeinate(); process.exit(0); });
-process.on("SIGTERM", () => { stopCaffeinate(); process.exit(0); });
+function gracefulShutdown(): void {
+  // Dead-letter any queued messages so they're replayed on next start
+  if (dispatchQueue.length > 0) {
+    console.log(`[edith] Draining ${dispatchQueue.length} queued message(s) to dead-letter...`);
+    for (const job of dispatchQueue) {
+      saveDeadLetter(CHAT_ID, job.prompt, "shutdown_drain");
+    }
+    dispatchQueue.length = 0;
+  }
+  stopCaffeinate();
+  process.exit(0);
+}
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
 
 // ============================================================
 // Start
 // ============================================================
 console.log("[edith] Edith is starting up...");
 rotateEvents();
+
+// Clean up old inbox files (voice notes, photos older than 7 days)
+try {
+  const INBOX_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  if (existsSync(INBOX_DIR)) {
+    for (const f of readdirSync(INBOX_DIR)) {
+      const fp = join(INBOX_DIR, f);
+      try {
+        if (now - statSync(fp).mtimeMs > INBOX_MAX_AGE) {
+          unlinkSync(fp);
+        }
+      } catch {}
+    }
+  }
+} catch {}
+
 logEvent("startup", { pid: process.pid, sessionId: sessionId || "new" });
 startCaffeinate();
 await bootstrap();

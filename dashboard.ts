@@ -93,6 +93,10 @@ function getStats(events: any[]) {
       const durations = today.filter((e) => e.type === "dispatch_end" && e.durationMs).map((e) => e.durationMs);
       return durations.length > 0 ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length) : 0;
     })(),
+    costUsd: (() => {
+      const costs = today.filter((e) => e.type === "cost" && e.usd).map((e) => e.usd as number);
+      return costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : 0;
+    })(),
   };
 }
 
@@ -225,6 +229,7 @@ async function refresh() {
       [stats.errors, 'Errors'],
       [stats.tasksFired, 'Tasks'],
       [stats.avgDispatchMs ? (stats.avgDispatchMs/1000).toFixed(1) + 's' : '—', 'Avg Time'],
+      [stats.costUsd > 0 ? '$' + stats.costUsd.toFixed(2) : '$0', 'Cost Today'],
     ].map(([v, l]) =>
       '<div class="stat"><div class="value">' + v + '</div><div class="label">' + l + '</div></div>'
     ).join('');

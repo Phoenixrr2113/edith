@@ -57,6 +57,26 @@ if lsof -i ":$N8N_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   fi
 fi
 
+# --- Pre-flight ---
+mkdir -p "$STATE_DIR" "$DIR/logs"
+
+# Check Docker is running
+if ! docker info >/dev/null 2>&1; then
+  echo "[launch] ERROR: Docker is not running. Start Docker Desktop first."
+  exit 1
+fi
+
+# --- Backup n8n credentials (OAuth tokens etc) ---
+N8N_DB="$DIR/n8n/data/database.sqlite"
+N8N_BACKUP_DIR="$STATE_DIR/backups"
+mkdir -p "$N8N_BACKUP_DIR"
+if [ -f "$N8N_DB" ]; then
+  cp "$N8N_DB" "$N8N_BACKUP_DIR/n8n-database-$(date +%Y%m%d).sqlite"
+  # Keep only last 7 backups
+  ls -t "$N8N_BACKUP_DIR"/n8n-database-*.sqlite 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null
+  echo "[launch] n8n database backed up to $N8N_BACKUP_DIR"
+fi
+
 # --- Start Docker services (Cognee + n8n) ---
 echo "[launch] Starting Docker services..."
 if [ "$N8N_SKIP" = true ]; then
@@ -79,22 +99,45 @@ bun "$DIR/dashboard.ts" &
 DASHBOARD_PID=$!
 echo "[launch] Dashboard started (PID $DASHBOARD_PID) at http://localhost:$DASHBOARD_PORT"
 
-# --- Start Edith ---
+# --- Start Edith with auto-restart on file changes ---
 echo "[launch] Starting Edith..."
-bun "$DIR/edith.ts" &
-EDITH_PID=$!
+
+start_edith() {
+  bun "$DIR/edith.ts" &
+  EDITH_PID=$!
+  echo "[launch] Edith started (PID $EDITH_PID)"
+}
+
+start_edith
 
 # --- Cleanup on exit ---
 cleanup() {
   echo "[launch] Shutting down..."
   kill $EDITH_PID 2>/dev/null
   kill $DASHBOARD_PID 2>/dev/null
+  [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"
   # Keep session-id so Edith resumes context on restart
   # (auto-recovery handles corrupted sessions)
   exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
+
+# --- File watcher: restart Edith on .ts changes ---
+if command -v fswatch >/dev/null 2>&1; then
+  (
+    fswatch -o -e "node_modules" -e ".git" -i "\\.ts$" "$DIR/edith.ts" "$DIR/mcp/" "$DIR/prompts/" | while read -r; do
+      echo "[launch] File change detected, restarting Edith..."
+      kill $EDITH_PID 2>/dev/null
+      sleep 2
+      start_edith
+    done
+  ) &
+  WATCHER_PID=$!
+  echo "[launch] File watcher active (fswatch PID $WATCHER_PID)"
+else
+  echo "[launch] fswatch not found — auto-restart disabled. Install: brew install fswatch"
+fi
 
 # Wait for Edith to exit (keeps shell alive so trap works)
 wait $EDITH_PID
