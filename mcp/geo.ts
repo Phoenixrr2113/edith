@@ -4,12 +4,11 @@
  */
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
+import { STATE_DIR } from "../lib/state";
+import type { LocationEntry, Reminder } from "./types";
 
-const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
 const REMINDERS_PATH = join(STATE_DIR, "reminders.json");
 const LOCATIONS_PATH = join(STATE_DIR, "locations.json");
-
-import type { LocationEntry, Reminder } from "./types";
 export type { LocationEntry, Reminder };
 
 export interface LocationTransition {

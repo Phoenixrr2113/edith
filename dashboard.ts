@@ -123,7 +123,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   .stat { text-align: center; }
   .stat .value { font-size: 2em; font-weight: bold; color: #fff; }
   .stat .label { font-size: 0.75em; color: #666; }
-  .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
   th { text-align: left; color: #666; font-weight: normal; padding: 4px 8px; border-bottom: 1px solid #222; }
   td { padding: 4px 8px; border-bottom: 1px solid #1a1a1a; }
@@ -235,11 +235,12 @@ async function refresh() {
     ).join('');
 
     // Events
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     document.getElementById('events').innerHTML = '<table><tr><th>Time</th><th>Type</th><th>Details</th></tr>' +
       events.map(e => {
         const cls = e.type === 'dispatch_error' ? ' class="error-row"' : '';
         const detail = e.label || e.text || e.task || e.error || e.prompt || '';
-        return '<tr' + cls + '><td class="ago">' + ago(e.ts) + '</td><td><span class="type type-' + e.type + '">' + e.type + '</span></td><td>' + (typeof detail === 'string' ? detail.slice(0,80) : '') + '</td></tr>';
+        return '<tr' + cls + '><td class="ago">' + ago(e.ts) + '</td><td><span class="type type-' + e.type + '">' + esc(e.type) + '</span></td><td>' + esc(typeof detail === 'string' ? detail.slice(0,80) : '') + '</td></tr>';
       }).join('') + '</table>';
 
     // Schedule

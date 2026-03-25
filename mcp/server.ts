@@ -98,6 +98,9 @@ server.registerTool(
   },
   },
   async ({ chat_id, image_data, caption }) => {
+    if (ALLOWED_CHAT && chat_id !== ALLOWED_CHAT) {
+      return { content: [{ type: "text" as const, text: `Blocked: chat_id ${chat_id} is not authorized.` }] };
+    }
     try {
       await sendPhoto(chat_id, image_data, caption);
       logEvent("image_sent", { chatId: chat_id, caption: caption?.slice(0, 100) });
@@ -415,6 +418,41 @@ server.registerTool(
       return { content: [{ type: "text" as const, text: JSON.stringify({ success: true, count: imageUrls.length, images: imageUrls, prompt }, null, 2) }] };
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Image generation failed: ${err instanceof Error ? err.message : err}` }] };
+    }
+  }
+);
+
+// ============================================================
+// Unified notification (multi-channel via n8n)
+// ============================================================
+
+server.registerTool(
+  "send_notification",
+  {
+    description: "Send a message via any channel (WhatsApp, Slack, email, etc) through n8n. For Telegram, prefer send_message (faster, direct). Use this for non-Telegram channels or when you want n8n to handle routing.",
+    inputSchema: {
+    channel: z.enum(["whatsapp", "slack", "email", "discord", "telegram"]).describe("Which channel to send through"),
+    recipient: z.string().describe("Recipient identifier — phone number for WhatsApp, email for email, channel/user for Slack, user ID for Discord, chat_id for Telegram"),
+    text: z.string().describe("Message text to send"),
+    subject: z.string().optional().describe("Subject line (for email only)"),
+  },
+  },
+  async ({ channel, recipient, text, subject }) => {
+    try {
+      const res = await fetch(`${N8N_URL}/webhook/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, recipient, text, subject }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        return { content: [{ type: "text" as const, text: `Notification failed (${res.status}): ${body}. Is the n8n Notify workflow active at ${N8N_URL}?` }] };
+      }
+      const data = await res.json();
+      logEvent("notification_sent", { channel, recipient: recipient.slice(0, 30), text: text.slice(0, 100) });
+      return { content: [{ type: "text" as const, text: `Sent via ${channel}: ${JSON.stringify(data)}` }] };
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Notification unreachable: ${err instanceof Error ? err.message : err}. Is n8n running at ${N8N_URL}?` }] };
     }
   }
 );

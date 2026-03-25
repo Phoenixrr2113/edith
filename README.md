@@ -54,7 +54,7 @@ Docker:
 Or manually:
 
 ```bash
-cd channel && bun install && cd ..
+cd mcp && bun install && cd ..
 docker compose up -d
 # Configure .env with TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, OPENROUTER_API_KEY
 bash test-e2e.sh   # verify everything works

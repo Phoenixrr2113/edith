@@ -26,6 +26,7 @@ export interface DispatchOptions {
   label?: string;
   chatId?: number;
   skipIfBusy?: boolean;
+  _sessionRetried?: boolean; // internal: prevent infinite retry on corrupted session
 }
 
 export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {}): Promise<string> {
@@ -114,12 +115,12 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
       try {
         const json = JSON.parse(result);
 
-        // Detect corrupted session
-        if (json.is_error && json.result?.includes("API Error") && sessionId) {
+        // Detect corrupted session — retry once with fresh session
+        if (json.is_error && json.result?.includes("API Error") && sessionId && !opts._sessionRetried) {
           console.error(`[edith:${label}] Session corrupted (API rejected history), resetting...`);
           logEvent("session_reset", { label, reason: json.result.slice(0, 200) });
           clearSession();
-          return dispatchToClaude(prompt, { ...opts, resume: true, label });
+          return dispatchToClaude(prompt, { ...opts, resume: true, label, _sessionRetried: true });
         }
 
         if (json.session_id && json.session_id !== sessionId) {

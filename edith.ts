@@ -119,25 +119,39 @@ async function poll(): Promise<void> {
 
         // Voice note
         if (msg.voice || msg.audio) {
-          const fileId = (msg.voice ?? msg.audio).file_id;
-          const localPath = await downloadFile(fileId, "ogg");
-          const transcription = await transcribeAudio(localPath);
-          const content = transcription
-            ? `[Voice note from Randy] "${transcription}"`
-            : `[Voice note from Randy] Audio file saved at: ${localPath}. Could not transcribe.`;
-          logEvent("voice_transcribed", { path: localPath, text: transcription.slice(0, 200) });
-          await dispatchToConversation(chatId, msg.message_id, content);
+          try {
+            const fileId = (msg.voice ?? msg.audio).file_id;
+            const localPath = await downloadFile(fileId, "ogg");
+            const transcription = await transcribeAudio(localPath);
+            const content = transcription
+              ? `[Voice note from Randy] "${transcription}"`
+              : `[Voice note from Randy] Audio file saved at: ${localPath}. Could not transcribe.`;
+            logEvent("voice_transcribed", { path: localPath, text: transcription.slice(0, 200) });
+            await dispatchToConversation(chatId, msg.message_id, content);
+          } catch (err) {
+            console.error("[edith] Voice note processing failed:", err instanceof Error ? err.message : err);
+            await dispatchToConversation(chatId, msg.message_id,
+              `[Voice note from Randy] Failed to download/transcribe. Error: ${err instanceof Error ? err.message : err}`
+            );
+          }
           continue;
         }
 
         // Photo
         if (msg.photo && msg.photo.length > 0) {
-          const largest = msg.photo[msg.photo.length - 1];
-          const localPath = await downloadFile(largest.file_id, "jpg");
-          const caption = msg.caption ?? "";
-          await dispatchToConversation(chatId, msg.message_id,
-            `[Photo from Randy]${caption ? ` Caption: ${caption}.` : ""} Image saved at: ${localPath}.`
-          );
+          try {
+            const largest = msg.photo[msg.photo.length - 1];
+            const localPath = await downloadFile(largest.file_id, "jpg");
+            const caption = msg.caption ?? "";
+            await dispatchToConversation(chatId, msg.message_id,
+              `[Photo from Randy]${caption ? ` Caption: ${caption}.` : ""} Image saved at: ${localPath}.`
+            );
+          } catch (err) {
+            console.error("[edith] Photo processing failed:", err instanceof Error ? err.message : err);
+            await dispatchToConversation(chatId, msg.message_id,
+              `[Photo from Randy] Failed to download. Error: ${err instanceof Error ? err.message : err}`
+            );
+          }
           continue;
         }
 
@@ -198,11 +212,12 @@ function gracefulShutdown(): void {
   if (dispatchQueue.length > 0) {
     console.log(`[edith] Draining ${dispatchQueue.length} queued message(s) to dead-letter...`);
     for (const job of dispatchQueue) {
-      saveDeadLetter(CHAT_ID, job.prompt, "shutdown_drain");
+      saveDeadLetter(job.opts.chatId ?? CHAT_ID, job.prompt, "shutdown_drain");
     }
     dispatchQueue.length = 0;
   }
   stopCaffeinate();
+  try { unlinkSync(PID_FILE); } catch {}
   process.exit(0);
 }
 

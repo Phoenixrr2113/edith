@@ -1,4 +1,4 @@
-/** Shared types between edith.ts and channel/server.ts */
+/** Shared types between edith.ts, lib/, and mcp/server.ts */
 
 export interface ScheduleEntry {
   name: string;

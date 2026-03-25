@@ -4,14 +4,7 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { SCHEDULE_FILE, SCHEDULE_STATE_FILE, TASKBOARD_FILE, CHAT_ID, logEvent, loadPrompt } from "./state";
 import { dispatchToClaude } from "./dispatch";
-
-interface ScheduleEntry {
-  name: string;
-  prompt: string;
-  hour?: number;
-  minute?: number;
-  intervalMinutes?: number;
-}
+import type { ScheduleEntry } from "../mcp/types";
 
 interface ScheduleState {
   lastFired: Record<string, string>;

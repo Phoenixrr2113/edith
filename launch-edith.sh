@@ -148,11 +148,15 @@ else
   echo "[launch] fswatch not found — auto-restart disabled. Install: brew install fswatch"
 fi
 
-# Keep shell alive — re-wait if Edith gets restarted by fswatch
+# Keep shell alive — poll PID file since fswatch restarts spawn in a subshell
+# (wait only works on direct children, not subshell children)
 while true; do
   if [ -f "$EDITH_PIDFILE" ]; then
-    wait "$(cat "$EDITH_PIDFILE")" 2>/dev/null
-  else
-    sleep 5
+    CURRENT_PID=$(cat "$EDITH_PIDFILE" 2>/dev/null)
+    if [ -n "$CURRENT_PID" ] && ! kill -0 "$CURRENT_PID" 2>/dev/null; then
+      echo "[launch] Edith process $CURRENT_PID exited unexpectedly"
+      break
+    fi
   fi
+  sleep 5
 done

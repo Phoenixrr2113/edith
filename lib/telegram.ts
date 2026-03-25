@@ -65,11 +65,6 @@ export async function downloadFile(fileId: string, ext: string): Promise<string>
 }
 
 export async function transcribeAudio(filePath: string): Promise<string> {
-  const file = Bun.file(filePath);
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("model", "whisper-large-v3");
-
   const providers = [
     { url: "https://api.groq.com/openai/v1/audio/transcriptions", key: process.env.GROQ_API_KEY },
     { url: "https://api.openai.com/v1/audio/transcriptions", key: process.env.OPENAI_API_KEY },
@@ -78,6 +73,10 @@ export async function transcribeAudio(filePath: string): Promise<string> {
   for (const { url, key } of providers) {
     if (!key) continue;
     try {
+      // Create fresh FormData for each attempt (body stream is consumed after fetch)
+      const formData = new FormData();
+      formData.append("file", Bun.file(filePath));
+      formData.append("model", "whisper-large-v3");
       const res = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}` },

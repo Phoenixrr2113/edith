@@ -7,7 +7,7 @@ let caffeinateProc: ReturnType<typeof spawn> | null = null;
 
 export function startCaffeinate(): void {
   try {
-    caffeinateProc = spawn("caffeinate", ["-dis"], { stdio: "ignore" });
+    caffeinateProc = spawn("caffeinate", ["-dis", "-w", String(process.pid)], { stdio: "ignore" });
     console.log(`[edith] caffeinate started (pid ${caffeinateProc.pid}) — preventing display, idle, and system sleep`);
     caffeinateProc.on("error", () => {
       console.warn("[edith] caffeinate not available — system may sleep");
