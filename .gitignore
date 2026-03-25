@@ -1,0 +1,7 @@
+node_modules/
+.env
+logs/
+channel/node_modules/
+n8n/data/
+locations.json
+reminders.json

@@ -1,0 +1,45 @@
+services:
+  cognee:
+    image: cognee/cognee-mcp:main
+    ports:
+      - "8001:8000"
+    environment:
+      TRANSPORT_MODE: sse
+      LLM_API_KEY: ${OPENROUTER_API_KEY}
+      LLM_PROVIDER: custom
+      LLM_MODEL: openrouter/qwen/qwen3-235b-a22b-2507
+      LLM_ENDPOINT: https://openrouter.ai/api/v1
+      # Use local fastembed for embeddings (no API key needed)
+      EMBEDDING_PROVIDER: fastembed
+      EMBEDDING_MODEL: nomic-ai/nomic-embed-text-v1.5
+      EMBEDDING_DIMENSIONS: 768
+    volumes:
+      - cognee-data:/app/.venv/lib/python3.12/site-packages/cognee/.cognee_system
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n
+    container_name: edith-n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5679}:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
+      - WEBHOOK_URL=http://localhost:${N8N_PORT:-5679}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - GENERIC_TIMEZONE=${TZ:-America/New_York}
+    volumes:
+      - ./n8n/data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  cognee-data:

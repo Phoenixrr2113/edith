@@ -1,0 +1,18 @@
+[
+  {
+    "id": "r-1774373515344-ywfa",
+    "text": "Call Steven",
+    "type": "location",
+    "fired": true,
+    "created": "2026-03-24T17:31:55.344Z",
+    "location": "dianas-work"
+  },
+  {
+    "id": "r-1774374437399-z51r",
+    "text": "Restart edith.ts to apply security fix: pkill -f edith.ts && ./launch-edith.sh",
+    "type": "location",
+    "fired": true,
+    "created": "2026-03-24T17:47:17.399Z",
+    "location": "home"
+  }
+]

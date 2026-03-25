@@ -1,0 +1,18 @@
+{
+  "locations": [
+    {
+      "name": "home",
+      "label": "Home",
+      "lat": 27.5030,
+      "lon": -82.4725,
+      "radiusMeters": 200
+    },
+    {
+      "name": "dianas-work",
+      "label": "Diana's Workplace",
+      "lat": 27.4373,
+      "lon": -82.3627,
+      "radiusMeters": 200
+    }
+  ]
+}

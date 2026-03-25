@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "cognee": {
+      "type": "sse",
+      "url": "http://localhost:8001/sse"
+    },
+    "edith": {
+      "command": "bash",
+      "args": ["channel/start.sh"]
+    },
+    "computer-use": {
+      "command": "npx",
+      "args": ["-y", "computer-use-mcp"]
+    }
+  }
+}
