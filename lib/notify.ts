@@ -8,7 +8,7 @@ const DASHBOARD_URL = `http://localhost:${process.env.DASHBOARD_PORT ?? 3456}`;
 
 /** Sanitize text for AppleScript strings — strip anything that could break out. */
 function sanitize(s: string): string {
-  return s.replace(/[\\"]/g, "").replace(/[\n\r]/g, " ").slice(0, 500);
+  return s.replace(/[\\"`${}()]/g, "").replace(/[\n\r]/g, " ").slice(0, 500);
 }
 
 /**
@@ -33,6 +33,7 @@ export async function showDialog(
   body: string,
   buttons: string[] = ["OK"]
 ): Promise<string> {
+  if (!buttons.length) buttons = ["OK"];
   const safeBody = sanitize(body);
   const safeTitle = sanitize(title);
   const buttonList = buttons.map(b => `"${sanitize(b)}"`).join(", ");

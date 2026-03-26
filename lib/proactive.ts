@@ -2,8 +2,8 @@
  * Proactive intervention tracker — cooldowns, rate limits, quiet hours.
  * Prevents notification fatigue while allowing Edith to act without being asked.
  */
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { STATE_DIR } from "./config";
 
 const PROACTIVE_STATE_FILE = join(STATE_DIR, "proactive-state.json");
@@ -40,7 +40,12 @@ function loadState(): ProactiveState {
 }
 
 function saveState(state: ProactiveState): void {
-  writeFileSync(PROACTIVE_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  try {
+    mkdirSync(dirname(PROACTIVE_STATE_FILE), { recursive: true });
+    writeFileSync(PROACTIVE_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[proactive] Failed to save state:", err instanceof Error ? err.message : err);
+  }
 }
 
 /**

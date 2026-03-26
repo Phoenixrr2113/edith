@@ -343,9 +343,15 @@ server.registerTool("show_notification", {
     body: z.string().describe("Notification body text"),
   },
 }, async ({ title, body }) => {
-  await showNotification(title, body);
-  logEvent("desktop_notification", { title, body: body.slice(0, 100) });
-  return textResponse("Notification shown");
+  try {
+    await showNotification(title, body);
+    logEvent("desktop_notification", { title, body: body.slice(0, 100) });
+    return textResponse("Notification shown");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logEvent("desktop_notification_error", { title, error: msg });
+    return textResponse(`Notification failed: ${msg}`);
+  }
 });
 
 server.registerTool("show_dialog", {
@@ -356,9 +362,15 @@ server.registerTool("show_dialog", {
     buttons: z.array(z.string()).min(1).max(3).default(["OK"]).describe("Button labels (max 3). Last button is the default."),
   },
 }, async ({ title, body, buttons }) => {
-  const clicked = await showDialog(title, body, buttons);
-  logEvent("desktop_dialog", { title, clicked });
-  return textResponse(`Button clicked: ${clicked}`);
+  try {
+    const clicked = await showDialog(title, body, buttons);
+    logEvent("desktop_dialog", { title, clicked });
+    return textResponse(`Button clicked: ${clicked}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logEvent("desktop_dialog_error", { title, error: msg });
+    return textResponse(`Dialog failed: ${msg}`);
+  }
 });
 
 // ============================================================

@@ -4,9 +4,10 @@
  */
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "fs";
 import { join, basename } from "path";
+import { homedir } from "os";
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
-const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
+const STATE_DIR = join(process.env.HOME ?? homedir(), ".edith");
 const TRIGGERS_DIR = join(STATE_DIR, "triggers");
 const TRANSCRIPTS_DIR = join(STATE_DIR, "transcripts");
 const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
@@ -60,13 +61,15 @@ async function getStatus() {
   const [n8nOk, cogneeOk, screenpipeOk] = await Promise.all([
     checkHealth(`${N8N_URL}/healthz`),
     (async () => {
+      const c = new AbortController();
+      const timeoutId = setTimeout(() => c.abort(), 2000);
       try {
-        const c = new AbortController();
-        setTimeout(() => c.abort(), 2000);
         await fetch(`${COGNEE_URL}/sse`, { signal: c.signal });
         return true;
       } catch (e: any) {
         return e?.name === "AbortError";
+      } finally {
+        clearTimeout(timeoutId);
       }
     })(),
     checkHealth("http://localhost:3030/health"),
@@ -151,10 +154,14 @@ function getNewLogLines(): string[] {
       if (st.size < logFileSize) logFileSize = 0; // file was rotated
       return [];
     }
-    const buf = readFileSync(LOG_FILE, "utf-8");
-    const newContent = buf.slice(logFileSize);
+    const { openSync, readSync, closeSync } = require("fs");
+    const fd = openSync(LOG_FILE, "r");
+    const bytesToRead = st.size - logFileSize;
+    const buf = Buffer.alloc(bytesToRead);
+    readSync(fd, buf, 0, bytesToRead, logFileSize);
+    closeSync(fd);
     logFileSize = st.size;
-    return newContent.split("\n").filter(Boolean);
+    return buf.toString("utf-8").split("\n").filter(Boolean);
   } catch { return []; }
 }
 
@@ -321,7 +328,7 @@ function ago(ts) {
   return Math.floor(s/86400) + 'd ago';
 }
 function dot(ok) { return '<span class="dot ' + (ok ? 'green' : 'red') + '"></span>'; }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // --- Tabs ---
 function switchTab(name, el) {
@@ -629,6 +636,7 @@ const server = Bun.serve({
       try {
         const { text } = await req.json() as { text: string };
         if (!text?.trim()) return Response.json({ ok: false, error: "empty message" }, { status: 400 });
+        if (Buffer.byteLength(text, "utf-8") > 10 * 1024) return Response.json({ ok: false, error: "message too large" }, { status: 413 });
         const inboxDir = join(STATE_DIR, "inbox");
         mkdirSync(inboxDir, { recursive: true });
         const filename = `dashboard-${Date.now()}.json`;

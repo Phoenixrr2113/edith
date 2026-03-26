@@ -7,6 +7,11 @@ PLIST_SRC="$DIR/com.edith.agent.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.edith.agent.plist"
 STATE_DIR="$HOME/.edith"
 
+if [ ! -f "$PLIST_SRC" ]; then
+  echo "Error: plist source not found at $PLIST_SRC" >&2
+  exit 1
+fi
+
 mkdir -p "$STATE_DIR"
 
 # Check if already loaded
@@ -15,8 +20,10 @@ if launchctl print "gui/$(id -u)/com.edith.agent" &>/dev/null; then
   exit 1
 fi
 
-# Copy plist to LaunchAgents
-cp "$PLIST_SRC" "$PLIST_DST"
+# Install plist with path substitution for portability
+sed -e "s|/Users/randywilson/Desktop/edith-v3|$DIR|g" \
+    -e "s|/Users/randywilson|$HOME|g" \
+    "$PLIST_SRC" > "$PLIST_DST"
 echo "Installed plist to $PLIST_DST"
 
 # Bootstrap (load) the agent

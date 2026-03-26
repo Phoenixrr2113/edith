@@ -28,7 +28,7 @@ import {
   BOT_TOKEN, CHAT_ID, SMS_BOT_ID, ALLOWED_CHATS,
   INBOX_DIR, PID_FILE, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
   offset, saveOffset, sessionId, clearSession, logEvent, rotateEvents,
-  loadPrompt, loadDeadLetters, clearDeadLetters, saveDeadLetter,
+  loadDeadLetters, clearDeadLetters, saveDeadLetter,
 } from "./lib/state";
 import { STATE_DIR } from "./lib/config";
 import { tgCall, sendMessage, sendTyping, downloadFile, transcribeAudio } from "./lib/telegram";
@@ -323,7 +323,6 @@ setInterval(async () => {
     if (existsSync(TRIGGERS_DIR)) {
       for (const f of readdirSync(TRIGGERS_DIR)) {
         const fp = join(TRIGGERS_DIR, f);
-        try { unlinkSync(fp); } catch {}
         console.log(`[edith] Dashboard trigger: ${f}`);
         logEvent("dashboard_trigger", { task: f });
         // Fire the triggered task immediately
@@ -331,7 +330,11 @@ setInterval(async () => {
         const briefType = briefTypeMap[f];
         const prompt = briefType ? await buildBrief(briefType as any) : await buildBrief("scheduled", { prompt: `/${f}`, taskName: f });
         dispatchToClaude(prompt, { resume: false, label: f, skipIfBusy: false, briefType: (briefType ?? "scheduled") as any })
-          .catch((err) => console.error(`[edith] Trigger dispatch error:`, err instanceof Error ? err.message : err));
+          .then(() => { try { unlinkSync(fp); } catch {} })
+          .catch((err) => {
+            console.error(`[edith] Trigger dispatch error:`, err instanceof Error ? err.message : err);
+            try { unlinkSync(fp); } catch {} // Clean up even on failure to avoid infinite retries
+          });
       }
     }
   } catch {}
@@ -344,13 +347,18 @@ setInterval(async () => {
         const fp = join(INBOX_DIR, f);
         try {
           const msg = JSON.parse(readFileSync(fp, "utf-8"));
-          unlinkSync(fp);
           if (msg.text?.trim()) {
             console.log(`[edith] Dashboard message: ${msg.text.slice(0, 80)}`);
             logEvent("dashboard_message", { text: msg.text.slice(0, 200) });
             const brief = await buildBrief("message" as any, { message: msg.text, chatId: String(CHAT_ID) });
             dispatchToClaude(brief, { resume: true, label: "dashboard-msg", chatId: CHAT_ID })
-              .catch((err) => console.error(`[edith] Dashboard msg dispatch error:`, err instanceof Error ? err.message : err));
+              .then(() => { try { unlinkSync(fp); } catch {} })
+              .catch((err) => {
+                console.error(`[edith] Dashboard msg dispatch error:`, err instanceof Error ? err.message : err);
+                try { unlinkSync(fp); } catch {};
+              });
+          } else {
+            try { unlinkSync(fp); } catch {} // Clean up empty/invalid messages
           }
         } catch {}
       }

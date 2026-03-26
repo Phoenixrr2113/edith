@@ -148,7 +148,6 @@ async function buildProactiveBrief(): Promise<string> {
 
   // Fetch screen context (wide window for session detection)
   let screen = "";
-  let audioKnowledge = "";
   try {
     if (await screenpipeAvailable()) {
       const ctx = await getScreenContext(180);

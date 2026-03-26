@@ -55,7 +55,7 @@ function shouldFire(entry: ScheduleEntry, now: Date, state: ScheduleState): bool
 
   // Window-based: fire if we're at or past the target time today and haven't fired today
   const targetHour = entry.hour ?? -1;
-  const targetMinute = entry.minute ?? -1;
+  const targetMinute = entry.minute ?? 0;
   if (targetHour < 0) return false;
 
   const h = now.getHours();
@@ -106,7 +106,7 @@ export async function runScheduler(): Promise<void> {
     });
 
     // Save state after dispatch so failed/skipped tasks can retry next tick
-    if (result || result === "injected") {
+    if (result) {
       state.lastFired[entry.name] = now.toISOString();
       saveScheduleState(state);
     }

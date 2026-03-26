@@ -44,7 +44,7 @@ export function appendTranscript(wakeId: string, message: any): void {
       if (Array.isArray(content)) {
         entry.blocks = content.map((block: any) => {
           if (block.type === "tool_use") {
-            return { type: "tool_use", name: block.name, input_preview: JSON.stringify(block.input).slice(0, 200) };
+            return { type: "tool_use", name: block.name, input_preview: (JSON.stringify(block.input) ?? "").slice(0, 200) };
           }
           if (block.type === "text") {
             return { type: "text", text: block.text?.slice(0, 300) };
@@ -58,7 +58,7 @@ export function appendTranscript(wakeId: string, message: any): void {
       entry.num_turns = message.num_turns;
       entry.total_cost_usd = message.total_cost_usd;
       entry.duration_ms = message.duration_ms;
-      if (message.result) entry.result_preview = message.result.slice(0, 300);
+      if (message.result) entry.result_preview = (typeof message.result === "string" ? message.result : JSON.stringify(message.result)).slice(0, 300);
     } else if (type === "user") {
       const content = typeof message.message?.content === "string"
         ? message.message.content.slice(0, 300)

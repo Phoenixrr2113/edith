@@ -5,7 +5,7 @@ set -e
 PLIST_DST="$HOME/Library/LaunchAgents/com.edith.agent.plist"
 
 if launchctl print "gui/$(id -u)/com.edith.agent" &>/dev/null; then
-  launchctl bootout "gui/$(id -u)/com.edith.agent"
+  launchctl bootout "gui/$(id -u)/com.edith.agent" || echo "Warning: bootout failed (may already be unloading)"
   echo "Edith LaunchAgent stopped."
 else
   echo "Edith LaunchAgent not loaded."

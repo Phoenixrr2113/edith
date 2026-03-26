@@ -104,6 +104,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
   const startTime = Date.now();
   let typingInterval: ReturnType<typeof setInterval> | null = null;
   const wakeId = `${label}-${Date.now()}`;
+  let pseudoPid = 0;
 
   // AbortController for timeout
   const abortController = new AbortController();
@@ -163,7 +164,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     setActiveQuery(queryHandle);
 
     // Track as active process (unique ID)
-    const pseudoPid = ++pidCounter;
+    pseudoPid = ++pidCounter;
     activeProcesses.set(pseudoPid, { pid: pseudoPid, label, startedAt: new Date().toISOString(), prompt: prompt.slice(0, 200) });
     writeActiveProcesses();
 
@@ -237,12 +238,13 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
 
     // Handle session retry — push to front of queue so finally block drains it
     if (needsRetry) {
-      dispatchQueue.unshift({
-        prompt,
-        opts: { ...opts, resume: true, label, _sessionRetried: true },
-        resolve: () => {},
+      return new Promise<string>((retryResolve) => {
+        dispatchQueue.unshift({
+          prompt,
+          opts: { ...opts, resume: true, label, _sessionRetried: true },
+          resolve: retryResolve,
+        });
       });
-      return "";
     }
 
     // Save session ID
