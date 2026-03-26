@@ -147,11 +147,11 @@ export class ReflectorSession {
   }
 
   // -------------------------------------------------------------------------
-  // Reflection generation — uses Gemini Flash for speed + low cost
+  // Reflection generation — uses Claude Haiku for speed + low cost
   // -------------------------------------------------------------------------
 
   /** Build a reflection prompt and return it, or null if nothing useful to say. */
-  async buildReflection(trigger: "periodic" | "compaction" | "guard" | "completion", guardContext?: { toolName: string; toolInput: any }): Promise<string | null> {
+  async buildReflection(trigger: "periodic" | "compaction" | "guard", guardContext?: { toolName: string; toolInput: any }): Promise<string | null> {
     this.lastReflectionAt = this.toolCallCount;
 
     const compressedTranscript = this.compressTranscript();
