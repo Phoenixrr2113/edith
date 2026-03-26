@@ -12,6 +12,14 @@ import { processAudioTranscripts } from "./audio-extract";
 
 export type BriefType = "boot" | "morning" | "midday" | "evening" | "message" | "location" | "scheduled" | "proactive";
 
+/** Map task names to brief types for known scheduled tasks. */
+export const BRIEF_TYPE_MAP: Record<string, BriefType> = {
+  "morning-brief": "morning",
+  "midday-check": "midday",
+  "evening-wrap": "evening",
+  "proactive-check": "proactive",
+};
+
 /**
  * Build the prompt for a given wake reason.
  */
@@ -131,13 +139,21 @@ function buildLocationBrief(description: string, lat: string, lon: string, chatI
  * Gather screen context and summarize via Gemini Flash-Lite.
  * Raw screenpipe data → Gemini (cheap) → concise summary for Claude (subscription).
  */
-async function gatherScreenContext(minutes: number = 15): Promise<string> {
+async function gatherScreenContext(minutes: number = 15, processAudio: boolean = false): Promise<string> {
   try {
     if (!(await screenpipeAvailable())) return "";
     const ctx = await getScreenContext(minutes);
     if (ctx.empty) return "";
     const raw = formatContext(ctx);
-    return await summarizeScreenContext(ctx, raw);
+    const summary = await summarizeScreenContext(ctx, raw);
+
+    if (processAudio && ctx.audioTranscripts.length > 0) {
+      processAudioTranscripts(ctx.audioTranscripts)
+        .then((k) => { if (k) console.log(`[proactive] Audio processed: [${k.type}] ${k.summary.slice(0, 60)}`); })
+        .catch(() => {});
+    }
+
+    return summary;
   } catch {
     return "";
   }
@@ -147,23 +163,7 @@ async function buildProactiveBrief(): Promise<string> {
   const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 
   // Fetch screen context (wide window for session detection)
-  let screen = "";
-  try {
-    if (await screenpipeAvailable()) {
-      const ctx = await getScreenContext(180);
-      if (!ctx.empty) {
-        const raw = formatContext(ctx);
-        screen = await summarizeScreenContext(ctx, raw);
-
-        // Process audio transcripts → Qwen → Cognee (fire and forget, don't block brief)
-        if (ctx.audioTranscripts.length > 0) {
-          processAudioTranscripts(ctx.audioTranscripts)
-            .then((k) => { if (k) console.log(`[proactive] Audio processed: [${k.type}] ${k.summary.slice(0, 60)}`); })
-            .catch(() => {});
-        }
-      }
-    }
-  } catch {}
+  const screen = await gatherScreenContext(180, true);
 
   const taskboard = getRecentTaskboardEntries();
 

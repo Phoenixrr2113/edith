@@ -3,6 +3,7 @@
  * This gives Edith context without needing tool calls, saving turns and time.
  */
 import { n8nPost } from "./n8n-client";
+import { fmtErr } from "./util";
 
 /**
  * Fetch today's calendar events via n8n.
@@ -23,7 +24,7 @@ async function getCalendarEvents(): Promise<string> {
       return `- ${time}: ${e.summary ?? e.title ?? "Untitled"}${e.location ? ` (${e.location})` : ""}`;
     }).join("\n");
   } catch (err) {
-    console.error("[prewake] Calendar fetch failed:", err instanceof Error ? err.message : err);
+    console.error("[prewake] Calendar fetch failed:", fmtErr(err));
     return "";
   }
 }
@@ -47,7 +48,7 @@ async function getRecentEmails(): Promise<string> {
       return `- ${date} | ${from} | ${subject}`;
     }).join("\n");
   } catch (err) {
-    console.error("[prewake] Email fetch failed:", err instanceof Error ? err.message : err);
+    console.error("[prewake] Email fetch failed:", fmtErr(err));
     return "";
   }
 }

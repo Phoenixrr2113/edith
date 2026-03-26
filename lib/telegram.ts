@@ -3,7 +3,7 @@
  */
 import { writeFileSync } from "fs";
 import { join } from "path";
-import { BOT_TOKEN, INBOX_DIR } from "./state";
+import { TELEGRAM_BOT_TOKEN as BOT_TOKEN, INBOX_DIR } from "./config";
 
 const TG = `https://api.telegram.org/bot${BOT_TOKEN}`;
 

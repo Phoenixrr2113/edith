@@ -5,18 +5,14 @@
 import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 
-// --- Config (re-export from centralized config for backward compatibility) ---
-export { CHAT_ID, TELEGRAM_BOT_TOKEN as BOT_TOKEN, TELEGRAM_USER_ID, SMS_BOT_ID,
-         STATE_DIR, INBOX_DIR, EVENTS_FILE, SESSION_FILE, TASKBOARD_FILE,
-         PID_FILE, DEAD_LETTER_FILE } from "./config";
 import { CHAT_ID, STATE_DIR, EVENTS_FILE, SESSION_FILE, DEAD_LETTER_FILE, INBOX_DIR } from "./config";
+import { saveJson } from "./storage";
 
 const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
 export const ALLOWED_CHATS = new Set([CHAT_ID, USER_ID].filter(Boolean));
 
 export const OFFSET_FILE = join(STATE_DIR, "tg-offset");
 export const SCHEDULE_STATE_FILE = join(STATE_DIR, "schedule-state.json");
-export const SCHEDULE_FILE = join(STATE_DIR, "schedule.json");
 
 export const PROJECT_ROOT = join(import.meta.dir, "..");
 export const PROMPTS_DIR = join(PROJECT_ROOT, "prompts");
@@ -90,7 +86,7 @@ export const activeProcesses: Map<number, ActiveProcess> = new Map();
 
 export function writeActiveProcesses(): void {
   try {
-    writeFileSync(join(STATE_DIR, "active-processes.json"), JSON.stringify(Array.from(activeProcesses.values()), null, 2), "utf-8");
+    saveJson(join(STATE_DIR, "active-processes.json"), Array.from(activeProcesses.values()));
   } catch {}
 }
 

@@ -3,6 +3,8 @@
  * Screenpipe runs on localhost:3030 and captures everything on screen + microphone.
  */
 
+import { fmtErr } from "./util";
+
 const BASE_URL = process.env.SCREENPIPE_URL ?? "http://localhost:3030";
 const TIMEOUT = 5000;
 
@@ -66,7 +68,7 @@ export async function getContext(minutes: number = 15): Promise<ScreenContext> {
       empty: false,
     };
   } catch (err) {
-    console.warn("[screenpipe] getContext failed:", err instanceof Error ? err.message : err);
+    console.warn("[screenpipe] getContext failed:", fmtErr(err));
     return { timeRange, apps: [], audioTranscripts: [], continuousActivityMinutes: 0, empty: true };
   }
 }

@@ -12,11 +12,14 @@
 import { query, type Options, type SDKResultMessage, type SDKAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
+import { CHAT_ID } from "./config";
 import {
   sessionId, saveSession, clearSession,
   logEvent, activeProcesses, writeActiveProcesses,
-  saveDeadLetter, CHAT_ID, PROJECT_ROOT,
+  saveDeadLetter, PROJECT_ROOT,
 } from "./state";
+import { loadJson } from "./storage";
+import { fmtErr } from "./util";
 import { sendTyping } from "./telegram";
 import { buildBrief, type BriefType } from "./briefs";
 import { appendTranscript, startTranscript } from "./transcript";
@@ -57,8 +60,7 @@ const QUERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max per dispatch
 // --- MCP config ---
 function loadMcpConfig(): Record<string, any> {
   try {
-    const { readFileSync } = require("fs");
-    const config = JSON.parse(readFileSync(`${PROJECT_ROOT}/.mcp.json`, "utf-8"));
+    const config = loadJson<Record<string, any>>(`${PROJECT_ROOT}/.mcp.json`, {});
     return config.mcpServers ?? {};
   } catch {
     return {};
@@ -270,7 +272,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
 
     return lastResult;
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    const errMsg = fmtErr(err);
     console.error(`[edith:${label}] Error:`, errMsg);
     logEvent("dispatch_error", { label, error: errMsg });
 

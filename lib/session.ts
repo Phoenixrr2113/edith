@@ -4,6 +4,7 @@
  */
 import type { Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
+import { fmtErr } from "./util";
 
 let activeQuery: Query | null = null;
 let activeSessionId: string = "";
@@ -50,7 +51,7 @@ export async function injectMessage(text: string, chatId?: number): Promise<bool
     console.log(`[session] Injected message into active session: "${text.slice(0, 80)}..."`);
     return true;
   } catch (err) {
-    console.error("[session] streamInput failed:", err instanceof Error ? err.message : err);
+    console.error("[session] streamInput failed:", fmtErr(err));
     return false;
   }
 }

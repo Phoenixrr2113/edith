@@ -5,6 +5,7 @@
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GOOGLE_API_KEY } from "./config";
+import { fmtErr } from "./util";
 import type { ScreenContext } from "./screenpipe";
 
 const MODEL = "gemini-2.5-flash-lite-preview-06-17";
@@ -64,7 +65,7 @@ ${rawFormatted}` }],
     if (text?.trim()) return text.trim();
     return rawFormatted;
   } catch (err) {
-    console.warn("[gemini] Summarization failed, using raw context:", err instanceof Error ? err.message : err);
+    console.warn("[gemini] Summarization failed, using raw context:", fmtErr(err));
     return rawFormatted;
   }
 }

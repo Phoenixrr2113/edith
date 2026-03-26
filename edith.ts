@@ -7,7 +7,7 @@
  *
  * All logic is in lib/ modules. This file is just the startup + poll loop.
  */
-import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
+import { existsSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 
 // --- Log to file + console ---
@@ -25,31 +25,27 @@ console.log = (...args: any[]) => { _origLog(...args); writeLog("info", args); }
 console.error = (...args: any[]) => { _origErr(...args); writeLog("error", args); };
 console.warn = (...args: any[]) => { _origWarn(...args); writeLog("warn", args); };
 import {
-  BOT_TOKEN, CHAT_ID, SMS_BOT_ID, ALLOWED_CHATS,
-  INBOX_DIR, PID_FILE, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
+  TELEGRAM_BOT_TOKEN as BOT_TOKEN, CHAT_ID, SMS_BOT_ID, INBOX_DIR, PID_FILE, STATE_DIR,
+  BACKOFF_SCHEDULE, INBOX_MAX_AGE_MS,
+} from "./lib/config";
+import {
+  ALLOWED_CHATS, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
   offset, saveOffset, sessionId, clearSession, logEvent, rotateEvents,
   loadDeadLetters, clearDeadLetters, saveDeadLetter,
 } from "./lib/state";
-import { STATE_DIR } from "./lib/config";
-import { tgCall, sendMessage, sendTyping, downloadFile, transcribeAudio } from "./lib/telegram";
+import { tgCall, sendTyping } from "./lib/telegram";
 import { rotateTaskboard } from "./lib/taskboard";
 import { dispatchToClaude, dispatchToConversation, dispatchQueue } from "./lib/dispatch";
 import { runScheduler } from "./lib/scheduler";
 import { startCaffeinate, stopCaffeinate } from "./lib/caffeinate";
 import { getActiveQuery } from "./lib/session";
 import { buildBrief } from "./lib/briefs";
-import {
-  checkLocationReminders,
-  checkLocationTransitions,
-  checkTimeReminders,
-  markFired,
-} from "./mcp/geo";
+import { fmtErr } from "./lib/util";
+import { handleLocation, handleVoice, handlePhoto, handleText } from "./lib/handlers";
+import { schedulerTick, type TickState } from "./lib/tick";
 
 // --- Signal files ---
-const SIGNAL_RESTART = join(STATE_DIR, ".signal-restart");
-const SIGNAL_PAUSE = join(STATE_DIR, ".signal-pause");
 const SIGNAL_FRESH = join(STATE_DIR, ".signal-fresh");
-const TRIGGERS_DIR = join(STATE_DIR, "triggers");
 let paused = false;
 
 if (!BOT_TOKEN) {
@@ -69,7 +65,6 @@ let currentOffset = offset;
 async function poll(): Promise<void> {
   console.log("[edith] Starting Telegram poll loop...");
   let consecutiveErrors = 0;
-  const BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
 
   while (true) {
     try {
@@ -91,7 +86,7 @@ async function poll(): Promise<void> {
 
         // Security: Only process messages from Randy's authorized chats or the SMS bot
         const fromId = msg.from?.id;
-        const isSmsBot = SMS_BOT_ID && String(fromId) === SMS_BOT_ID;
+        const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
         if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
           if (!recentlyIgnored.has(chatId)) {
             console.log(`[edith] Ignoring message from unauthorized chat: ${chatId}`);
@@ -112,96 +107,29 @@ async function poll(): Promise<void> {
           text: (msg.text ?? "").slice(0, 200),
         });
 
-        // Location update — handle locally, notify Claude only on transitions
+        // Dispatch to type-specific handler
         if (msg.location) {
-          const { latitude: lat, longitude: lon } = msg.location;
-
-          const locReminders = checkLocationReminders(lat, lon);
-          for (const { reminder, locationLabel } of locReminders) {
-            await sendMessage(chatId, `📍 *Reminder* (near ${locationLabel})\n\n${reminder.text}`);
-          }
-          if (locReminders.length > 0) {
-            markFired(locReminders.map((t) => t.reminder.id));
-          }
-
-          const timeReminders = checkTimeReminders();
-          for (const r of timeReminders) {
-            await sendMessage(chatId, `⏰ *Reminder*\n\n${r.text}`);
-          }
-          if (timeReminders.length > 0) {
-            markFired(timeReminders.map((r) => r.id));
-          }
-
-          const transitions = checkLocationTransitions(lat, lon);
-          if (transitions.length > 0) {
-            const desc = transitions.map((t) => {
-              const emoji = t.type === "arrived" ? "📍" : "🚗";
-              return `${emoji} ${t.type === "arrived" ? "Arrived at" : "Left"} ${t.locationLabel}`;
-            }).join(". ");
-            const brief = await buildBrief("location", { description: desc, lat: String(lat), lon: String(lon), chatId: String(chatId) });
-            await dispatchToClaude(brief, { label: "location", briefType: "location" });
-          }
+          await handleLocation(chatId, msg.location.latitude, msg.location.longitude);
           continue;
         }
-
-        // Voice note
         if (msg.voice || msg.audio) {
-          try {
-            const fileId = (msg.voice ?? msg.audio).file_id;
-            const localPath = await downloadFile(fileId, "ogg");
-            const transcription = await transcribeAudio(localPath);
-            const content = transcription
-              ? `[Voice note from Randy] "${transcription}"`
-              : `[Voice note from Randy] Audio file saved at: ${localPath}. Could not transcribe.`;
-            logEvent("voice_transcribed", { path: localPath, text: (transcription ?? "").slice(0, 200) });
-            await dispatchToConversation(chatId, msg.message_id, content);
-          } catch (err) {
-            console.error("[edith] Voice note processing failed:", err instanceof Error ? err.message : err);
-            await dispatchToConversation(chatId, msg.message_id,
-              `[Voice note from Randy] Failed to download/transcribe. Error: ${err instanceof Error ? err.message : err}`
-            );
-          }
+          await handleVoice(chatId, msg.message_id, (msg.voice ?? msg.audio).file_id);
           continue;
         }
-
-        // Photo
         if (msg.photo && msg.photo.length > 0) {
-          try {
-            const largest = msg.photo[msg.photo.length - 1];
-            const localPath = await downloadFile(largest.file_id, "jpg");
-            const caption = msg.caption ?? "";
-            await dispatchToConversation(chatId, msg.message_id,
-              `[Photo from Randy]${caption ? ` Caption: ${caption}.` : ""} Image saved at: ${localPath}.`
-            );
-          } catch (err) {
-            console.error("[edith] Photo processing failed:", err instanceof Error ? err.message : err);
-            await dispatchToConversation(chatId, msg.message_id,
-              `[Photo from Randy] Failed to download. Error: ${err instanceof Error ? err.message : err}`
-            );
-          }
+          await handlePhoto(chatId, msg.message_id, msg.photo[msg.photo.length - 1].file_id, msg.caption ?? "");
           continue;
         }
-
-        // Text message
         if (msg.text) {
-          if (isSmsBot) {
-            // SMS relay — these are forwarded texts from other people, not from Randy
-            await dispatchToConversation(chatId, msg.message_id,
-              `[Incoming SMS forwarded by relay bot]\n${msg.text}\n\n[Triage this: store any new contacts/context in Cognee. If it needs Randy's attention, summarize and forward via send_message. If it's spam/verification codes, ignore silently. Chat ID: ${CHAT_ID}]`
-            );
-          } else {
-            await dispatchToConversation(chatId, msg.message_id,
-              `[Message from Randy via Telegram] ${msg.text}`
-            );
-          }
+          await handleText(chatId, msg.message_id, msg.text, isSmsBot);
         }
       }
       consecutiveErrors = 0;
     } catch (err) {
       consecutiveErrors++;
       const backoff = BACKOFF_SCHEDULE[Math.min(consecutiveErrors - 1, BACKOFF_SCHEDULE.length - 1)];
-      console.error(`[edith] Poll error (${consecutiveErrors}x, backoff ${backoff / 1000}s):`, err instanceof Error ? err.message : err);
-      logEvent("poll_error", { error: err instanceof Error ? err.message : String(err), consecutiveErrors, backoffMs: backoff });
+      console.error(`[edith] Poll error (${consecutiveErrors}x, backoff ${backoff / 1000}s):`, fmtErr(err));
+      logEvent("poll_error", { error: fmtErr(err), consecutiveErrors, backoffMs: backoff });
       await Bun.sleep(backoff);
       continue;
     }
@@ -280,12 +208,11 @@ rotateEvents();
 
 // Clean up old inbox files (older than 7 days)
 try {
-  const INBOX_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
   const now = Date.now();
   if (existsSync(INBOX_DIR)) {
     for (const f of readdirSync(INBOX_DIR)) {
       const fp = join(INBOX_DIR, f);
-      try { if (now - statSync(fp).mtimeMs > INBOX_MAX_AGE) unlinkSync(fp); } catch {}
+      try { if (now - statSync(fp).mtimeMs > INBOX_MAX_AGE_MS) unlinkSync(fp); } catch {}
     }
   }
 } catch {}
@@ -295,85 +222,24 @@ startCaffeinate();
 await bootstrap();
 
 // Scheduler + signal file watcher
+const tickState: TickState = { paused: false };
 let schedulerRunning = false;
 setInterval(async () => {
   if (schedulerRunning) return;
   schedulerRunning = true;
   try {
-  // Check signal files
-  if (existsSync(SIGNAL_RESTART)) {
-    console.log("[edith] Signal: restart requested.");
-    try { unlinkSync(SIGNAL_RESTART); } catch {}
-    logEvent("signal_restart", {});
-    process.exit(0); // launch-edith.sh auto-restarts
-  }
-
-  if (existsSync(SIGNAL_PAUSE)) {
-    console.log("[edith] Signal: pause requested. Waiting for 'wake up' message...");
-    try { unlinkSync(SIGNAL_PAUSE); } catch {}
-    logEvent("signal_pause", {});
-    paused = true;
-    return;
-  }
-
-  if (paused) return;
-
-  // Check for dashboard trigger files
-  try {
-    if (existsSync(TRIGGERS_DIR)) {
-      for (const f of readdirSync(TRIGGERS_DIR)) {
-        const fp = join(TRIGGERS_DIR, f);
-        console.log(`[edith] Dashboard trigger: ${f}`);
-        logEvent("dashboard_trigger", { task: f });
-        // Fire the triggered task immediately
-        const briefTypeMap: Record<string, string> = { "morning-brief": "morning", "midday-check": "midday", "evening-wrap": "evening" };
-        const briefType = briefTypeMap[f];
-        const prompt = briefType ? await buildBrief(briefType as any) : await buildBrief("scheduled", { prompt: `/${f}`, taskName: f });
-        dispatchToClaude(prompt, { resume: false, label: f, skipIfBusy: false, briefType: (briefType ?? "scheduled") as any })
-          .then(() => { try { unlinkSync(fp); } catch {} })
-          .catch((err) => {
-            console.error(`[edith] Trigger dispatch error:`, err instanceof Error ? err.message : err);
-            try { unlinkSync(fp); } catch {} // Clean up even on failure to avoid infinite retries
-          });
-      }
-    }
-  } catch {}
-
-  // Check for dashboard inbox messages
-  try {
-    if (existsSync(INBOX_DIR)) {
-      for (const f of readdirSync(INBOX_DIR)) {
-        if (!f.startsWith("dashboard-")) continue;
-        const fp = join(INBOX_DIR, f);
-        try {
-          const msg = JSON.parse(readFileSync(fp, "utf-8"));
-          if (msg.text?.trim()) {
-            console.log(`[edith] Dashboard message: ${msg.text.slice(0, 80)}`);
-            logEvent("dashboard_message", { text: msg.text.slice(0, 200) });
-            const brief = await buildBrief("message" as any, { message: msg.text, chatId: String(CHAT_ID) });
-            dispatchToClaude(brief, { resume: true, label: "dashboard-msg", chatId: CHAT_ID })
-              .then(() => { try { unlinkSync(fp); } catch {} })
-              .catch((err) => {
-                console.error(`[edith] Dashboard msg dispatch error:`, err instanceof Error ? err.message : err);
-                try { unlinkSync(fp); } catch {};
-              });
-          } else {
-            try { unlinkSync(fp); } catch {} // Clean up empty/invalid messages
-          }
-        } catch {}
-      }
-    }
-  } catch {}
-
-  await runScheduler();
+    // Share pause state with poll loop
+    paused = tickState.paused;
+    await schedulerTick(tickState);
+    paused = tickState.paused;
   } catch (err) {
-    console.error("[edith:scheduler] Error:", err instanceof Error ? err.message : err);
+    console.error("[edith:scheduler] Error:", fmtErr(err));
   } finally {
     schedulerRunning = false;
   }
 }, SCHEDULE_CHECK_MS);
 
-runScheduler().catch((err) => console.error("[edith:scheduler] Error:", err instanceof Error ? err.message : err));
+runScheduler().catch((err) => console.error("[edith:scheduler] Error:", fmtErr(err)));
 
 // Start polling
 poll().catch((err) => { console.error("[edith] Poll loop crashed:", err); process.exit(1); });

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sendMessage, sendPhoto, tgCall } from "../lib/telegram";
 import { logEvent } from "../lib/state";
+import { fmtErr } from "../lib/util";
 import { CHAT_ID, GOOGLE_API_KEY, TWILIO_WA_FROM, TWILIO_SMS_FROM, N8N_URL } from "../lib/config";
 import { loadSchedule, saveSchedule, loadLocations, saveLocations, loadReminders, saveReminders } from "../lib/storage";
 import { textResponse, jsonResponse } from "../lib/mcp-helpers";
@@ -67,7 +68,7 @@ server.registerTool("send_image", {
     logEvent("image_sent", { chatId: chat_id, caption: caption?.slice(0, 100) });
     return textResponse("Image sent");
   } catch (err) {
-    return textResponse(`Failed to send image: ${err instanceof Error ? err.message : err}`);
+    return textResponse(`Failed to send image: ${fmtErr(err)}`);
   }
 });
 
@@ -279,7 +280,7 @@ server.registerTool("generate_image", {
     if (images.length === 0) return textResponse("No images generated. Check prompt or API quota.");
     return jsonResponse({ success: true, count: images.length, images, prompt });
   } catch (err) {
-    return textResponse(`Image generation failed: ${err instanceof Error ? err.message : err}`);
+    return textResponse(`Image generation failed: ${fmtErr(err)}`);
   }
 });
 
@@ -305,7 +306,7 @@ server.registerTool("send_notification", {
       log();
       return textResponse("Telegram sent");
     } catch (err) {
-      return textResponse(`Telegram failed: ${err instanceof Error ? err.message : err}`);
+      return textResponse(`Telegram failed: ${fmtErr(err)}`);
     }
   }
 
@@ -348,7 +349,7 @@ server.registerTool("show_notification", {
     logEvent("desktop_notification", { title, body: body.slice(0, 100) });
     return textResponse("Notification shown");
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = fmtErr(err);
     logEvent("desktop_notification_error", { title, error: msg });
     return textResponse(`Notification failed: ${msg}`);
   }
@@ -367,7 +368,7 @@ server.registerTool("show_dialog", {
     logEvent("desktop_dialog", { title, clicked });
     return textResponse(`Button clicked: ${clicked}`);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = fmtErr(err);
     logEvent("desktop_dialog_error", { title, error: msg });
     return textResponse(`Dialog failed: ${msg}`);
   }

@@ -2,7 +2,7 @@
  * Edith Dashboard — status monitor with live logs, task triggers, and transcript viewer.
  * Serves at http://localhost:3456
  */
-import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, openSync, readSync, closeSync } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
 
@@ -154,7 +154,6 @@ function getNewLogLines(): string[] {
       if (st.size < logFileSize) logFileSize = 0; // file was rotated
       return [];
     }
-    const { openSync, readSync, closeSync } = require("fs");
     const fd = openSync(LOG_FILE, "r");
     const bytesToRead = st.size - logFileSize;
     const buf = Buffer.alloc(bytesToRead);

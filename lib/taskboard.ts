@@ -2,7 +2,7 @@
  * Taskboard — shared context file between main session and scheduled tasks.
  */
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import { TASKBOARD_FILE } from "./state";
+import { TASKBOARD_FILE } from "./config";
 
 export function readTaskboard(): string {
   if (!existsSync(TASKBOARD_FILE)) return "";

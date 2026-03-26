@@ -1,64 +1,24 @@
 /**
  * Scheduler — reads tasks from ~/.edith/schedule.json and fires them via dispatch.
  */
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { SCHEDULE_FILE, SCHEDULE_STATE_FILE, logEvent } from "./state";
+import { SCHEDULE_STATE_FILE, logEvent } from "./state";
+import { loadJson, saveJson, loadSchedule } from "./storage";
 import { dispatchToClaude } from "./dispatch";
-import { buildBrief, type BriefType } from "./briefs";
-import type { ScheduleEntry } from "../mcp/types";
+import { buildBrief, BRIEF_TYPE_MAP } from "./briefs";
 
 interface ScheduleState {
   lastFired: Record<string, string>;
 }
 
-const DEFAULT_SCHEDULE: ScheduleEntry[] = [
-  { name: "morning-brief", prompt: "/morning-brief", hour: 8, minute: 3 },
-  { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7 },
-  { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53 },
-  { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
-  { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 3 },
-];
-
-/** Map task names to brief types for known tasks. */
-const BRIEF_TYPE_MAP: Record<string, BriefType> = {
-  "morning-brief": "morning",
-  "midday-check": "midday",
-  "evening-wrap": "evening",
-  "proactive-check": "proactive",
-};
-
-function loadSchedule(): ScheduleEntry[] {
-  if (!existsSync(SCHEDULE_FILE)) {
-    writeFileSync(SCHEDULE_FILE, JSON.stringify(DEFAULT_SCHEDULE, null, 2), "utf-8");
-    console.log("[edith] Seeded default schedule to", SCHEDULE_FILE);
-    return DEFAULT_SCHEDULE;
-  }
-  try {
-    const schedule: ScheduleEntry[] = JSON.parse(readFileSync(SCHEDULE_FILE, "utf-8"));
-    // Ensure new default tasks get added to existing schedules
-    let updated = false;
-    for (const def of DEFAULT_SCHEDULE) {
-      if (!schedule.some((s) => s.name === def.name)) {
-        schedule.push(def);
-        updated = true;
-        console.log(`[edith] Added missing default task: ${def.name}`);
-      }
-    }
-    if (updated) writeFileSync(SCHEDULE_FILE, JSON.stringify(schedule, null, 2), "utf-8");
-    return schedule;
-  } catch { return []; }
-}
-
 function loadScheduleState(): ScheduleState {
-  if (!existsSync(SCHEDULE_STATE_FILE)) return { lastFired: {} };
-  try { return JSON.parse(readFileSync(SCHEDULE_STATE_FILE, "utf-8")); } catch { return { lastFired: {} }; }
+  return loadJson<ScheduleState>(SCHEDULE_STATE_FILE, { lastFired: {} });
 }
 
 function saveScheduleState(state: ScheduleState): void {
-  writeFileSync(SCHEDULE_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  saveJson(SCHEDULE_STATE_FILE, state);
 }
 
-function shouldFire(entry: ScheduleEntry, now: Date, state: ScheduleState): boolean {
+function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number }, now: Date, state: ScheduleState): boolean {
   const lastFired = state.lastFired[entry.name];
   const lastFiredTime = lastFired ? new Date(lastFired).getTime() : 0;
 

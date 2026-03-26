@@ -7,6 +7,7 @@
  */
 import { OPENROUTER_API_KEY } from "./config";
 import { logEvent } from "./state";
+import { fmtErr } from "./util";
 import type { AudioTranscript } from "./screenpipe";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -103,7 +104,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 
     return parsed;
   } catch (err) {
-    console.warn("[audio-extract] Extraction failed:", err instanceof Error ? err.message : err);
+    console.warn("[audio-extract] Extraction failed:", fmtErr(err));
     return null;
   }
 }
@@ -168,7 +169,7 @@ export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<bool
     console.log(`[audio-extract] Stored in Cognee: [${knowledge.type}] ${knowledge.summary.slice(0, 80)}`);
     return true;
   } catch (err) {
-    console.warn("[audio-extract] Cognee storage failed:", err instanceof Error ? err.message : err);
+    console.warn("[audio-extract] Cognee storage failed:", fmtErr(err));
     return false;
   }
 }

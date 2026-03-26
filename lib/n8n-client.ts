@@ -2,6 +2,7 @@
  * n8n webhook client — shared fetch + error handling for all n8n endpoints.
  */
 import { N8N_URL } from "./config";
+import { fmtErr } from "./util";
 
 export async function n8nPost(
   endpoint: string,
@@ -30,6 +31,6 @@ export async function n8nPost(
       return { ok: true, data: body };
     }
   } catch (err) {
-    return { ok: false, error: `n8n unreachable: ${err instanceof Error ? err.message : err}. Is n8n running at ${N8N_URL}?` };
+    return { ok: false, error: `n8n unreachable: ${fmtErr(err)}. Is n8n running at ${N8N_URL}?` };
   }
 }

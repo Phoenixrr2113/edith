@@ -2,9 +2,9 @@
  * Proactive intervention tracker — cooldowns, rate limits, quiet hours.
  * Prevents notification fatigue while allowing Edith to act without being asked.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
+import { join } from "path";
 import { STATE_DIR } from "./config";
+import { loadJson, saveJson } from "./storage";
 
 const PROACTIVE_STATE_FILE = join(STATE_DIR, "proactive-state.json");
 const PROACTIVE_CONFIG_FILE = join(STATE_DIR, "proactive-config.json");
@@ -35,17 +35,11 @@ const DEFAULT_CONFIG: ProactiveConfig = {
 };
 
 function loadState(): ProactiveState {
-  if (!existsSync(PROACTIVE_STATE_FILE)) return { interventions: [], lastCheck: "" };
-  try { return JSON.parse(readFileSync(PROACTIVE_STATE_FILE, "utf-8")); } catch { return { interventions: [], lastCheck: "" }; }
+  return loadJson<ProactiveState>(PROACTIVE_STATE_FILE, { interventions: [], lastCheck: "" });
 }
 
 function saveState(state: ProactiveState): void {
-  try {
-    mkdirSync(dirname(PROACTIVE_STATE_FILE), { recursive: true });
-    writeFileSync(PROACTIVE_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
-  } catch (err) {
-    console.error("[proactive] Failed to save state:", err instanceof Error ? err.message : err);
-  }
+  saveJson(PROACTIVE_STATE_FILE, state);
 }
 
 /**
@@ -53,14 +47,10 @@ function saveState(state: ProactiveState): void {
  */
 export function canIntervene(category?: string): { allowed: boolean; reason?: string } {
   // Check dashboard toggle
-  try {
-    if (existsSync(PROACTIVE_CONFIG_FILE)) {
-      const toggle = JSON.parse(readFileSync(PROACTIVE_CONFIG_FILE, "utf-8"));
-      if (toggle.enabled === false) {
-        return { allowed: false, reason: "proactive disabled via dashboard" };
-      }
-    }
-  } catch {}
+  const toggle = loadJson<{ enabled?: boolean }>(PROACTIVE_CONFIG_FILE, { enabled: true });
+  if (toggle.enabled === false) {
+    return { allowed: false, reason: "proactive disabled via dashboard" };
+  }
 
   const config = DEFAULT_CONFIG;
   const now = new Date();

@@ -19,8 +19,32 @@ export function saveJson(path: string, data: unknown): void {
 
 // --- Typed wrappers ---
 
+const DEFAULT_SCHEDULE: ScheduleEntry[] = [
+  { name: "morning-brief", prompt: "/morning-brief", hour: 8, minute: 3 },
+  { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7 },
+  { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53 },
+  { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
+  { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 3 },
+];
+
 export function loadSchedule(): ScheduleEntry[] {
-  return loadJson<ScheduleEntry[]>(SCHEDULE_FILE, []);
+  const schedule = loadJson<ScheduleEntry[]>(SCHEDULE_FILE, []);
+  if (schedule.length === 0) {
+    saveSchedule(DEFAULT_SCHEDULE);
+    console.log("[storage] Seeded default schedule to", SCHEDULE_FILE);
+    return [...DEFAULT_SCHEDULE];
+  }
+  // Ensure new default tasks get added to existing schedules
+  let updated = false;
+  for (const def of DEFAULT_SCHEDULE) {
+    if (!schedule.some((s) => s.name === def.name)) {
+      schedule.push(def);
+      updated = true;
+      console.log(`[storage] Added missing default task: ${def.name}`);
+    }
+  }
+  if (updated) saveSchedule(schedule);
+  return schedule;
 }
 
 export function saveSchedule(entries: ScheduleEntry[]): void {

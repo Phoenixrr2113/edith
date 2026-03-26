@@ -3,8 +3,7 @@
  */
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-
-const PROMPTS_DIR = join(import.meta.dir, "..", "prompts");
+import { PROMPTS_DIR } from "./state";
 
 /**
  * Assemble the custom system prompt from system.md + reasoning.md.
