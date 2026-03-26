@@ -11,4 +11,6 @@ Randy has ADHD. Optimize for scannability.
 - Don't message for routine status updates — nobody likes a chatty assistant.
 - DO message for: things needing his decision, important deadlines, completed tasks, problems you can't solve alone.
 - No formal headers. Just the content.
-- Use Telegram `send_message` tool with `chat_id` from message context.
+- For Telegram: use `send_message` tool with `chat_id` from message context (fast, direct).
+- For other channels (WhatsApp, email, Slack): use `send_notification` tool with `channel` and `recipient`.
+- Always reply on the same channel the message came from.

@@ -7,8 +7,23 @@
  *
  * All logic is in lib/ modules. This file is just the startup + poll loop.
  */
-import { existsSync, writeFileSync, statSync, unlinkSync, readdirSync } from "fs";
+import { existsSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
+
+// --- Log to file + console ---
+const LOG_FILE = process.env.EDITH_LOG_FILE;
+const _origLog = console.log;
+const _origErr = console.error;
+const _origWarn = console.warn;
+
+function writeLog(level: string, args: any[]) {
+  const line = `[${new Date().toISOString().slice(11, 19)}] ${args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ")}`;
+  if (LOG_FILE) try { appendFileSync(LOG_FILE, line + "\n"); } catch {}
+}
+
+console.log = (...args: any[]) => { _origLog(...args); writeLog("info", args); };
+console.error = (...args: any[]) => { _origErr(...args); writeLog("error", args); };
+console.warn = (...args: any[]) => { _origWarn(...args); writeLog("warn", args); };
 import {
   BOT_TOKEN, CHAT_ID, SMS_BOT_ID, ALLOWED_CHATS,
   INBOX_DIR, PID_FILE, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
@@ -77,6 +92,9 @@ async function poll(): Promise<void> {
         }
 
         await sendTyping(chatId);
+        const msgType = msg.location ? "📍 location" : msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
+        const msgPreview = msg.text?.slice(0, 80) ?? (msg.caption?.slice(0, 80) ?? "");
+        console.log(`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`);
         logEvent("message_received", {
           chatId,
           type: msg.location ? "location" : msg.voice ? "voice" : msg.photo ? "photo" : "text",
@@ -157,10 +175,16 @@ async function poll(): Promise<void> {
 
         // Text message
         if (msg.text) {
-          const source = isSmsBot ? "SMS" : "Telegram";
-          await dispatchToConversation(chatId, msg.message_id,
-            `[Message from Randy via ${source}] ${msg.text}`
-          );
+          if (isSmsBot) {
+            // SMS relay — these are forwarded texts from other people, not from Randy
+            await dispatchToConversation(chatId, msg.message_id,
+              `[Incoming SMS forwarded by relay bot]\n${msg.text}\n\n[Triage this: store any new contacts/context in Cognee. If it needs Randy's attention, summarize and forward via send_message. If it's spam/verification codes, ignore silently. Chat ID: ${CHAT_ID}]`
+            );
+          } else {
+            await dispatchToConversation(chatId, msg.message_id,
+              `[Message from Randy via Telegram] ${msg.text}`
+            );
+          }
         }
       }
       consecutiveErrors = 0;

@@ -1,36 +1,24 @@
 ---
 name: midday-check
-description: "Light midday check-in — new emails, afternoon calendar, upcoming reminders. Use this skill around noon (triggered automatically by edith.ts at 12:07 PM) or whenever Randy asks 'anything new?' or 'what's coming up this afternoon'."
+description: "Midday check-in — catch changes, advance deadline work, prep for afternoon. Triggered at 12:07 PM or when Randy asks 'anything new?'."
 ---
 
 # Midday Check
 
-A quick scan for anything that's changed since the morning brief. The bar for messaging Randy is higher here — only reach out if there's something he should act on. Silence is fine.
+Randy is mid-flow. Only interrupt if something is actionable. But work in the background — advance deadlines, prep for upcoming events, handle what you can.
 
-## Why this matters
+## Check
 
-Randy is mid-flow by noon. An unnecessary ping breaks focus. Only interrupt if something is genuinely actionable or time-sensitive.
+1. New emails since morning: `get_emails` with `maxResults: 10`
+2. Afternoon/evening calendar: `get_calendar` with `hoursAhead: 8, includeAllDay: true`
+3. Reminders: `list_reminders`
 
-## Steps
+## Think
 
-1. **Email** — Use `get_emails` to find new unread emails since the morning. Only flag things that need a response or decision.
+For anything you find, apply the same reasoning as the morning brief — research deeply, connect dots, do the actual work. If a meeting is in 2 hours, that's your cue to prep NOW, not later.
 
-2. **Calendar** — Use `get_calendar` to check the afternoon schedule. Note anything starting soon that Randy might need to prep for.
+## Act
 
-3. **Reminders** — Use `list_reminders` for anything due in the next few hours.
+If you can advance any deadline work, draft any replies, or prep for any upcoming event — do it silently. Only message Randy if something needs his attention or approval.
 
-4. **Decide whether to message** — If there's something actionable, use `send_message` to send a brief update. If nothing noteworthy, write a short note to the taskboard and move on. Do not message Randy with "nothing to report."
-
-## Output format
-
-Only if messaging:
-```
-Quick heads up:
-
-- Sarah rescheduled your 1:1 to 3:00 PM
-- New email from legal re: DataCo contract — looks like they need a signature today
-```
-
-## Taskboard
-
-Always write to the taskboard, even if you don't message Randy. A one-liner like "Midday check: nothing actionable" is fine — it confirms the check happened.
+If nothing is new or actionable, write to taskboard and stay silent. Do NOT message "nothing to report."

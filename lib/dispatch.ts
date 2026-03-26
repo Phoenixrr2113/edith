@@ -90,11 +90,24 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
         activeProcesses.delete(procPid);
         writeActiveProcesses();
         const durationMs = Date.now() - startTime;
+        const secs = (durationMs / 1000).toFixed(1);
+
         if (code !== 0) {
-          console.error(`[edith:${label}] Claude exited with code ${code}`);
+          console.error(`[edith:${label}] ❌ exited ${code} (${secs}s)`);
           if (stderr) console.error(`[edith:${label}] stderr: ${stderr.slice(0, 500)}`);
           logEvent("dispatch_error", { label, exitCode: code, durationMs, error: stderr.slice(0, 300) });
         } else {
+          // Parse Claude's JSON output for visibility
+          try {
+            const json = JSON.parse(stdout);
+            const cost = json.total_cost_usd ? `$${json.total_cost_usd.toFixed(4)}` : "";
+            const turns = json.num_turns ?? 0;
+            const result = json.result?.slice(0, 150) ?? "";
+            console.log(`[edith:${label}] ✅ done (${secs}s, ${turns} turns, ${cost})`);
+            if (result) console.log(`[edith:${label}] → ${result.replace(/\n/g, " ").slice(0, 120)}`);
+          } catch {
+            console.log(`[edith:${label}] ✅ done (${secs}s)`);
+          }
           logEvent("dispatch_end", { label, durationMs, exitCode: 0 });
         }
         resolve(stdout);

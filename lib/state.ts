@@ -5,23 +5,18 @@
 import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 
-// --- Config ---
-export const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
-export const CHAT_ID = Number(process.env.TELEGRAM_CHAT_ID ?? "0");
-export const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
-export const SMS_BOT_ID = process.env.TELEGRAM_SMS_BOT_ID ?? "";
+// --- Config (re-export from centralized config for backward compatibility) ---
+export { CHAT_ID, TELEGRAM_BOT_TOKEN as BOT_TOKEN, TELEGRAM_USER_ID, SMS_BOT_ID,
+         STATE_DIR, INBOX_DIR, EVENTS_FILE, SESSION_FILE, TASKBOARD_FILE,
+         PID_FILE, DEAD_LETTER_FILE } from "./config";
+import { CHAT_ID, STATE_DIR, EVENTS_FILE, SESSION_FILE, DEAD_LETTER_FILE, INBOX_DIR } from "./config";
+
+const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
 export const ALLOWED_CHATS = new Set([CHAT_ID, USER_ID].filter(Boolean));
 
-export const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
-export const INBOX_DIR = join(STATE_DIR, "inbox");
 export const OFFSET_FILE = join(STATE_DIR, "tg-offset");
-export const SESSION_FILE = join(STATE_DIR, "session-id");
-export const TASKBOARD_FILE = join(STATE_DIR, "taskboard.md");
 export const SCHEDULE_STATE_FILE = join(STATE_DIR, "schedule-state.json");
 export const SCHEDULE_FILE = join(STATE_DIR, "schedule.json");
-export const EVENTS_FILE = join(STATE_DIR, "events.jsonl");
-export const PID_FILE = join(STATE_DIR, "edith.pid");
-export const DEAD_LETTER_FILE = join(STATE_DIR, "dead-letters.jsonl");
 
 export const PROJECT_ROOT = join(import.meta.dir, "..");
 export const PROMPTS_DIR = join(PROJECT_ROOT, "prompts");

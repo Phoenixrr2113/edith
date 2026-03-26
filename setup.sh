@@ -46,6 +46,12 @@ read -p "  Google AI API Key (for image generation): " GOOGLE_GENERATIVE_AI_API_
 read -p "  Groq API Key (for voice transcription): " GROQ_API_KEY
 read -p "  Telegram SMS Bot ID (for SMS relay): " TELEGRAM_SMS_BOT_ID
 read -p "  Telegram User ID (your personal user ID): " TELEGRAM_USER_ID
+read -p "  Twilio Account SID (for WhatsApp/SMS): " TWILIO_ACCOUNT_SID
+read -p "  Twilio Auth Token: " TWILIO_AUTH_TOKEN
+read -p "  Twilio WhatsApp From (e.g. whatsapp:+14155238886): " TWILIO_WHATSAPP_FROM
+read -p "  Twilio SMS From (phone number): " TWILIO_SMS_FROM
+read -p "  Your WhatsApp number (e.g. whatsapp:+19416627510): " RANDY_WHATSAPP
+read -p "  Your phone number (e.g. +19416627510): " RANDY_PHONE
 
 # --- Write .env ---
 cat > .env <<EOF
@@ -58,6 +64,12 @@ GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY
 GROQ_API_KEY=$GROQ_API_KEY
 TELEGRAM_SMS_BOT_ID=$TELEGRAM_SMS_BOT_ID
 TELEGRAM_USER_ID=$TELEGRAM_USER_ID
+TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN
+TWILIO_WHATSAPP_FROM=$TWILIO_WHATSAPP_FROM
+TWILIO_SMS_FROM=$TWILIO_SMS_FROM
+RANDY_WHATSAPP=$RANDY_WHATSAPP
+RANDY_PHONE=$RANDY_PHONE
 EOF
 echo "  ok .env written"
 

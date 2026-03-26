@@ -105,11 +105,14 @@ echo "[launch] Starting Edith..."
 # Use a PID file for cross-process communication (fswatch runs in subshell)
 EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
 
+LOG_FILE="$STATE_DIR/edith.log"
+
 start_edith() {
-  bun "$DIR/edith.ts" &
+  EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
   EDITH_PID=$!
   echo "$EDITH_PID" > "$EDITH_PIDFILE"
   echo "[launch] Edith started (PID $EDITH_PID)"
+  echo "[launch] Logs: tail -f $LOG_FILE"
 }
 
 start_edith
@@ -123,6 +126,7 @@ cleanup() {
     rm -f "$EDITH_PIDFILE"
   fi
   kill $DASHBOARD_PID 2>/dev/null
+  [ -n "$TAIL_PID" ] && kill $TAIL_PID 2>/dev/null
   [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"
   exit 0

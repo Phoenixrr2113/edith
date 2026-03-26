@@ -1,14 +1,8 @@
 /**
  * Geofence utilities — haversine distance, reminder checking, location transitions.
- * Ported from Edith v1 src/lib/geo.ts.
  */
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
-import { STATE_DIR } from "../lib/state";
+import { loadLocations, loadReminders, saveReminders } from "../lib/storage";
 import type { LocationEntry, Reminder } from "./types";
-
-const REMINDERS_PATH = join(STATE_DIR, "reminders.json");
-const LOCATIONS_PATH = join(STATE_DIR, "locations.json");
 export type { LocationEntry, Reminder };
 
 export interface LocationTransition {
@@ -27,28 +21,6 @@ export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: 
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function loadLocations(): LocationEntry[] {
-  if (!existsSync(LOCATIONS_PATH)) return [];
-  try {
-    return JSON.parse(readFileSync(LOCATIONS_PATH, "utf-8")).locations ?? [];
-  } catch {
-    return [];
-  }
-}
-
-function loadReminders(): Reminder[] {
-  if (!existsSync(REMINDERS_PATH)) return [];
-  try {
-    return JSON.parse(readFileSync(REMINDERS_PATH, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function saveReminders(reminders: Reminder[]): void {
-  writeFileSync(REMINDERS_PATH, JSON.stringify(reminders, null, 2), "utf-8");
 }
 
 /** Check unfired location reminders against current position. */

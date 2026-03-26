@@ -5,49 +5,41 @@ description: "Run Randy's morning brief — calendar, email, reminders, and memo
 
 # Morning Brief
 
-The morning brief sets Randy up for his day. The goal is to surface everything he needs to know in one concise message so he can scan it in 30 seconds and know what's coming.
+The morning brief prepares Randy's day. Not reports it — PREPARES it.
 
-## Why this matters
+## What to check
 
-Randy checks Telegram first thing. If the brief is useful, he trusts Edith. If it's noise, he ignores it. Lead with what's actionable — don't pad with filler.
+1. Search Cognee for context (active projects, pending decisions, people, follow-ups)
+2. Today's calendar: `get_calendar` with `hoursAhead: 16, includeAllDay: true`
+3. This week's outlook: `get_calendar` with `hoursAhead: 168, includeAllDay: true`
+4. Email: `get_emails` with `maxResults: 10`
+5. Reminders: `list_reminders`
 
-## Steps
+## How to think about what you find
 
-1. **Memory context** — Search Cognee for recent context: what happened yesterday, pending decisions, anything Randy mentioned he'd follow up on. This gives the brief continuity across days.
+For each item, ask yourself: **"What would a brilliant human assistant do with this information?"**
 
-2. **Calendar** — Use `get_calendar` to get today's events. Note start times, who's involved, and any prep needed.
+Don't stop at the surface. Research deeply before taking action:
+- A meeting with someone? Search emails for the full thread. Look them up. Find the meeting link. Understand the PURPOSE — is it an interview? A sales call? A catch-up? The prep is completely different for each.
+- A deadline? Find the deliverable. Check its current state. Research what's required. Draft what you can.
+- An important email? Read the full thread, not just the snippet. Understand the context. Draft a reply if appropriate.
+- A project milestone? Check the repo. Read recent commits. Understand what's done vs what remains.
 
-3. **Email** — Use `get_emails` to find unread or flagged emails. Focus on what needs a response today, not the full inbox.
+Use Randy's computer to fill gaps — search files, read documents, check project READMEs, browse the web. You have full access. A real assistant would look at everything available.
 
-4. **Reminders** — Use `list_reminders` to check for time-based reminders due today.
+## What to do with your findings
 
-5. **Send the brief** — Use `send_message` to deliver a single, scannable message. Keep it tight.
+**Do the actual prep work.** Write meeting notes, draft submissions, prepare talking points, research companies, summarize email threads. Save artifacts to `~/Desktop/edith-prep/` so Randy can review them.
 
-6. **Store observations** — If you notice patterns (e.g. recurring meeting prep, a project ramping up), store them in Cognee for future reference.
+Then send ONE short message telling Randy what you DID, not what you FOUND.
 
-## Output format
+## What NOT to do
 
-**Example:**
-```
-Good morning. Here's your day:
-
-📅 Calendar
-- 10:00 AM — Standup (eng team)
-- 2:00 PM — 1:1 with Sarah
-
-📧 Email
-- Invoice from Acme Corp needs approval
-- Sarah shared the Q2 deck
-
-⏰ Reminders
-- Call dentist to reschedule (due today)
-
-📝 Context
-- You mentioned finishing the proposal for DataCo yesterday — still in drafts.
-```
-
-Adapt the sections based on what's actually there. Skip empty sections entirely — don't write "No emails" or "No reminders."
+- Don't list all of Randy's projects
+- Don't say "calendar clear" when there are all-day milestones running
+- Don't report what you see without doing anything about it
+- Don't send a wall of text — 3-5 lines, bullets, bold key items
 
 ## Taskboard
 
-Write your findings to the taskboard file (path provided in your prompt). This lets the main conversation session know what you found, even if Randy doesn't read the Telegram message right away.
+Write your findings AND your prep work to the taskboard so the conversation session has context.
