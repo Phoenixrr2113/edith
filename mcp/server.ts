@@ -9,7 +9,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sendMessage, sendPhoto, tgCall } from "../lib/telegram";
 import { logEvent } from "../lib/state";
 import { fmtErr } from "../lib/util";
-import { CHAT_ID, GOOGLE_API_KEY, TWILIO_WA_FROM, TWILIO_SMS_FROM, N8N_URL } from "../lib/config";
+import { CHAT_ID, GOOGLE_API_KEY, TWILIO_WA_FROM, TWILIO_SMS_FROM } from "../lib/config";
 import { loadSchedule, saveSchedule, loadLocations, saveLocations, loadReminders, saveReminders } from "../lib/storage";
 import { textResponse, jsonResponse } from "../lib/mcp-helpers";
 import { sendTwilio } from "../lib/twilio";

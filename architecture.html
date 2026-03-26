@@ -431,21 +431,15 @@ graph TB
   MC --> N8N2["n8n /calendar"]
   GI --> IMAGEN["Imagen 3.0"]
 
-  ROUTER --> SN["send_notification"]
-  SN --> TG
-  SN --> TWILIO["Twilio API"]
-  SN --> N8N
-
-  ROUTER --> DA["delegate_to_agent"]
-  DA --> OR["OpenRouter"]
-
   style ROUTER fill:#2e1a3f,stroke:#c084fc,color:#fff
   style C fill:#3f3f1a,stroke:#facc15,color:#fff
   style TG fill:#1a3f2e,stroke:#4ade80,color:#fff
   style TWILIO fill:#1a3f2e,stroke:#4ade80,color:#fff
   style N8N fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style N8N2 fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style N8NNOTIFY fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style DESKTOP fill:#1a3f2e,stroke:#4ade80,color:#fff
   style IMAGEN fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style OR fill:#1a3f2e,stroke:#4ade80,color:#fff
 </div>
 
 <h2>Sub-Agent Model Tiers</h2>
