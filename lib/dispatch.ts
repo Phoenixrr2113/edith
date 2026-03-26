@@ -9,7 +9,7 @@
  *   - Circuit breaker for repeated failures
  *   - AbortController timeout to prevent hangs
  */
-import { query, type Options, type SDKResultMessage, type SDKAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
 import { CHAT_ID } from "./config";
@@ -65,6 +65,133 @@ function loadMcpConfig(): Record<string, any> {
   } catch {
     return {};
   }
+}
+
+/** Builds the Agent SDK Options object from dispatch config. */
+function buildSdkOptions(
+  opts: DispatchOptions,
+  abortController: AbortController,
+): Options {
+  const { resume = true } = opts;
+  const systemPrompt = assembleSystemPrompt();
+
+  const sdkOptions: Options = {
+    abortController,
+    systemPrompt: {
+      type: "preset",
+      preset: "claude_code",
+      append: systemPrompt,
+    },
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    cwd: PROJECT_ROOT,
+    mcpServers: loadMcpConfig(),
+    maxTurns: opts.maxTurns ?? 50,
+    settingSources: ["project"],
+    allowedTools: [
+      "Read", "Write", "Edit", "Bash", "Glob", "Grep",
+      "WebFetch", "WebSearch", "Agent", "Skill",
+    ],
+  };
+
+  // Session handling
+  if (resume) {
+    if (sessionId) {
+      sdkOptions.resume = sessionId;
+    }
+  } else {
+    // Ephemeral sessions for scheduled tasks
+    sdkOptions.persistSession = false;
+  }
+
+  return sdkOptions;
+}
+
+interface StreamResult {
+  lastResult: string;
+  newSessionId: string;
+  totalCost: number;
+  turns: number;
+  needsRetry: boolean;
+}
+
+/** Consumes the Agent SDK query stream, tracking turns, cost, and session. */
+async function processMessageStream(
+  queryHandle: Query,
+  label: string,
+  wakeId: string,
+  resume: boolean,
+  opts: DispatchOptions,
+  pseudoPid: number,
+): Promise<StreamResult> {
+  let turns = 0;
+  let lastResult = "";
+  let newSessionId = "";
+  let totalCost = 0;
+  let needsRetry = false;
+
+  try {
+    for await (const message of queryHandle) {
+      appendTranscript(wakeId, message);
+
+      // Track session ID
+      if ("session_id" in message && message.session_id && resume) {
+        if (message.session_id !== newSessionId) {
+          newSessionId = message.session_id;
+          setActiveSessionId(newSessionId);
+        }
+      }
+
+      // Count turns on assistant messages with tool use
+      if (message.type === "assistant") {
+        const assistantMsg = message as SDKAssistantMessage;
+        const hasToolUse = assistantMsg.message?.content?.some?.(
+          (block: any) => block.type === "tool_use"
+        );
+        if (hasToolUse) turns++;
+
+        // Extract text for logging
+        const textBlocks = assistantMsg.message?.content?.filter?.(
+          (block: any) => block.type === "text"
+        );
+        if (textBlocks?.length) {
+          lastResult = (textBlocks[textBlocks.length - 1] as any).text ?? "";
+        }
+      }
+
+      // Extract result info
+      if (message.type === "result") {
+        const resultMsg = message as SDKResultMessage;
+        totalCost = resultMsg.total_cost_usd ?? 0;
+        turns = resultMsg.num_turns ?? turns;
+
+        if ("result" in resultMsg && typeof (resultMsg as any).result === "string") {
+          lastResult = (resultMsg as any).result ?? lastResult;
+        }
+
+        // Check for errors
+        if (resultMsg.is_error) {
+          const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
+          console.error(`[edith:${label}] ❌ Error: ${errorSubtype}`);
+
+          // Detect corrupted session — flag for retry after cleanup
+          if (errorSubtype === "error_during_execution" && sessionId && !opts._sessionRetried) {
+            console.error(`[edith:${label}] Session may be corrupted, will reset and retry...`);
+            logEvent("session_reset", { label, reason: errorSubtype });
+            clearSession();
+            needsRetry = true;
+          }
+        }
+      }
+    }
+  } finally {
+    setActiveQuery(null);
+    setActiveSessionId("");
+    activeProcesses.delete(pseudoPid);
+    writeActiveProcesses();
+  }
+
+  return { lastResult, newSessionId, totalCost, turns, needsRetry };
 }
 
 /**
@@ -130,38 +257,8 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     // Start transcript
     startTranscript(wakeId);
 
-    // Build Agent SDK options
-    const systemPrompt = assembleSystemPrompt();
-    const sdkOptions: Options = {
-      abortController,
-      systemPrompt: {
-        type: "preset",
-        preset: "claude_code",
-        append: systemPrompt,
-      },
-      permissionMode: "bypassPermissions",
-      allowDangerouslySkipPermissions: true,
-      cwd: PROJECT_ROOT,
-      mcpServers: loadMcpConfig(),
-      maxTurns: opts.maxTurns ?? 50,
-      settingSources: ["project"],
-      allowedTools: [
-        "Read", "Write", "Edit", "Bash", "Glob", "Grep",
-        "WebFetch", "WebSearch", "Agent", "Skill",
-      ],
-    };
-
-    // Session handling
-    if (resume) {
-      if (sessionId) {
-        sdkOptions.resume = sessionId;
-      }
-    } else {
-      // Ephemeral sessions for scheduled tasks
-      sdkOptions.persistSession = false;
-    }
-
-    // Launch query
+    // Build options and launch query
+    const sdkOptions = buildSdkOptions(opts, abortController);
     const queryHandle = query({ prompt, options: sdkOptions });
     setActiveQuery(queryHandle);
 
@@ -171,72 +268,8 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     writeActiveProcesses();
 
     // Process message stream
-    let turns = 0;
-    let lastResult = "";
-    let newSessionId = "";
-    let totalCost = 0;
-    let needsRetry = false;
-
-    try {
-      for await (const message of queryHandle) {
-        appendTranscript(wakeId, message);
-
-        // Track session ID
-        if ("session_id" in message && message.session_id && resume) {
-          if (message.session_id !== newSessionId) {
-            newSessionId = message.session_id;
-            setActiveSessionId(newSessionId);
-          }
-        }
-
-        // Count turns on assistant messages with tool use
-        if (message.type === "assistant") {
-          const assistantMsg = message as SDKAssistantMessage;
-          const hasToolUse = assistantMsg.message?.content?.some?.(
-            (block: any) => block.type === "tool_use"
-          );
-          if (hasToolUse) turns++;
-
-          // Extract text for logging
-          const textBlocks = assistantMsg.message?.content?.filter?.(
-            (block: any) => block.type === "text"
-          );
-          if (textBlocks?.length) {
-            lastResult = (textBlocks[textBlocks.length - 1] as any).text ?? "";
-          }
-        }
-
-        // Extract result info
-        if (message.type === "result") {
-          const resultMsg = message as SDKResultMessage;
-          totalCost = resultMsg.total_cost_usd ?? 0;
-          turns = resultMsg.num_turns ?? turns;
-
-          if ("result" in resultMsg && typeof (resultMsg as any).result === "string") {
-            lastResult = (resultMsg as any).result ?? lastResult;
-          }
-
-          // Check for errors
-          if (resultMsg.is_error) {
-            const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
-            console.error(`[edith:${label}] ❌ Error: ${errorSubtype}`);
-
-            // Detect corrupted session — flag for retry after cleanup
-            if (errorSubtype === "error_during_execution" && sessionId && !opts._sessionRetried) {
-              console.error(`[edith:${label}] Session may be corrupted, will reset and retry...`);
-              logEvent("session_reset", { label, reason: errorSubtype });
-              clearSession();
-              needsRetry = true;
-            }
-          }
-        }
-      }
-    } finally {
-      setActiveQuery(null);
-      setActiveSessionId("");
-      activeProcesses.delete(pseudoPid);
-      writeActiveProcesses();
-    }
+    const { lastResult, newSessionId, totalCost, turns, needsRetry } =
+      await processMessageStream(queryHandle, label, wakeId, resume, opts, pseudoPid);
 
     // Handle session retry — push to front of queue so finally block drains it
     if (needsRetry) {

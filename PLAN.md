@@ -15,12 +15,12 @@
 
 - [x] **9. Extract message handlers from `edith.ts:poll()`** → `lib/handlers.ts` — location, voice, photo, text handlers
 - [x] **10. Extract scheduler tick body** → `lib/tick.ts` — signals, triggers, inbox processing
-- [ ] **11. Break up `dispatchToClaude`** (230 lines) → extract `buildSdkOptions()`, `processMessageStream()`, queue mgmt into `lib/queue.ts`
-- [ ] **12. Extract dashboard HTML** to `dashboard.html` — 366 lines of static content in a template literal
-- [ ] **13. Extract dashboard route handlers** into a route map instead of 12-branch if/else chain
-- [ ] **14. Extract `send_notification` channel dispatch** from MCP → `lib/channels.ts`
-- [ ] **15. Extract `generate_image`** from MCP → `lib/imagen.ts`
-- [ ] **16. Deduplicate POST handler boilerplate** in dashboard — extract `handlePost(req, handler)` wrapper
+- [x] **11. Break up `dispatchToClaude`** — extracted `buildSdkOptions()` and `processMessageStream()` as private helpers
+- [x] **12. Extract dashboard HTML** to `dashboard.html` — 366 lines out of template literal
+- [x] **13. Extract dashboard route handlers** into a route map instead of 12-branch if/else chain
+- [x] **14. ~~Extract `send_notification` channel dispatch~~** — N/A, consolidated into unified `send_notification` MCP tool
+- [x] **15. ~~Extract `generate_image`~~** — N/A, small enough to stay inline after tool consolidation
+- [x] **16. Deduplicate POST handler boilerplate** in dashboard — extracted `handlePost(req, handler)` wrapper
 
 ## Phase 3: Larger Structural (do when needed)
 
