@@ -9,7 +9,7 @@
  *   - Circuit breaker for repeated failures
  *   - AbortController timeout to prevent hangs
  */
-import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
 import { CHAT_ID } from "./config";
@@ -23,6 +23,7 @@ import { fmtErr } from "./util";
 import { sendTyping } from "./telegram";
 import { buildBrief, type BriefType } from "./briefs";
 import { appendTranscript, startTranscript } from "./transcript";
+import { ReflectorSession, DEFAULT_REFLECTOR_CONFIG } from "./reflector";
 
 // --- Queue ---
 let busy = false;
@@ -123,12 +124,30 @@ async function processMessageStream(
   resume: boolean,
   opts: DispatchOptions,
   pseudoPid: number,
+  reflector: ReflectorSession | null,
 ): Promise<StreamResult> {
   let turns = 0;
   let lastResult = "";
   let newSessionId = "";
   let totalCost = 0;
   let needsRetry = false;
+
+  /** Inject a reflection into the running session (non-blocking). */
+  const maybeInject = async (trigger: "periodic" | "compaction" | "guard", guardCtx?: { toolName: string; toolInput: any }) => {
+    if (!reflector) return;
+    try {
+      const reflection = await reflector.buildReflection(trigger, guardCtx);
+      if (reflection) {
+        const injected = await injectMessage(reflection);
+        if (injected) {
+          reflector.recordUserMessage(`[reflector:${trigger}] ${reflection.slice(0, 100)}`);
+          console.log(`[reflector:${label}] Injected (${trigger}): ${reflection.slice(0, 80)}...`);
+        }
+      }
+    } catch (err) {
+      console.error(`[reflector:${label}] Injection failed:`, err);
+    }
+  };
 
   try {
     for await (const message of queryHandle) {
@@ -142,20 +161,60 @@ async function processMessageStream(
         }
       }
 
+      // --- Reflector: detect compaction ---
+      if (message.type === "system" && "subtype" in message && (message as any).subtype === "compact_boundary") {
+        const boundary = message as SDKCompactBoundaryMessage;
+        const preTokens = boundary.compact_metadata.pre_tokens;
+        const trigger = boundary.compact_metadata.trigger;
+        console.log(`[edith:${label}] ⚙️ Context compacted (${preTokens} tokens, ${trigger})`);
+        logEvent("compaction", { label, preTokens, trigger });
+
+        if (reflector) {
+          reflector.recordCompaction(preTokens, trigger);
+          // Compaction reflection is critical — always fire
+          await maybeInject("compaction");
+        }
+      }
+
       // Count turns on assistant messages with tool use
       if (message.type === "assistant") {
         const assistantMsg = message as SDKAssistantMessage;
-        const hasToolUse = assistantMsg.message?.content?.some?.(
-          (block: any) => block.type === "tool_use"
-        );
+        const content = assistantMsg.message?.content;
+        const toolUseBlocks = content?.filter?.((block: any) => block.type === "tool_use") ?? [];
+        const hasToolUse = toolUseBlocks.length > 0;
         if (hasToolUse) turns++;
 
-        // Extract text for logging
-        const textBlocks = assistantMsg.message?.content?.filter?.(
+        // --- Reflector: feed tool uses + check triggers ---
+        if (reflector && hasToolUse) {
+          for (const block of toolUseBlocks) {
+            const toolBlock = block as any;
+            const toolName = toolBlock.name ?? "";
+            const toolInput = toolBlock.input ?? {};
+            const inputPreview = JSON.stringify(toolInput).slice(0, 300);
+
+            reflector.recordToolUse(toolName, inputPreview);
+
+            // Guard irreversible actions
+            if (reflector.shouldGuardTool(toolName, toolInput)) {
+              await maybeInject("guard", { toolName, toolInput });
+            }
+          }
+
+          // Periodic reflection on Nth tool call
+          if (reflector.shouldReflectOnToolCall()) {
+            await maybeInject("periodic");
+          }
+        }
+
+        // Extract text for logging + reflector
+        const textBlocks = content?.filter?.(
           (block: any) => block.type === "text"
         );
         if (textBlocks?.length) {
           lastResult = (textBlocks[textBlocks.length - 1] as any).text ?? "";
+          if (reflector) {
+            reflector.recordText(lastResult);
+          }
         }
       }
 
@@ -267,9 +326,14 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     activeProcesses.set(pseudoPid, { pid: pseudoPid, label, startedAt: new Date().toISOString(), prompt: prompt.slice(0, 200) });
     writeActiveProcesses();
 
+    // Start reflector for this session
+    const reflector = DEFAULT_REFLECTOR_CONFIG.enabled
+      ? new ReflectorSession(prompt, label)
+      : null;
+
     // Process message stream
     const { lastResult, newSessionId, totalCost, turns, needsRetry } =
-      await processMessageStream(queryHandle, label, wakeId, resume, opts, pseudoPid);
+      await processMessageStream(queryHandle, label, wakeId, resume, opts, pseudoPid, reflector);
 
     // Handle session retry — push to front of queue so finally block drains it
     if (needsRetry) {
@@ -295,6 +359,15 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     console.log(`[edith:${label}] ✅ done (${secs}s, ${turns} turns${costStr ? `, ${costStr}` : ""})`);
     if (lastResult) console.log(`[edith:${label}] → ${lastResult.replace(/\n/g, " ").slice(0, 120)}`);
     logEvent("dispatch_end", { label, durationMs, turns, cost: totalCost });
+
+    // Reflector: post-completion evaluation (non-blocking)
+    if (reflector) {
+      reflector.evaluateCompletion(lastResult).then((eval_) => {
+        if (eval_) {
+          console.log(`[reflector:${label}] Eval: ${eval_.score}/10 — ${eval_.assessment.slice(0, 100)}`);
+        }
+      }).catch(() => {}); // fire-and-forget
+    }
 
     if (totalCost) {
       logEvent("cost", { label, usd: totalCost });

@@ -40,3 +40,7 @@ export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 export const INBOX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
+
+// --- Reflector ---
+export const REFLECTOR_ENABLED = process.env.REFLECTOR_ENABLED !== "false"; // on by default
+export const REFLECTOR_TOOL_CALL_FREQUENCY = Number(process.env.REFLECTOR_FREQUENCY ?? "8");
