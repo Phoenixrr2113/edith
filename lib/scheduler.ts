@@ -33,7 +33,20 @@ function loadSchedule(): ScheduleEntry[] {
     console.log("[edith] Seeded default schedule to", SCHEDULE_FILE);
     return DEFAULT_SCHEDULE;
   }
-  try { return JSON.parse(readFileSync(SCHEDULE_FILE, "utf-8")); } catch { return []; }
+  try {
+    const schedule: ScheduleEntry[] = JSON.parse(readFileSync(SCHEDULE_FILE, "utf-8"));
+    // Ensure new default tasks get added to existing schedules
+    let updated = false;
+    for (const def of DEFAULT_SCHEDULE) {
+      if (!schedule.some((s) => s.name === def.name)) {
+        schedule.push(def);
+        updated = true;
+        console.log(`[edith] Added missing default task: ${def.name}`);
+      }
+    }
+    if (updated) writeFileSync(SCHEDULE_FILE, JSON.stringify(schedule, null, 2), "utf-8");
+    return schedule;
+  } catch { return []; }
 }
 
 function loadScheduleState(): ScheduleState {

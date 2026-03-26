@@ -123,7 +123,7 @@ N8N_OK="down"
 COGNEE_OK="down"
 for i in {1..30}; do
   [ "$N8N_OK" = "down" ] && curl -s -o /dev/null -w "" "http://localhost:$N8N_PORT/healthz" 2>/dev/null && N8N_OK="up"
-  [ "$COGNEE_OK" = "down" ] && curl -s -o /dev/null "http://localhost:8001/sse" 2>/dev/null && COGNEE_OK="up"
+  if [ "$COGNEE_OK" = "down" ]; then curl -s -o /dev/null --max-time 2 "http://localhost:8001/sse" 2>/dev/null; RC=$?; [ $RC -eq 0 ] || [ $RC -eq 28 ] && COGNEE_OK="up"; fi
   if [ "$N8N_OK" = "up" ] && [ "$COGNEE_OK" = "up" ]; then break; fi
   sleep 2
 done
