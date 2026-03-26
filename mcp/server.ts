@@ -15,6 +15,7 @@ import { sendTwilio } from "../lib/twilio";
 import { n8nPost } from "../lib/n8n-client";
 import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
 
+
 const ALLOWED_CHAT = CHAT_ID;
 
 // --- MCP Server ---
@@ -262,14 +263,14 @@ server.registerTool("generate_image", {
     prompt: z.string().describe("Text description of the image to generate"),
     numberOfImages: z.number().min(1).max(4).default(1).describe("Number of images (default: 1)"),
   },
-}, async ({ prompt }) => {
+}, async ({ prompt, numberOfImages }) => {
   if (!GOOGLE_API_KEY) return textResponse("GOOGLE_GENERATIVE_AI_API_KEY not set in .env");
   try {
     const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
     const model = genAI.getGenerativeModel({ model: "imagen-3.0-generate-001" });
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ["image"] } as any,
+      generationConfig: { responseModalities: ["image"], candidateCount: numberOfImages } as any,
     });
     const images: string[] = [];
     for (const c of result.response.candidates || [])
@@ -299,22 +300,26 @@ server.registerTool("send_notification", {
 
   if (channel === "telegram") {
     const chatId = Number(recipient) || CHAT_ID;
-    const result = await sendMessage(chatId, text);
-    if (result.ok) { log(); return textResponse("Telegram sent"); }
-    return textResponse(`Telegram failed: ${JSON.stringify(result)}`);
+    try {
+      await sendMessage(chatId, text);
+      log();
+      return textResponse("Telegram sent");
+    } catch (err) {
+      return textResponse(`Telegram failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   if (channel === "whatsapp") {
     const to = recipient.startsWith("whatsapp:") ? recipient : `whatsapp:${recipient}`;
     const result = await sendTwilio(to, text, TWILIO_WA_FROM);
-    log();
-    return textResponse(result.ok ? `WhatsApp sent (SID: ${result.sid})` : `WhatsApp failed: ${result.error}`);
+    if (result.ok) { log(); return textResponse(`WhatsApp sent (SID: ${result.sid})`); }
+    return textResponse(`WhatsApp failed: ${result.error}`);
   }
 
   if (channel === "sms") {
     const result = await sendTwilio(recipient, text, TWILIO_SMS_FROM);
-    log();
-    return textResponse(result.ok ? `SMS sent (SID: ${result.sid})` : `SMS failed: ${result.error}`);
+    if (result.ok) { log(); return textResponse(`SMS sent (SID: ${result.sid})`); }
+    return textResponse(`SMS failed: ${result.error}`);
   }
 
   // Email, Slack, Discord — route through n8n
@@ -322,6 +327,71 @@ server.registerTool("send_notification", {
   if (!result.ok) return textResponse(`Notification failed: ${result.error}`);
   log();
   return textResponse(`Sent via ${channel}`);
+});
+
+// ============================================================
+// Desktop Notifications (macOS)
+// ============================================================
+
+import { showNotification, showDialog } from "../lib/notify";
+import { getInterventionHistory, recordIntervention, canIntervene } from "../lib/proactive";
+
+server.registerTool("show_notification", {
+  description: "Show a macOS desktop notification (toast). Use for non-blocking alerts — meeting reminders, task completions, status updates. Appears in Notification Center.",
+  inputSchema: {
+    title: z.string().describe("Notification title"),
+    body: z.string().describe("Notification body text"),
+  },
+}, async ({ title, body }) => {
+  await showNotification(title, body);
+  logEvent("desktop_notification", { title, body: body.slice(0, 100) });
+  return textResponse("Notification shown");
+});
+
+server.registerTool("show_dialog", {
+  description: "Show a modal dialog on Randy's screen with buttons. Use for decisions that need immediate input — approval flows, yes/no questions, multi-option choices. Blocks until a button is clicked. Returns which button was pressed.",
+  inputSchema: {
+    title: z.string().describe("Dialog title"),
+    body: z.string().describe("Dialog message text"),
+    buttons: z.array(z.string()).min(1).max(3).default(["OK"]).describe("Button labels (max 3). Last button is the default."),
+  },
+}, async ({ title, body, buttons }) => {
+  const clicked = await showDialog(title, body, buttons);
+  logEvent("desktop_dialog", { title, clicked });
+  return textResponse(`Button clicked: ${clicked}`);
+});
+
+// ============================================================
+// Proactive Intelligence
+// ============================================================
+
+server.registerTool("proactive_history", {
+  description: "Check what proactive interventions Edith has already made recently. Use before making a new proactive suggestion to avoid repeating yourself.",
+  inputSchema: {
+    hours: z.number().min(1).max(24).default(4).describe("Hours of history to check (default: 4)"),
+  },
+}, async ({ hours }) => {
+  const history = getInterventionHistory(hours);
+  if (history.length === 0) return textResponse("No recent interventions.");
+  const lines = history.map((i) =>
+    `- ${new Date(i.timestamp).toLocaleTimeString("en-US", { timeZone: "America/New_York" })} [${i.category}] ${i.message}`
+  );
+  return textResponse(lines.join("\n"));
+});
+
+server.registerTool("record_intervention", {
+  description: "Record that a proactive intervention was made. Call this AFTER sending a proactive notification or message, so Edith tracks it for rate limiting.",
+  inputSchema: {
+    category: z.string().describe("Intervention category (e.g. 'meeting-prep', 'break-reminder', 'email-help', 'error-help', 'calendar-conflict')"),
+    message: z.string().describe("Brief description of what was suggested"),
+  },
+}, async ({ category, message }) => {
+  const check = canIntervene(category);
+  if (!check.allowed) {
+    return textResponse(`Intervention blocked: ${check.reason}`);
+  }
+  recordIntervention(category, message);
+  return textResponse(`Recorded: [${category}] ${message.slice(0, 80)}`);
 });
 
 // ============================================================

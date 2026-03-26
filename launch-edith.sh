@@ -16,6 +16,28 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.bun/bin:$PATH"
 STATE_DIR="$HOME/.edith"
 mkdir -p "$STATE_DIR"
 
+# --- Check required tools ---
+MISSING=""
+command -v bun >/dev/null 2>&1 || MISSING="$MISSING bun"
+command -v docker >/dev/null 2>&1 || MISSING="$MISSING docker"
+if [ -n "$MISSING" ]; then
+  echo "[launch] ERROR: Missing required tools:$MISSING"
+  exit 1
+fi
+# Optional tools — warn but continue
+command -v terminal-notifier >/dev/null 2>&1 || echo "[launch] NOTE: terminal-notifier not installed — desktop notifications disabled"
+command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed — auto-restart on file changes disabled"
+
+# --- Check required env vars ---
+if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+  echo "[launch] ERROR: TELEGRAM_BOT_TOKEN not set in .env"
+  exit 1
+fi
+if [ -z "$TELEGRAM_CHAT_ID" ]; then
+  echo "[launch] ERROR: TELEGRAM_CHAT_ID not set in .env"
+  exit 1
+fi
+
 # --- Check for already-running Edith ---
 PID_FILE="$STATE_DIR/edith.pid"
 if [ -f "$PID_FILE" ]; then
@@ -60,10 +82,20 @@ fi
 # --- Pre-flight ---
 mkdir -p "$STATE_DIR" "$DIR/logs"
 
-# Check Docker is running
+# Start Docker Desktop if not running (macOS)
 if ! docker info >/dev/null 2>&1; then
-  echo "[launch] ERROR: Docker is not running. Start Docker Desktop first."
-  exit 1
+  echo "[launch] Docker not running, starting Docker Desktop..."
+  open -a "Docker" 2>/dev/null
+  # Wait up to 60s for Docker to be ready
+  for i in {1..30}; do
+    if docker info >/dev/null 2>&1; then break; fi
+    sleep 2
+  done
+  if ! docker info >/dev/null 2>&1; then
+    echo "[launch] ERROR: Docker failed to start after 60s. Start Docker Desktop manually."
+    exit 1
+  fi
+  echo "[launch] Docker Desktop started"
 fi
 
 # --- Backup n8n credentials (OAuth tokens etc) ---
@@ -87,12 +119,35 @@ fi
 
 # Wait for services to be healthy
 echo "[launch] Waiting for services..."
-for i in {1..15}; do
-  N8N_OK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$N8N_PORT/healthz" 2>/dev/null)
-  if [ "$N8N_OK" = "200" ]; then break; fi
+N8N_OK="down"
+COGNEE_OK="down"
+for i in {1..30}; do
+  [ "$N8N_OK" = "down" ] && curl -s -o /dev/null -w "" "http://localhost:$N8N_PORT/healthz" 2>/dev/null && N8N_OK="up"
+  [ "$COGNEE_OK" = "down" ] && curl -s -o /dev/null "http://localhost:8001/sse" 2>/dev/null && COGNEE_OK="up"
+  if [ "$N8N_OK" = "up" ] && [ "$COGNEE_OK" = "up" ]; then break; fi
   sleep 2
 done
-echo "[launch] n8n: ${N8N_OK:-down}, cognee: running"
+echo "[launch] n8n: $N8N_OK, cognee: $COGNEE_OK"
+[ "$N8N_OK" = "down" ] && echo "[launch] WARNING: n8n not healthy — calendar/email may not work"
+[ "$COGNEE_OK" = "down" ] && echo "[launch] WARNING: Cognee not healthy — knowledge graph unavailable"
+
+# --- Start Screenpipe if not running ---
+if command -v screenpipe >/dev/null 2>&1; then
+  if ! curl -s -o /dev/null "http://localhost:3030/health" 2>/dev/null; then
+    echo "[launch] Starting Screenpipe..."
+    screenpipe &>/dev/null &
+    sleep 2
+    if curl -s -o /dev/null "http://localhost:3030/health" 2>/dev/null; then
+      echo "[launch] Screenpipe started"
+    else
+      echo "[launch] Screenpipe failed to start (permissions may be needed)"
+    fi
+  else
+    echo "[launch] Screenpipe already running"
+  fi
+else
+  echo "[launch] Screenpipe not installed — screen context unavailable"
+fi
 
 # --- Start dashboard ---
 bun "$DIR/dashboard.ts" &
@@ -141,7 +196,7 @@ if command -v fswatch >/dev/null 2>&1; then
       echo "[launch] File change detected, restarting Edith..."
       [ -f "$EDITH_PIDFILE" ] && kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
       sleep 2
-      bun "$DIR/edith.ts" &
+      EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
       echo "$!" > "$EDITH_PIDFILE"
       echo "[launch] Edith restarted (PID $!)"
     done

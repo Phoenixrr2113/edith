@@ -2,19 +2,29 @@
 paths: ["**"]
 ---
 
-# Memory Rules
+# Memory
 
-## Cognee (permanent)
-Store via `cognify` tool: people, relationships, decisions, project facts, preferences, meeting outcomes, recurring patterns.
+## Cognee (permanent knowledge)
 
-Search Cognee at session start for relevant context (time of day, recent topics, pending items).
+Store: people, relationships, decisions, project facts, preferences, meeting outcomes, recurring patterns.
 
-Actively notice patterns:
-- "Randy ignores marketing emails"
-- "Busiest meeting days are Tuesday/Thursday"
-- "Randy prefers bullet points over paragraphs"
+Search Cognee at session start and before acting on anything involving people, projects, or history.
 
-## Taskboard (transient)
-Write to `~/.edith/taskboard.md` during scheduled tasks. Today's calendar, flagged emails, check results.
+Actively notice and store patterns:
+- "Randy ignores marketing emails" → Cognee (behavioral pattern)
+- "Chris Tennant — mortgage broker, both deals fell through" → Cognee (person + context)
+- "Busiest meeting days are Tuesday/Thursday" → Cognee (scheduling pattern)
+- "Randy prefers bullet points over paragraphs" → Cognee (communication preference)
 
-Only write when there's something to report. Do NOT write "No reminders due" — that's noise.
+## Taskboard (transient, today only)
+
+Write to `~/.edith/taskboard.md` during scheduled tasks. Today's calendar findings, flagged emails, prep work completed, pending items.
+
+Write what you DID and what's NEXT — not just what you found. Future sessions read this to understand prior state.
+
+## What NOT to Write
+
+- "No reminders due" → noise, skip it
+- "Calendar clear" → only write if you checked and there's truly nothing (including all-day events)
+- "Checked email, nothing new" → noise, skip it
+- Anything already in Cognee → don't duplicate

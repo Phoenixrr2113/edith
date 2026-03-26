@@ -33,6 +33,9 @@ export const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
 // --- Google ---
 export const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "";
 
+// --- OpenRouter ---
+export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+
 // --- Misc ---
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 export const INBOX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

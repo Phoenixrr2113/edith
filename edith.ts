@@ -2,12 +2,12 @@
  * Edith — Persistent orchestrator for a Claude-powered personal assistant.
  *
  * Architecture:
- *   Telegram ──> edith.ts ──> claude -p --resume $SESSION ──> send_message tool ──> Telegram
- *   Timer    ──> edith.ts ──> claude -p (ephemeral)       ──> taskboard / send_message tool
+ *   Telegram ──> edith.ts ──> Agent SDK query() ──> MCP tools ──> Telegram
+ *   Timer    ──> edith.ts ──> Agent SDK query() ──> taskboard / MCP tools
  *
  * All logic is in lib/ modules. This file is just the startup + poll loop.
  */
-import { existsSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 
 // --- Log to file + console ---
@@ -27,20 +27,30 @@ console.warn = (...args: any[]) => { _origWarn(...args); writeLog("warn", args);
 import {
   BOT_TOKEN, CHAT_ID, SMS_BOT_ID, ALLOWED_CHATS,
   INBOX_DIR, PID_FILE, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
-  offset, saveOffset, sessionId, logEvent, rotateEvents,
+  offset, saveOffset, sessionId, clearSession, logEvent, rotateEvents,
   loadPrompt, loadDeadLetters, clearDeadLetters, saveDeadLetter,
 } from "./lib/state";
+import { STATE_DIR } from "./lib/config";
 import { tgCall, sendMessage, sendTyping, downloadFile, transcribeAudio } from "./lib/telegram";
 import { rotateTaskboard } from "./lib/taskboard";
 import { dispatchToClaude, dispatchToConversation, dispatchQueue } from "./lib/dispatch";
 import { runScheduler } from "./lib/scheduler";
 import { startCaffeinate, stopCaffeinate } from "./lib/caffeinate";
+import { getActiveQuery } from "./lib/session";
+import { buildBrief } from "./lib/briefs";
 import {
   checkLocationReminders,
   checkLocationTransitions,
   checkTimeReminders,
   markFired,
 } from "./mcp/geo";
+
+// --- Signal files ---
+const SIGNAL_RESTART = join(STATE_DIR, ".signal-restart");
+const SIGNAL_PAUSE = join(STATE_DIR, ".signal-pause");
+const SIGNAL_FRESH = join(STATE_DIR, ".signal-fresh");
+const TRIGGERS_DIR = join(STATE_DIR, "triggers");
+let paused = false;
 
 if (!BOT_TOKEN) {
   console.error("TELEGRAM_BOT_TOKEN not set");
@@ -92,6 +102,7 @@ async function poll(): Promise<void> {
         }
 
         await sendTyping(chatId);
+        if (paused) { paused = false; console.log("[edith] Unpaused by incoming message."); }
         const msgType = msg.location ? "📍 location" : msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
         const msgPreview = msg.text?.slice(0, 80) ?? (msg.caption?.slice(0, 80) ?? "");
         console.log(`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`);
@@ -127,10 +138,8 @@ async function poll(): Promise<void> {
               const emoji = t.type === "arrived" ? "📍" : "🚗";
               return `${emoji} ${t.type === "arrived" ? "Arrived at" : "Left"} ${t.locationLabel}`;
             }).join(". ");
-            await dispatchToClaude(
-              loadPrompt("location-update", { description: desc, lat, lon, chatId }),
-              { label: "location" }
-            );
+            const brief = await buildBrief("location", { description: desc, lat: String(lat), lon: String(lon), chatId: String(chatId) });
+            await dispatchToClaude(brief, { label: "location", briefType: "location" });
           }
           continue;
         }
@@ -144,7 +153,7 @@ async function poll(): Promise<void> {
             const content = transcription
               ? `[Voice note from Randy] "${transcription}"`
               : `[Voice note from Randy] Audio file saved at: ${localPath}. Could not transcribe.`;
-            logEvent("voice_transcribed", { path: localPath, text: transcription.slice(0, 200) });
+            logEvent("voice_transcribed", { path: localPath, text: (transcription ?? "").slice(0, 200) });
             await dispatchToConversation(chatId, msg.message_id, content);
           } catch (err) {
             console.error("[edith] Voice note processing failed:", err instanceof Error ? err.message : err);
@@ -207,9 +216,17 @@ async function poll(): Promise<void> {
 async function bootstrap(): Promise<void> {
   rotateTaskboard();
 
+  // Check for signal files
+  if (existsSync(SIGNAL_FRESH)) {
+    console.log("[edith] Signal: fresh session requested. Clearing session.");
+    clearSession();
+    try { unlinkSync(SIGNAL_FRESH); } catch {}
+  }
+
   if (!sessionId) {
     console.log("[edith] Bootstrapping new Claude session...");
-    await dispatchToClaude(loadPrompt("bootstrap"), { resume: true, label: "bootstrap" });
+    const bootBrief = await buildBrief("boot");
+    await dispatchToClaude(bootBrief, { resume: true, label: "bootstrap", briefType: "boot" });
     console.log("[edith] Bootstrap complete.");
   } else {
     console.log(`[edith] Resuming session: ${sessionId}`);
@@ -233,6 +250,13 @@ async function bootstrap(): Promise<void> {
 // Graceful shutdown
 // ============================================================
 function gracefulShutdown(): void {
+  // Close active Agent SDK query if running
+  const activeQuery = getActiveQuery();
+  if (activeQuery) {
+    console.log("[edith] Closing active Agent SDK session...");
+    try { activeQuery.close(); } catch {}
+  }
+
   if (dispatchQueue.length > 0) {
     console.log(`[edith] Draining ${dispatchQueue.length} queued message(s) to dead-letter...`);
     for (const job of dispatchQueue) {
@@ -270,12 +294,78 @@ logEvent("startup", { pid: process.pid, sessionId: sessionId || "new" });
 startCaffeinate();
 await bootstrap();
 
-// Scheduler
-setInterval(() => {
-  runScheduler().catch((err) => console.error("[edith:scheduler] Error:", err instanceof Error ? err.message : err));
+// Scheduler + signal file watcher
+let schedulerRunning = false;
+setInterval(async () => {
+  if (schedulerRunning) return;
+  schedulerRunning = true;
+  try {
+  // Check signal files
+  if (existsSync(SIGNAL_RESTART)) {
+    console.log("[edith] Signal: restart requested.");
+    try { unlinkSync(SIGNAL_RESTART); } catch {}
+    logEvent("signal_restart", {});
+    process.exit(0); // launch-edith.sh auto-restarts
+  }
+
+  if (existsSync(SIGNAL_PAUSE)) {
+    console.log("[edith] Signal: pause requested. Waiting for 'wake up' message...");
+    try { unlinkSync(SIGNAL_PAUSE); } catch {}
+    logEvent("signal_pause", {});
+    paused = true;
+    return;
+  }
+
+  if (paused) return;
+
+  // Check for dashboard trigger files
+  try {
+    if (existsSync(TRIGGERS_DIR)) {
+      for (const f of readdirSync(TRIGGERS_DIR)) {
+        const fp = join(TRIGGERS_DIR, f);
+        try { unlinkSync(fp); } catch {}
+        console.log(`[edith] Dashboard trigger: ${f}`);
+        logEvent("dashboard_trigger", { task: f });
+        // Fire the triggered task immediately
+        const briefTypeMap: Record<string, string> = { "morning-brief": "morning", "midday-check": "midday", "evening-wrap": "evening" };
+        const briefType = briefTypeMap[f];
+        const prompt = briefType ? await buildBrief(briefType as any) : await buildBrief("scheduled", { prompt: `/${f}`, taskName: f });
+        dispatchToClaude(prompt, { resume: false, label: f, skipIfBusy: false, briefType: (briefType ?? "scheduled") as any })
+          .catch((err) => console.error(`[edith] Trigger dispatch error:`, err instanceof Error ? err.message : err));
+      }
+    }
+  } catch {}
+
+  // Check for dashboard inbox messages
+  try {
+    if (existsSync(INBOX_DIR)) {
+      for (const f of readdirSync(INBOX_DIR)) {
+        if (!f.startsWith("dashboard-")) continue;
+        const fp = join(INBOX_DIR, f);
+        try {
+          const msg = JSON.parse(readFileSync(fp, "utf-8"));
+          unlinkSync(fp);
+          if (msg.text?.trim()) {
+            console.log(`[edith] Dashboard message: ${msg.text.slice(0, 80)}`);
+            logEvent("dashboard_message", { text: msg.text.slice(0, 200) });
+            const brief = await buildBrief("message" as any, { message: msg.text, chatId: String(CHAT_ID) });
+            dispatchToClaude(brief, { resume: true, label: "dashboard-msg", chatId: CHAT_ID })
+              .catch((err) => console.error(`[edith] Dashboard msg dispatch error:`, err instanceof Error ? err.message : err));
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  await runScheduler();
+  } catch (err) {
+    console.error("[edith:scheduler] Error:", err instanceof Error ? err.message : err);
+  } finally {
+    schedulerRunning = false;
+  }
 }, SCHEDULE_CHECK_MS);
 
 runScheduler().catch((err) => console.error("[edith:scheduler] Error:", err instanceof Error ? err.message : err));
 
 // Start polling
-poll();
+poll().catch((err) => { console.error("[edith] Poll loop crashed:", err); process.exit(1); });

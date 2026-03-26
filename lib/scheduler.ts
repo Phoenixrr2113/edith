@@ -2,8 +2,9 @@
  * Scheduler — reads tasks from ~/.edith/schedule.json and fires them via dispatch.
  */
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import { SCHEDULE_FILE, SCHEDULE_STATE_FILE, TASKBOARD_FILE, CHAT_ID, logEvent, loadPrompt } from "./state";
+import { SCHEDULE_FILE, SCHEDULE_STATE_FILE, logEvent } from "./state";
 import { dispatchToClaude } from "./dispatch";
+import { buildBrief, type BriefType } from "./briefs";
 import type { ScheduleEntry } from "../mcp/types";
 
 interface ScheduleState {
@@ -15,7 +16,16 @@ const DEFAULT_SCHEDULE: ScheduleEntry[] = [
   { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7 },
   { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53 },
   { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
+  { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 3 },
 ];
+
+/** Map task names to brief types for known tasks. */
+const BRIEF_TYPE_MAP: Record<string, BriefType> = {
+  "morning-brief": "morning",
+  "midday-check": "midday",
+  "evening-wrap": "evening",
+  "proactive-check": "proactive",
+};
 
 function loadSchedule(): ScheduleEntry[] {
   if (!existsSync(SCHEDULE_FILE)) {
@@ -43,14 +53,24 @@ function shouldFire(entry: ScheduleEntry, now: Date, state: ScheduleState): bool
     return (now.getTime() - lastFiredTime) >= entry.intervalMinutes * 60 * 1000;
   }
 
+  // Window-based: fire if we're at or past the target time today and haven't fired today
+  const targetHour = entry.hour ?? -1;
+  const targetMinute = entry.minute ?? -1;
+  if (targetHour < 0) return false;
+
   const h = now.getHours();
   const m = now.getMinutes();
-  if (h !== (entry.hour ?? -1) || m !== (entry.minute ?? -1)) return false;
+  const nowMinutes = h * 60 + m;
+  const targetMinutes = targetHour * 60 + targetMinute;
 
+  // Must be at or past target time, within a 30-minute window
+  if (nowMinutes < targetMinutes || nowMinutes > targetMinutes + 30) return false;
+
+  // Check if already fired today
   if (lastFiredTime > 0) {
     const lastDate = new Date(lastFiredTime);
     if (lastDate.getFullYear() === now.getFullYear() && lastDate.getMonth() === now.getMonth() &&
-        lastDate.getDate() === now.getDate() && lastDate.getHours() === h && lastDate.getMinutes() === m) {
+        lastDate.getDate() === now.getDate()) {
       return false;
     }
   }
@@ -67,18 +87,28 @@ export async function runScheduler(): Promise<void> {
 
     console.log(`[edith:scheduler] Firing ${entry.name}`);
     logEvent("schedule_fire", { task: entry.name, prompt: entry.prompt });
-    state.lastFired[entry.name] = now.toISOString();
-    saveScheduleState(state);
 
-    const prompt = loadPrompt("scheduled-task", {
-      prompt: entry.prompt,
-      time: now.toLocaleString(),
-      taskboardPath: TASKBOARD_FILE,
-      timestamp: now.toISOString(),
-      taskName: entry.name,
-      chatId: CHAT_ID,
+    // Use brief types for known tasks, generic scheduled brief for custom ones
+    const briefType = BRIEF_TYPE_MAP[entry.name];
+    let prompt: string;
+
+    if (briefType) {
+      prompt = await buildBrief(briefType);
+    } else {
+      prompt = await buildBrief("scheduled", { prompt: entry.prompt, taskName: entry.name });
+    }
+
+    const result = await dispatchToClaude(prompt, {
+      resume: false,
+      label: entry.name,
+      skipIfBusy: true,
+      briefType: briefType ?? "scheduled",
     });
 
-    await dispatchToClaude(prompt, { resume: false, label: entry.name, skipIfBusy: true });
+    // Save state after dispatch so failed/skipped tasks can retry next tick
+    if (result || result === "injected") {
+      state.lastFired[entry.name] = now.toISOString();
+      saveScheduleState(state);
+    }
   }
 }
