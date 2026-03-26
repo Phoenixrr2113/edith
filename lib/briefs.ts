@@ -64,8 +64,9 @@ async function buildFullBrief(type: "boot" | "morning"): Promise<string> {
   }
 
   sections.push(
-    `\nOrient yourself: search Cognee for relevant context, check calendar (hoursAhead=16, includeAllDay=true), check email (maxResults=10), check reminders.`,
+    `\nOrient yourself: search Cognee for relevant context, check calendar (manage_calendar action=get, hoursAhead=16, includeAllDay=true), check email (manage_emails action=get, maxResults=10), check reminders.`,
     `For anything you find, think: what would a brilliant human assistant do with this? Research deeply before acting.`,
+    `After checking email, clean the inbox: archive newsletters, promos, automated notifications, shipping updates, and social media alerts. Trash obvious spam. Keep emails from real people, calendar invites, active projects, and anything financial/legal. Use manage_emails with operations array for efficiency. Report what you cleaned, not what you found.`,
     `Store genuinely new knowledge in Cognee. Write findings to taskboard at ${TASKBOARD_FILE}.`,
     `Send Randy ONE short message (3-5 lines) with what you DID, not what you FOUND. Chat ID: ${CHAT_ID}.`,
   );
@@ -91,9 +92,16 @@ async function buildMiddayBrief(): Promise<string> {
   }
 
   sections.push(
-    `\nScan for changes since morning: new emails (get_emails, maxResults=10), afternoon calendar (get_calendar, hoursAhead=8, includeAllDay=true), reminders.`,
+    `\nScan for changes since morning: new emails (manage_emails action=get, maxResults=10), afternoon calendar (manage_calendar action=get, hoursAhead=8, includeAllDay=true), reminders.`,
     `If a meeting is < 4h away, prep now. Advance any deadline work. Draft replies for actionable emails.`,
-    `Only message Randy if something needs his attention. Otherwise write to taskboard at ${TASKBOARD_FILE} and stay silent.`,
+    `\n## Inbox Triage`,
+    `After scanning emails, clean the inbox using manage_emails with operations array:`,
+    `- **Archive**: marketing, newsletters, automated notifications, shipping updates, social media alerts, subscription confirmations, promotional emails`,
+    `- **Trash**: obvious spam that got past filters`,
+    `- **Keep in inbox**: emails from real people expecting a reply, calendar invites needing action, emails about active projects/deadlines, anything financial or legal`,
+    `- Mark cleaned emails as read. When uncertain, keep.`,
+    `- Log cleanup to taskboard (e.g. "Archived 8 newsletters/promos, kept 2 actionable"). Do NOT message Randy about cleanup.`,
+    `\nOnly message Randy if something needs his attention. Otherwise write to taskboard at ${TASKBOARD_FILE} and stay silent.`,
     `Chat ID: ${CHAT_ID}.`,
   );
 
@@ -113,8 +121,9 @@ async function buildEveningBrief(): Promise<string> {
   }
 
   sections.push(
-    `\nReview today (taskboard). Check tomorrow's calendar (get_calendar, hoursAhead=24, includeAllDay=true).`,
+    `\nReview today (taskboard). Check tomorrow's calendar (manage_calendar action=get, hoursAhead=24, includeAllDay=true).`,
     `For tomorrow's events: research context, prep materials. If deadline < 48h, do as much work as possible now.`,
+    `Final inbox sweep: archive any remaining noise from today. Only keep emails that need action tomorrow. Use manage_emails with operations array.`,
     `Store new knowledge in Cognee. Write summary to taskboard at ${TASKBOARD_FILE}.`,
     `Only message Randy if tomorrow needs his attention tonight. Respect family time. Chat ID: ${CHAT_ID}.`,
   );
@@ -183,10 +192,10 @@ async function buildProactiveBrief(): Promise<string> {
     `\n## Detection Rules`,
     `Check these in order. Act on the FIRST one that applies, then exit.`,
     ``,
-    `**Time blindness** — Meeting/event in <15 min (check calendar via get_calendar) and no prep activity visible → show_notification with meeting details`,
-    `**Marathon session** — "Continuous activity" above shows 90+ min → show_notification suggesting a break. Be warm, not naggy.`,
+    `**Time blindness** — Meeting/event in <15 min (manage_calendar action=get) and no prep activity visible → send_notification channel=desktop with meeting details`,
+    `**Marathon session** — "Continuous activity" above shows 90+ min → send_notification channel=desktop suggesting a break. Be warm, not naggy.`,
     `**Stuck** — Error messages, stack traces, or same terminal output visible for a long time → offer debugging help via send_message`,
-    `**Eating** — Current time is 11am-2pm or 5pm-8pm AND 4+ hours of continuous activity with no food-related apps → gentle nudge via show_notification`,
+    `**Eating** — Current time is 11am-2pm or 5pm-8pm AND 4+ hours of continuous activity with no food-related apps → gentle nudge via send_notification channel=desktop`,
     `**Actionable email** — If you can see email content on screen that looks like it needs a reply → offer to draft via send_message`,
     ``,
     `Before acting: check proactive_history to avoid repeating yourself.`,

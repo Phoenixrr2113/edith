@@ -392,15 +392,18 @@ flowchart TD
 
 <!-- ==================== MCP TOOLS ==================== -->
 <div id="mcp" class="view">
-<h2>MCP Tool Server — 16 Registered Tools</h2>
+<h2>MCP Tool Server — 15 Registered Tools</h2>
 <div class="mermaid">
 graph TB
   C["Claude"] --> ROUTER["MCP Tool Router"]
 
   ROUTER --> SM["send_message"]
-  ROUTER --> SI["send_image"]
+  ROUTER --> SN["send_notification"]
   SM --> TG["Telegram API"]
-  SI --> TG
+  SN --> TG
+  SN --> TWILIO["Twilio (WhatsApp/SMS)"]
+  SN --> N8NNOTIFY["n8n /notify"]
+  SN --> DESKTOP["macOS Notifications"]
 
   ROUTER --> LS["list_scheduled_tasks"]
   ROUTER --> AS["add_scheduled_task"]
@@ -421,11 +424,11 @@ graph TB
   LR --> RFILE
   MRF --> RFILE
 
-  ROUTER --> GC["get_calendar"]
-  ROUTER --> GE["get_emails"]
+  ROUTER --> ME["manage_emails"]
+  ROUTER --> MC["manage_calendar"]
   ROUTER --> GI["generate_image"]
-  GC --> N8N["n8n"]
-  GE --> N8N
+  ME --> N8N["n8n /gmail"]
+  MC --> N8N2["n8n /calendar"]
   GI --> IMAGEN["Imagen 3.0"]
 
   ROUTER --> SN["send_notification"]

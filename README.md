@@ -15,10 +15,10 @@ launch-edith.sh
         └── Events         → ~/.edith/events.jsonl → dashboard
 
 MCP tools (mcp/server.ts):
-  send_message, get_calendar, get_emails,
-  save_reminder, list_reminders, mark_reminder_fired,
-  save_location, list_locations,
-  add/list/remove_scheduled_task
+  send_message, send_notification, manage_emails, manage_calendar,
+  generate_image, save_reminder, list_reminders, mark_reminder_fired,
+  save_location, list_locations, add/list/remove_scheduled_task,
+  proactive_history, record_intervention
 
 Docker:
   cognee (port 8001) — knowledge graph

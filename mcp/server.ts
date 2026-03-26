@@ -14,6 +14,8 @@ import { loadSchedule, saveSchedule, loadLocations, saveLocations, loadReminders
 import { textResponse, jsonResponse } from "../lib/mcp-helpers";
 import { sendTwilio } from "../lib/twilio";
 import { n8nPost } from "../lib/n8n-client";
+import { showNotification, showDialog } from "../lib/notify";
+import { getInterventionHistory, recordIntervention, canIntervene } from "../lib/proactive";
 import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
 
 
@@ -25,51 +27,125 @@ const server = new McpServer(
   {
     instructions: `You are Edith, a personal assistant. Messages arrive from Randy via Telegram.
 Respond using the "send_message" tool with the chat_id from the message context. Be direct and concise.
-You can manage scheduled tasks, reminders, and locations using the provided tools.`,
+You can manage scheduled tasks, reminders, locations, emails, and calendar using the provided tools.`,
   }
 );
 
 // ============================================================
-// Telegram
+// Telegram — send_message (text, image, reaction)
 // ============================================================
 
 server.registerTool("send_message", {
-  description: "Send a message to Randy via Telegram. Can send a text reply, or react to a specific message with an emoji.",
+  description: "Send a message to Randy via Telegram. Supports text, images, emoji reactions, or text+image together.",
   inputSchema: {
     chat_id: z.number().describe("Telegram chat ID"),
-    text: z.string().optional().describe("The message text to send (for replies)"),
-    emoji: z.string().optional().describe("Emoji to react with (for reactions, instead of text)"),
+    text: z.string().optional().describe("Message text to send"),
+    image: z.string().optional().describe("Base64 data URL (data:image/png;base64,...) to send as photo"),
+    emoji: z.string().optional().describe("Emoji to react with (instead of text/image)"),
     message_id: z.number().optional().describe("Message ID to react to (required with emoji)"),
   },
-}, async ({ chat_id, text, emoji, message_id }) => {
+}, async ({ chat_id, text, image, emoji, message_id }) => {
   if (ALLOWED_CHAT && chat_id !== ALLOWED_CHAT) return textResponse(`Blocked: chat_id ${chat_id} not authorized.`);
+
+  // Emoji reaction
   if (emoji) {
     if (!message_id) return textResponse("Reactions require message_id");
     try { await tgCall("setMessageReaction", { chat_id, message_id, reaction: [{ type: "emoji", emoji }] }); } catch {}
     return textResponse("Reacted");
   }
-  if (!text) return textResponse("Missing text or emoji");
+
+  // Image (with optional caption)
+  if (image) {
+    try {
+      await sendPhoto(chat_id, image, text);
+      logEvent("image_sent", { chatId: chat_id, caption: text?.slice(0, 100) });
+      return textResponse("Image sent");
+    } catch (err) {
+      return textResponse(`Failed to send image: ${fmtErr(err)}`);
+    }
+  }
+
+  // Text only
+  if (!text) return textResponse("Missing text, image, or emoji");
   await sendMessage(chat_id, `🤖 *EDITH*\n\n${text}`);
   logEvent("message_sent", { chatId: chat_id, text: text.slice(0, 200) });
   return textResponse("Sent");
 });
 
-server.registerTool("send_image", {
-  description: "Send an image to Randy via Telegram. Use the base64 data URL from generate_image.",
+// ============================================================
+// Notifications — send_notification (all channels + desktop)
+// ============================================================
+
+server.registerTool("send_notification", {
+  description: "Send a notification via any channel. Channels: telegram, whatsapp, sms, email, slack, discord (remote), desktop (macOS toast), dialog (macOS modal that blocks and returns which button was clicked).",
   inputSchema: {
-    chat_id: z.number().describe("Telegram chat ID"),
-    image_data: z.string().describe("Base64 data URL (data:image/png;base64,...)"),
-    caption: z.string().optional().describe("Optional caption for the image"),
+    channel: z.enum(["whatsapp", "sms", "slack", "email", "discord", "telegram", "desktop", "dialog"]).describe("Delivery channel"),
+    recipient: z.string().optional().describe("Recipient — phone for WhatsApp/SMS, email for email, chat_id for Telegram. Not needed for desktop/dialog."),
+    text: z.string().describe("Message or notification body"),
+    title: z.string().optional().describe("Title (for desktop/dialog notifications)"),
+    subject: z.string().optional().describe("Subject line (for email)"),
+    buttons: z.array(z.string()).min(1).max(3).optional().describe("Button labels for dialog channel (max 3). Returns which was clicked."),
   },
-}, async ({ chat_id, image_data, caption }) => {
-  if (ALLOWED_CHAT && chat_id !== ALLOWED_CHAT) return textResponse(`Blocked: chat_id ${chat_id} not authorized.`);
-  try {
-    await sendPhoto(chat_id, image_data, caption);
-    logEvent("image_sent", { chatId: chat_id, caption: caption?.slice(0, 100) });
-    return textResponse("Image sent");
-  } catch (err) {
-    return textResponse(`Failed to send image: ${fmtErr(err)}`);
+}, async ({ channel, recipient, text, title, subject, buttons }) => {
+  const log = () => logEvent("notification_sent", { channel, recipient: recipient?.slice(0, 30), text: text.slice(0, 100) });
+
+  // Desktop toast notification
+  if (channel === "desktop") {
+    try {
+      await showNotification(title ?? "Edith", text);
+      logEvent("desktop_notification", { title, body: text.slice(0, 100) });
+      return textResponse("Notification shown");
+    } catch (err) {
+      return textResponse(`Notification failed: ${fmtErr(err)}`);
+    }
   }
+
+  // Modal dialog (blocks, returns button clicked)
+  if (channel === "dialog") {
+    try {
+      const clicked = await showDialog(title ?? "Edith", text, buttons ?? ["OK"]);
+      logEvent("desktop_dialog", { title, clicked });
+      return textResponse(`Button clicked: ${clicked}`);
+    } catch (err) {
+      return textResponse(`Dialog failed: ${fmtErr(err)}`);
+    }
+  }
+
+  // Telegram
+  if (channel === "telegram") {
+    const chatId = Number(recipient) || CHAT_ID;
+    try {
+      await sendMessage(chatId, text);
+      log();
+      return textResponse("Telegram sent");
+    } catch (err) {
+      return textResponse(`Telegram failed: ${fmtErr(err)}`);
+    }
+  }
+
+  // WhatsApp (Twilio)
+  if (channel === "whatsapp") {
+    if (!recipient) return textResponse("WhatsApp requires a recipient phone number");
+    const to = recipient.startsWith("whatsapp:") ? recipient : `whatsapp:${recipient}`;
+    const result = await sendTwilio(to, text, TWILIO_WA_FROM);
+    if (result.ok) { log(); return textResponse(`WhatsApp sent (SID: ${result.sid})`); }
+    return textResponse(`WhatsApp failed: ${result.error}`);
+  }
+
+  // SMS (Twilio)
+  if (channel === "sms") {
+    if (!recipient) return textResponse("SMS requires a recipient phone number");
+    const result = await sendTwilio(recipient, text, TWILIO_SMS_FROM);
+    if (result.ok) { log(); return textResponse(`SMS sent (SID: ${result.sid})`); }
+    return textResponse(`SMS failed: ${result.error}`);
+  }
+
+  // Email, Slack, Discord — route through n8n
+  if (!recipient) return textResponse(`${channel} requires a recipient`);
+  const result = await n8nPost("notify", { channel, recipient, text, subject });
+  if (!result.ok) return textResponse(`Notification failed: ${result.error}`);
+  log();
+  return textResponse(`Sent via ${channel}`);
 });
 
 // ============================================================
@@ -209,49 +285,135 @@ server.registerTool("mark_reminder_fired", {
 });
 
 // ============================================================
-// Google (via n8n)
+// Email — manage_emails (get + manage + batch, one tool)
 // ============================================================
 
-server.registerTool("get_calendar", {
-  description: "Get upcoming calendar events from Google Calendar. Returns events for the next N hours.",
+server.registerTool("manage_emails", {
+  description: "Unified Gmail tool. Action 'get' fetches recent emails. Actions 'archive', 'trash', 'markAsRead', 'addLabel', 'removeLabel' manage a single email by messageId. Use 'operations' array for batch management (up to 50). Prefer archive over trash — archive is reversible.",
   inputSchema: {
-    hoursAhead: z.number().min(1).max(168).default(24).describe("Hours ahead to look (default: 24, max: 168 for full week)"),
-    includeAllDay: z.boolean().default(true).describe("Include all-day events like milestones and deadlines (default: true)"),
+    action: z.enum(["get", "archive", "trash", "markAsRead", "addLabel", "removeLabel"]).default("get")
+      .describe("What to do. Default: 'get' to fetch emails."),
+    // Get params
+    hoursBack: z.number().min(1).max(48).optional().describe("(get) Hours back to search. Default: 4"),
+    unreadOnly: z.boolean().optional().describe("(get) Only unread emails. Default: true"),
+    maxResults: z.number().min(1).max(20).optional().describe("(get) Max emails. Default: 10"),
+    // Single manage params
+    messageId: z.string().optional().describe("(manage) Gmail message ID from a previous get"),
+    label: z.string().optional().describe("(addLabel/removeLabel) Label name"),
+    // Batch params
+    operations: z.array(z.object({
+      messageId: z.string(),
+      action: z.enum(["archive", "trash", "markAsRead", "addLabel", "removeLabel"]),
+      label: z.string().optional(),
+    })).max(50).optional().describe("(batch) Array of operations. Overrides single messageId/action."),
   },
-}, async ({ hoursAhead, includeAllDay }) => {
-  const result = await n8nPost("calendar", { hoursAhead, includeAllDay });
-  if (!result.ok) {
-    if (result.data === null) return jsonResponse({ events: [], message: "No upcoming events" });
-    return textResponse(`Calendar error: ${result.error}`);
+}, async ({ action, hoursBack, unreadOnly, maxResults, messageId, label, operations }) => {
+  // Batch mode
+  if (operations && operations.length > 0) {
+    const result = await n8nPost("gmail", { action: "batch", operations });
+    if (!result.ok) return textResponse(`Batch email error: ${result.error}`);
+    logEvent("email_managed_batch", { count: operations.length, actions: [...new Set(operations.map(o => o.action))].join(",") });
+    return jsonResponse(result.data ?? { success: true, count: operations.length });
   }
-  const data = result.data;
-  if (data?.events) {
-    const cutoff = new Date(Date.now() + hoursAhead * 3600000).toISOString();
-    data.events = data.events.filter((e: any) => {
-      if (!includeAllDay && !e.start?.includes("T")) return false;
-      return !e.start || e.start <= cutoff;
-    });
-    data.count = data.events.length;
+
+  // Get mode
+  if (action === "get") {
+    const params = { hoursBack: hoursBack ?? 4, unreadOnly: unreadOnly ?? true, maxResults: maxResults ?? 10 };
+    const result = await n8nPost("gmail", params);
+    if (!result.ok) return textResponse(`Gmail error: ${result.error}`);
+    const data = result.data;
+    if (data?.emails?.length > params.maxResults) {
+      data.emails = data.emails.slice(0, params.maxResults);
+      data.count = data.emails.length;
+    }
+    return jsonResponse(data);
   }
-  return jsonResponse(data);
+
+  // Single manage
+  if (!messageId) return textResponse(`${action} requires a messageId`);
+  if ((action === "addLabel" || action === "removeLabel") && !label) {
+    return textResponse(`${action} requires a label name`);
+  }
+  const result = await n8nPost("gmail", { messageId, action, label });
+  if (!result.ok) return textResponse(`Email manage error: ${result.error}`);
+  logEvent("email_managed", { messageId, action, label });
+  return textResponse(`Done: ${action} on ${messageId}`);
 });
 
-server.registerTool("get_emails", {
-  description: "Get recent emails from Gmail. Returns unread/important emails from the last N hours.",
+// ============================================================
+// Calendar — manage_calendar (get + create + update + delete)
+// ============================================================
+
+server.registerTool("manage_calendar", {
+  description: "Unified Google Calendar tool. Action 'get' fetches upcoming events. Actions 'create', 'update', 'delete' manage events.",
   inputSchema: {
-    hoursBack: z.number().min(1).max(48).default(4).describe("Hours back to search"),
-    unreadOnly: z.boolean().default(true).describe("Only return unread emails"),
-    maxResults: z.number().min(1).max(20).default(10).describe("Max emails to return"),
+    action: z.enum(["get", "create", "update", "delete"]).default("get")
+      .describe("What to do. Default: 'get' to fetch events."),
+    // Get params
+    hoursAhead: z.number().min(1).max(168).optional().describe("(get) Hours ahead to look. Default: 24"),
+    includeAllDay: z.boolean().optional().describe("(get) Include all-day events. Default: true"),
+    // Create/update params
+    summary: z.string().optional().describe("(create/update) Event title"),
+    start: z.string().optional().describe("(create/update) Start time ISO 8601"),
+    end: z.string().optional().describe("(create/update) End time ISO 8601"),
+    location: z.string().optional().describe("(create/update) Event location"),
+    description: z.string().optional().describe("(create/update) Event description"),
+    allDay: z.boolean().optional().describe("(create) All-day event flag"),
+    // Update/delete params
+    eventId: z.string().optional().describe("(update/delete) Calendar event ID from a previous get"),
+    calendar: z.string().optional().describe("Calendar ID. Default: randyrowanwilson@gmail.com"),
   },
-}, async ({ hoursBack, unreadOnly, maxResults }) => {
-  const result = await n8nPost("gmail", { hoursBack, unreadOnly, maxResults });
-  if (!result.ok) return textResponse(`Gmail error: ${result.error}`);
-  const data = result.data;
-  if (data?.emails?.length > maxResults) {
-    data.emails = data.emails.slice(0, maxResults);
-    data.count = data.emails.length;
+}, async ({ action, hoursAhead, includeAllDay, summary, start, end, location, description, allDay, eventId, calendar }) => {
+  // Get mode
+  if (action === "get") {
+    const hours = hoursAhead ?? 24;
+    const inclAllDay = includeAllDay ?? true;
+    const result = await n8nPost("calendar", { hoursAhead: hours, includeAllDay: inclAllDay });
+    if (!result.ok) {
+      if (result.data === null) return jsonResponse({ events: [], message: "No upcoming events" });
+      return textResponse(`Calendar error: ${result.error}`);
+    }
+    const data = result.data;
+    if (data?.events) {
+      const cutoff = new Date(Date.now() + hours * 3600000).toISOString();
+      data.events = data.events.filter((e: any) => {
+        if (!inclAllDay && !e.start?.includes("T")) return false;
+        return !e.start || e.start <= cutoff;
+      });
+      data.count = data.events.length;
+    }
+    return jsonResponse(data);
   }
-  return jsonResponse(data);
+
+  // Create
+  if (action === "create") {
+    if (!summary) return textResponse("create requires a summary (event title)");
+    if (!start) return textResponse("create requires a start time");
+    const result = await n8nPost("calendar", { action: "create", summary, start, end, location, description, allDay, calendar });
+    if (!result.ok) return textResponse(`Calendar create error: ${result.error}`);
+    logEvent("calendar_created", { summary, start });
+    return jsonResponse(result.data ?? { ok: true, summary, start });
+  }
+
+  // Update
+  if (action === "update") {
+    if (!eventId) return textResponse("update requires an eventId");
+    const result = await n8nPost("calendar", { action: "update", eventId, summary, start, end, location, description, calendar });
+    if (!result.ok) return textResponse(`Calendar update error: ${result.error}`);
+    logEvent("calendar_updated", { eventId, summary });
+    return jsonResponse(result.data ?? { ok: true, eventId });
+  }
+
+  // Delete
+  if (action === "delete") {
+    if (!eventId) return textResponse("delete requires an eventId");
+    const result = await n8nPost("calendar", { action: "delete", eventId, calendar });
+    if (!result.ok) return textResponse(`Calendar delete error: ${result.error}`);
+    logEvent("calendar_deleted", { eventId });
+    return textResponse(`Deleted event: ${eventId}`);
+  }
+
+  return textResponse(`Unknown action: ${action}`);
 });
 
 // ============================================================
@@ -281,96 +443,6 @@ server.registerTool("generate_image", {
     return jsonResponse({ success: true, count: images.length, images, prompt });
   } catch (err) {
     return textResponse(`Image generation failed: ${fmtErr(err)}`);
-  }
-});
-
-// ============================================================
-// Notifications (multi-channel)
-// ============================================================
-
-server.registerTool("send_notification", {
-  description: "Send a message via any channel (WhatsApp, Slack, email, SMS, etc). For Telegram, prefer send_message. WhatsApp/SMS go direct via Twilio. Email/Slack/Discord route through n8n.",
-  inputSchema: {
-    channel: z.enum(["whatsapp", "sms", "slack", "email", "discord", "telegram"]).describe("Channel to send through"),
-    recipient: z.string().describe("Recipient — phone for WhatsApp/SMS, email for email, chat_id for Telegram"),
-    text: z.string().describe("Message text to send"),
-    subject: z.string().optional().describe("Subject line (for email only)"),
-  },
-}, async ({ channel, recipient, text, subject }) => {
-  const log = () => logEvent("notification_sent", { channel, recipient: recipient.slice(0, 30), text: text.slice(0, 100) });
-
-  if (channel === "telegram") {
-    const chatId = Number(recipient) || CHAT_ID;
-    try {
-      await sendMessage(chatId, text);
-      log();
-      return textResponse("Telegram sent");
-    } catch (err) {
-      return textResponse(`Telegram failed: ${fmtErr(err)}`);
-    }
-  }
-
-  if (channel === "whatsapp") {
-    const to = recipient.startsWith("whatsapp:") ? recipient : `whatsapp:${recipient}`;
-    const result = await sendTwilio(to, text, TWILIO_WA_FROM);
-    if (result.ok) { log(); return textResponse(`WhatsApp sent (SID: ${result.sid})`); }
-    return textResponse(`WhatsApp failed: ${result.error}`);
-  }
-
-  if (channel === "sms") {
-    const result = await sendTwilio(recipient, text, TWILIO_SMS_FROM);
-    if (result.ok) { log(); return textResponse(`SMS sent (SID: ${result.sid})`); }
-    return textResponse(`SMS failed: ${result.error}`);
-  }
-
-  // Email, Slack, Discord — route through n8n
-  const result = await n8nPost("notify", { channel, recipient, text, subject });
-  if (!result.ok) return textResponse(`Notification failed: ${result.error}`);
-  log();
-  return textResponse(`Sent via ${channel}`);
-});
-
-// ============================================================
-// Desktop Notifications (macOS)
-// ============================================================
-
-import { showNotification, showDialog } from "../lib/notify";
-import { getInterventionHistory, recordIntervention, canIntervene } from "../lib/proactive";
-
-server.registerTool("show_notification", {
-  description: "Show a macOS desktop notification (toast). Use for non-blocking alerts — meeting reminders, task completions, status updates. Appears in Notification Center.",
-  inputSchema: {
-    title: z.string().describe("Notification title"),
-    body: z.string().describe("Notification body text"),
-  },
-}, async ({ title, body }) => {
-  try {
-    await showNotification(title, body);
-    logEvent("desktop_notification", { title, body: body.slice(0, 100) });
-    return textResponse("Notification shown");
-  } catch (err) {
-    const msg = fmtErr(err);
-    logEvent("desktop_notification_error", { title, error: msg });
-    return textResponse(`Notification failed: ${msg}`);
-  }
-});
-
-server.registerTool("show_dialog", {
-  description: "Show a modal dialog on Randy's screen with buttons. Use for decisions that need immediate input — approval flows, yes/no questions, multi-option choices. Blocks until a button is clicked. Returns which button was pressed.",
-  inputSchema: {
-    title: z.string().describe("Dialog title"),
-    body: z.string().describe("Dialog message text"),
-    buttons: z.array(z.string()).min(1).max(3).default(["OK"]).describe("Button labels (max 3). Last button is the default."),
-  },
-}, async ({ title, body, buttons }) => {
-  try {
-    const clicked = await showDialog(title, body, buttons);
-    logEvent("desktop_dialog", { title, clicked });
-    return textResponse(`Button clicked: ${clicked}`);
-  } catch (err) {
-    const msg = fmtErr(err);
-    logEvent("desktop_dialog_error", { title, error: msg });
-    return textResponse(`Dialog failed: ${msg}`);
   }
 });
 
