@@ -27,7 +27,20 @@ function isQuietHours(hour: number, quietStart?: number, quietEnd?: number): boo
   return hour >= quietStart && hour < quietEnd;
 }
 
-function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number; quietStart?: number; quietEnd?: number }, now: Date, state: ScheduleState): boolean {
+function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number; quietStart?: number; quietEnd?: number; daysOfWeek?: number[]; dayOfMonth?: number; months?: number[] }, now: Date, state: ScheduleState): boolean {
+  const dow = now.getDay(); // 0=Sun, 6=Sat
+  const dom = now.getDate();
+  const month = now.getMonth() + 1; // 1-12
+
+  // Day-of-week filter (applies to all task types)
+  if (entry.daysOfWeek && !entry.daysOfWeek.includes(dow)) return false;
+
+  // Month filter (for quarterly/annual tasks)
+  if (entry.months && !entry.months.includes(month)) return false;
+
+  // Day-of-month filter (for monthly/quarterly/annual tasks)
+  if (entry.dayOfMonth && dom !== entry.dayOfMonth) return false;
+
   // Check quiet hours for interval tasks
   if (entry.intervalMinutes && isQuietHours(now.getHours(), entry.quietStart, entry.quietEnd)) {
     return false;

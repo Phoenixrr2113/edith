@@ -20,11 +20,21 @@ export function saveJson(path: string, data: unknown): void {
 // --- Typed wrappers ---
 
 const DEFAULT_SCHEDULE: ScheduleEntry[] = [
-  { name: "morning-brief", prompt: "/morning-brief", hour: 8, minute: 3 },
-  { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7 },
-  { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53 },
+  // Weekday work briefs (Mon-Fri)
+  { name: "morning-brief", prompt: "/morning-brief", hour: 8, minute: 3, daysOfWeek: [1, 2, 3, 4, 5] },
+  { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7, daysOfWeek: [1, 2, 3, 4, 5] },
+  { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53, daysOfWeek: [1, 2, 3, 4, 5] },
+  // Weekend brief (Sat-Sun)
+  { name: "weekend-brief", prompt: "/weekend-brief", hour: 9, minute: 3, daysOfWeek: [0, 6] },
+  // Always-on (every day)
   { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
   { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 10, quietStart: 21, quietEnd: 7 },
+  // Weekly review (Sunday evening)
+  { name: "weekly-review", prompt: "/weekly-review", hour: 17, minute: 0, daysOfWeek: [0] },
+  // Monthly review (1st of each month)
+  { name: "monthly-review", prompt: "/monthly-review", hour: 9, minute: 30, dayOfMonth: 1 },
+  // Quarterly review (1st of Jan, Apr, Jul, Oct)
+  { name: "quarterly-review", prompt: "/quarterly-review", hour: 10, minute: 0, dayOfMonth: 1, months: [1, 4, 7, 10] },
 ];
 
 export function loadSchedule(): ScheduleEntry[] {

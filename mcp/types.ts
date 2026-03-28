@@ -10,6 +10,12 @@ export interface ScheduleEntry {
   quietStart?: number;
   /** Hour (0-23) when this task resumes firing (e.g., 7 = 7 AM). */
   quietEnd?: number;
+  /** Days of week this task runs. 0=Sun, 1=Mon, ..., 6=Sat. Omit for every day. */
+  daysOfWeek?: number[];
+  /** Day of month (1-31) for monthly tasks. Omit for non-monthly. */
+  dayOfMonth?: number;
+  /** Months (1-12) for quarterly/annual tasks. Omit for non-monthly. */
+  months?: number[];
 }
 
 export interface LocationEntry {
