@@ -7,12 +7,54 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__ed
 
 # Evening Wrap
 
-Review today (read taskboard at `~/.edith/taskboard.md`), prep tomorrow (calendar + deadlines).
+This runs at 4:53 PM — transition from work to family time. Keep it tight.
 
-For tomorrow's events: research context, prep materials, find links. Save prep to `~/Desktop/edith-prep/`. If a deadline is < 48h, do as much work as possible now.
+## Step 1: Review today
 
-Store new knowledge in Cognee: decisions made today, new contacts, project updates, patterns observed.
+- Read taskboard (`~/.edith/taskboard.md`) — what did morning/midday do?
+- Screenpipe activity summary — what did Randy actually work on today?
+- Email: any loose ends from today?
+- Calendar: anything that happened today worth noting?
 
-Write a summary of today + tomorrow's prep to the taskboard with format: `## ISO-timestamp — evening-wrap`.
+## Step 2: Prep tomorrow
 
-Only message Randy via `send_message` if tomorrow needs his attention tonight. Respect family time (4-8pm) — keep it brief and actionable. 3-5 lines max, bold key info, bullets.
+- Calendar: tomorrow + next 48h
+- Meetings → research context, find links, prep talking points
+- Deadlines < 48h → advance the work now (draft, research, write)
+- Save prep to Google Doc via `manage_docs` if substantial
+
+## Step 3: Family awareness
+
+- Check tomorrow's calendar for family time / open blocks
+- If weekend ahead → quick search for family activity ideas (Phoenix: parkour, STEM, science, outdoor, beach. Budget-friendly. Bradenton/Sarasota area.)
+- Check weather for tomorrow/weekend
+
+## Step 4: Store knowledge
+
+Cognee: decisions made today, new contacts, project updates, patterns, family plans.
+
+Write summary to taskboard: `## ISO-timestamp — evening-wrap`
+
+## Step 5: Telegram message
+
+This is family time (4-8pm). Only message if tomorrow needs attention tonight.
+
+**Format — drop any section with nothing:**
+```
+🌙 Evening wrap
+
+• **[What got done today]** — one line summary
+• **[Tomorrow heads-up]** — prepped [link if created]
+• DECIDE: **[anything needed tonight]**
+• 👨‍👦 Tomorrow: [family idea if weekend/open time]
+
+Full prep → [Google Doc link]
+```
+
+**Rules:**
+- Max 4 bullets. Under 100 words.
+- Bold one anchor word per line
+- Lead with accomplishments (what got done), then what's next
+- Family suggestion only if relevant (weekend coming, open evening tomorrow)
+- If nothing needs Randy's attention tonight → write to taskboard, stay **silent**
+- Do NOT message "wrapping up" or "have a good evening"

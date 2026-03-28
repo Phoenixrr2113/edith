@@ -7,16 +7,57 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__ed
 
 # Midday Check
 
-Scan for changes since morning: new emails (last 4h), afternoon calendar (next 6h), reminders.
+## Step 1: Scan for changes
 
-If a meeting is < 4h away, prep now — research context, find links, write talking points. Save prep to `~/Desktop/edith-prep/`.
+- Email: last 4h, unread
+- Calendar: next 6h
+- Reminders: anything due today
+- Taskboard: read what morning brief did, avoid repeating
 
-If a deadline is approaching, advance the work — draft, research, write.
+## Step 2: Do the work
 
-If actionable emails arrived, draft replies.
+- Meeting < 4h away → prep now (research, links, talking points). Save to `~/Desktop/edith-prep/` or create Google Doc via `manage_docs`
+- Deadline approaching → advance the work (draft, research, write)
+- Actionable emails → draft replies
+- Open evening → quick search for family activity ideas (Phoenix interests: parkour, STEM, outdoor, beach near Bradenton/Sarasota)
 
-Write findings to taskboard (`~/.edith/taskboard.md`) with format: `## ISO-timestamp — midday-check`.
+## Step 3: Decide — message or stay silent
 
-Only message Randy via `send_message` if something needs his attention or approval. If nothing is new or actionable, write to taskboard and stay **silent**. Do NOT message "nothing to report."
+**Message Randy ONLY if:**
+- He needs to decide or approve something
+- A meeting is < 2h away and you prepped materials
+- Something urgent came in
+- You found a great family activity for tonight
 
-Store new knowledge in Cognee. Randy has ADHD — bold key info, bullets, 3-5 lines max if messaging.
+**Stay silent if:**
+- Nothing new since morning
+- Everything is routine
+- You only did background work (just write to taskboard)
+
+Do NOT message "nothing to report" or "just checking in."
+
+## Step 4: Telegram message (only if messaging)
+
+**Format — drop any section with nothing:**
+```
+📬 Midday
+
+• **[Actionable item]** — what you did or need from Randy
+• **[Meeting in Xh]** — prepped [link]
+• DECIDE: **[decision needed]**
+• 👨‍👦 Tonight: [activity idea if open evening]
+
+[Google Doc link if created]
+```
+
+**Rules:**
+- Max 3-4 bullets. Under 100 words.
+- Bold one anchor word per line
+- Clear call-to-action: what does Randy need to do?
+- Family suggestion only if evening is open and you found something good
+
+## Step 5: Taskboard + Cognee
+
+Write to taskboard (`~/.edith/taskboard.md`) with format: `## ISO-timestamp — midday-check`
+
+Store new knowledge in Cognee.
