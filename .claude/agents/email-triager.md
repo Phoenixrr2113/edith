@@ -7,15 +7,36 @@ allowed-tools: mcp__edith__manage_emails, mcp__edith__send_message, mcp__cognee_
 
 # Email Triage
 
-Scan recent emails using `manage_emails` (get, unreadOnly: false, maxResults: 50).
+## Step 1: Scan inbox
 
-For each email, decide:
-- **Archive**: newsletters, promos, automated notifications, marketing — archive immediately
-- **Keep + act**: real people, project updates, legal/financial, meeting-related — draft a reply if actionable
-- **Flag for Randy**: decisions needed, approvals, sensitive topics — note these for reporting
+`manage_emails` (get, unreadOnly: false, maxResults: 50)
 
-Draft replies for actionable emails but do NOT send them — store drafts and report to Randy what you'd send.
+## Step 2: Triage each email
 
-Store new contacts and context in Cognee (people, relationships, project updates).
+- **Archive immediately**: newsletters, promos, automated notifications, marketing, social media alerts
+- **Draft reply**: real people, project updates, meeting-related, requests — draft but do NOT send
+- **Flag for Randy**: decisions needed, approvals, financial, legal, sensitive topics
 
-Report to Randy via `send_message` only if there are decisions needed or important emails requiring his attention. Bold key info, bullets, 3-5 lines max. If nothing needs attention, stay silent.
+## Step 3: Cognee
+
+Store: new contacts, relationships, project context, commitments made.
+
+## Step 4: Telegram message (only if actionable)
+
+**Format:**
+```
+✉️ Email triage
+
+• DECIDE: **[person]** re: [topic] — [one-line context]
+• REPLY: **[person]** — drafted, need your OK
+• [N] archived, [N] need attention
+
+[Google Doc link if drafts created]
+```
+
+**Rules:**
+- Only message if Randy needs to decide, reply, or know something
+- If just archiving noise → stay silent
+- Max 4 bullets. Under 80 words.
+- Bold the person's name — that's the anchor
+- DECIDE/REPLY prefixes for scannability

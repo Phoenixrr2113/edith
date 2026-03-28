@@ -7,48 +7,46 @@ allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_
 
 # Monthly Review
 
-Zoom out. What happened this month? What's the trajectory? Cover BOTH professional and personal life.
+Zoom out. What happened this month? What's the trajectory? Cover work AND personal life.
 
-## Gather Data
+## Step 1: Gather data
 
-1. **Taskboard** — read `~/.edith/taskboard.md` for this month's daily brief entries (the daily diary)
-2. **Cognee** — search for decisions, people, projects, patterns stored this month
-3. **Email** — scan recent emails for key threads, commitments, unresolved conversations
-4. **Calendar** — check upcoming events. Note: can only look forward, so rely on taskboard for past meetings.
-5. **Google Drive** — search for docs created/modified this month
-6. **Events log** — read `~/.edith/events.jsonl`, sum costs by label for the month
+1. **Taskboard** — read `~/.edith/taskboard.md` for the month's entries
+2. **Cognee** — decisions, people, projects, patterns stored this month
+3. **Email** — key threads, commitments, unresolved conversations
+4. **Calendar** — upcoming events (can only look forward; use taskboard for past)
+5. **Google Drive** — docs created/modified this month
+6. **Events log** — `~/.edith/events.jsonl`, sum Edith costs by label for the month
 7. **Screenpipe** — activity summary if available
-8. **Prep files** — read any existing reviews/prep at `~/Desktop/edith-prep/`
+8. **Weekly reviews** — search Google Drive for this month's weekly reviews
 
-## Write the Review (Google Doc)
+## Step 2: Google Doc
 
-Use `manage_docs` to create a Google Doc titled "Monthly Review — MONTH YEAR". Follow this structure:
+Use `manage_docs` — title: `Monthly Review — [MONTH YEAR]`
 
-### Life Scorecard (rate each 0-2: off track / ok / strong)
-| Area | Score | Notes |
+### Life Scorecard (⬆️ improving / ➡️ steady / ⬇️ declining)
+| Area | Trend | Notes |
 |------|-------|-------|
 | Career / Work | | |
-| Family / Diana + Phoenix | | |
-| Health / Fitness | | |
-| Finances | | |
-| Relationships / Social | | |
-| Home | | |
-| Fun / Hobbies | | |
-| Learning / Growth | | |
-| Mental Health / Energy | | |
+| Family — Phoenix | | Time spent, activities, relationship quality |
+| Family — Diana | | Diana+Phoenix bonding, driving progress, shared activities |
+| Health / Fitness | | Exercise, weight loss goal, drinking goal |
+| Finances | | House hunt, rental portfolio, bills |
+| Learning / Growth | | AI thought leadership, blog posts, conferences |
+| Fun / Hobbies | | What did Randy do for fun? |
+| Mental Health | | Energy, focus, ADHD management |
 
-### Work Section
+### Work
 - Projects shipped, in progress, stalled
-- Career: job search status, applications, interviews, comp changes
-- Skills learned, conferences, CFPs, talks
-- Network: key people, new contacts, mentors
+- Side projects: Edith, Codegraph, others
+- Skills learned, conferences, CFPs
+- Network: key people, new contacts
 
-### Personal Section
-- Family highlights — time with Diana and Phoenix, outings, milestones
-- Health: workouts, sleep, energy trend
-- Finances: bills, decisions pending, savings, major purchases
-- Home: maintenance, house hunt status
-- Fun: what did Randy do for fun this month?
+### Personal
+- Family highlights — Phoenix outings, Diana milestones
+- Health: workouts, sleep, weight trend, drinking
+- Finances: house hunt status, bills, major purchases
+- Blog posts: written? published? ideas captured?
 
 ### Reflection
 - 3 Wins
@@ -56,23 +54,32 @@ Use `manage_docs` to create a Google Doc titled "Monthly Review — MONTH YEAR".
 - What drained energy? What created energy?
 
 ### Open Loops
-- Promises unfulfilled, decisions deferred, threads unresolved
+- Promises unfulfilled, decisions deferred
 
-### Next Month Preview
-- Calendar events, deadlines approaching, goals to focus on (max 3)
+### Next Month (max 3 focus areas)
 
-## Store in Cognee
-- Monthly summary as a single fact
-- New patterns identified
-- Goals status updates
+## Step 3: Cognee
 
-## Report to Randy
+Store: monthly summary, patterns, goals status, relationship updates.
 
-Message via `send_message` — 5-8 lines max:
-- Scorecard summary (emoji arrows: ⬆️ ➡️ ⬇️)
-- Biggest win
-- Biggest gap
-- Next month focus
-- **Link to the Google Doc**
+## Step 4: Telegram message
 
-Do NOT save to local files. The Google Doc IS the deliverable.
+**Format:**
+```
+📊 [Month] Review
+
+**Scorecard:** Work ⬆️ Family ➡️ Health ⬇️ Finance ➡️
+• **Win:** [biggest accomplishment]
+• **Gap:** [biggest miss or concern]
+• **[Month] focus:** [top 2-3 priorities]
+• 👨‍👦 Phoenix: [relationship trend — more time? less?]
+
+Full review → [Google Doc link]
+```
+
+**Rules:**
+- Max 6 lines. Under 120 words.
+- Scorecard on one line with trend arrows
+- Always mention Phoenix — Randy wants to track this
+- Always end with the Google Doc link
+- Be honest about gaps — don't sugarcoat

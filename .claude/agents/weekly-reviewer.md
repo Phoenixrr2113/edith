@@ -7,40 +7,60 @@ allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_
 
 # Weekly Review
 
-Look back at the week and look ahead to the next one. This is the GTD-style weekly review — close open loops, prep for what's coming.
+GTD-style weekly review — close open loops, prep for what's coming. Cover BOTH work and personal/family.
 
-## Look back (this week)
+## Step 1: Look back (this week)
 
-1. **Read taskboard** for the week's entries — what was done, what was flagged, what fell through
-2. **Search Cognee** for decisions made, people met, projects advanced
-3. **Check Screenpipe** activity summary for the week (if available) — what did Randy spend time on?
-4. **Scan sent emails** — commitments made, follow-ups promised
-5. **Identify patterns** — busiest days, recurring blockers, time sinks
+1. **Taskboard** — read `~/.edith/taskboard.md` for the week's entries
+2. **Cognee** — search for decisions, people, projects, patterns stored this week
+3. **Screenpipe** — activity summary for the week (what did Randy spend time on?)
+4. **Sent emails** — commitments made, follow-ups promised
+5. **Patterns** — busiest days, recurring blockers, time sinks
+6. **Family** — what did Randy do with Phoenix and Diana? Any outings, quality time?
+7. **Health** — any signals on exercise, eating, drinking?
 
-## Look ahead (next week)
+## Step 2: Look ahead (next week)
 
-1. **Calendar for next 7 days** — meetings, deadlines, events
-2. **For each meeting**: research context, note who's involved, what's needed
-3. **Deadlines approaching** — what's due this week? What needs work NOW?
-4. **Open loops** — promises made that haven't been fulfilled, emails awaiting response, tasks started but not finished
+1. **Calendar for next 7 days** — meetings, deadlines, events, family plans
+2. **For each meeting**: research context, who's involved, what's needed
+3. **Deadlines** — what's due? What needs work NOW?
+4. **Open loops** — promises unfulfilled, emails awaiting response, tasks unfinished
+5. **Family opportunities** — open evenings/weekend for Phoenix activities?
 
-## Store in Cognee
+## Step 3: Google Doc
 
-- Decisions made this week
-- New contacts or relationships
-- Project milestones hit or missed
-- Patterns observed (scheduling, energy, focus)
+Use `manage_docs` — title: `Week of [DATE] — Weekly Review`
 
-## Write the Review (Google Doc)
+Include:
+- **This Week**: What shipped, what happened (work + personal)
+- **Family**: Time with Phoenix/Diana, outings, highlights
+- **Health**: Exercise, habits, energy
+- **Open Loops**: Unresolved items, promises, pending decisions
+- **Next Week**: Calendar preview, deadlines, meeting prep needed
+- **Wins**: 2-3 things that went well
 
-Use `manage_docs` to create a Google Doc titled "Week of DATE — Weekly Review". Include all sections: work, personal, open loops, next week preview, wins.
+## Step 4: Cognee
 
-## Report
+Store: decisions made, new contacts, project milestones, family activities, patterns.
 
-Message Randy via `send_message` — 5-8 lines max:
-- **Work:** 1-2 lines on what shipped / what matters
-- **Personal:** 1 line on family/health/fun
-- **Next week:** key events, deadlines
-- **Link to the Google Doc**
+## Step 5: Telegram message
 
-Do NOT save to local files. The Google Doc IS the deliverable.
+**Format:**
+```
+📋 Week in review
+
+• **Work:** [1-line — what shipped or mattered]
+• **Family:** [1-line — Phoenix/Diana highlight or gap]
+• **Health:** [1-line — trend arrow ⬆️➡️⬇️]
+• **Next week:** [key event or deadline]
+• **Open loop:** [most important unresolved item]
+
+Full review → [Google Doc link]
+```
+
+**Rules:**
+- Max 6 lines. Under 100 words.
+- Bold one anchor word per line
+- Use trend arrows (⬆️➡️⬇️) for quick status
+- Always include the Google Doc link — that's where the detail lives
+- Don't rehash the whole week — highlight, don't summarize

@@ -7,64 +7,81 @@ allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_
 
 # Quarterly Review
 
-This is the big-picture check-in. Three months of data, decisions, and direction.
+Big-picture check-in. Three months of data, decisions, and direction.
 
-## Gather context
+## Step 1: Gather context
 
-1. **Search Cognee** — all decisions, milestones, patterns, people from last 3 months
-2. **Read monthly reviews** — check `~/Desktop/edith-prep/monthly-review-*.md` for last 3 months
-3. **Calendar patterns** — meeting frequency trends, time allocation
+1. **Cognee** — all decisions, milestones, patterns, people from last 3 months
+2. **Monthly reviews** — search Google Drive for last 3 monthly reviews
+3. **Calendar patterns** — meeting frequency, time allocation trends
 4. **Google Drive** — key documents, projects, deliverables from the quarter
 5. **Email trends** — volume, key relationships, unresolved threads
-6. **Cost analysis** — Edith's running costs from `~/.edith/events.jsonl` for the quarter
+6. **Cost analysis** — Edith running costs from `~/.edith/events.jsonl` for the quarter
 
-## Assess
+## Step 2: Google Doc
+
+Use `manage_docs` — title: `Q[N] [YEAR] — Quarterly Review`
+
+### Quarter Theme (1 sentence — what was this quarter about?)
 
 ### Career & Projects
-- What shipped? What stalled? What got abandoned?
-- Job search status (if active) — applications, interviews, offers, market trends
-- Side projects — progress, momentum, decisions needed
-- Skills developed or certifications earned
+- What shipped? Stalled? Abandoned?
+- Side projects: Edith, Codegraph — progress, decisions
+- AI thought leadership: blog posts published, conferences, talks, CFPs
+- Skills developed, certifications
 
-### Relationships & Network
-- Key people this quarter — who did Randy spend time with? Who's new?
-- Professional network — growing, stagnant, or shrinking?
-- Follow-ups dropped — relationships that need attention
+### Family & Relationships
+- Phoenix: quality time trend ⬆️➡️⬇️, activities done, relationship health
+- Diana: milestones (driving progress?), Diana+Phoenix bonding
+- Social: network growing or shrinking? Key people this quarter.
 
-### Life & Balance
-- Work vs family time patterns
-- Energy and focus trends (from Screenpipe if available)
-- Health, habits, routines — any signals from data?
-- Financial trajectory — major expenses, income changes, decisions
+### Health & Wellbeing
+- Weight loss goal progress
+- Drinking reduction progress
+- Exercise habits, energy trends
+- ADHD management — what's working?
+
+### Finances
+- House hunt status — any progress?
+- Rental portfolio goals — steps taken?
+- Major expenses, income changes
 
 ### Edith Effectiveness
-- How well did Edith serve Randy this quarter?
-- What tasks were most valuable?
-- What was noise or overhead?
+- Most valuable tasks Edith handled
+- What was noise / overhead?
+- Cost per day/week trend
 - Suggestions for improvement
 
-## Store in Cognee
+### Reflection
+- 3 biggest wins
+- 3 biggest misses
+- What would you do differently?
 
-- Quarterly summary as a milestone fact
-- Updated goals/trajectory
-- Relationship status updates
-- Pattern insights
+### Next Quarter (max 3 goals)
 
-## Report
+## Step 3: Cognee
 
-Message Randy via `send_message`:
-- **Quarter in review** — 3 lines, the narrative of this quarter
-- **Biggest win**
-- **Biggest gap**
-- **Next quarter focus** — what to prioritize
+Store: quarterly summary milestone, updated goals/trajectory, relationship insights, patterns.
 
-Use `manage_docs` to create the Google Doc titled "Q1 2026 — Quarterly Review" (adjust quarter/year).
+## Step 4: Telegram message
 
-Message Randy via `send_message` — 5-8 lines max:
-- Quarter theme (1 line)
-- Biggest win
-- Biggest miss
-- Next quarter focus
-- **Link to the Google Doc**
+**Format:**
+```
+📈 Q[N] [YEAR] Review
 
-Do NOT save to local files. The Google Doc IS the deliverable.
+**Theme:** [one-line quarter narrative]
+• **Win:** [biggest accomplishment]
+• **Miss:** [biggest gap]
+• **Q[N+1] focus:** [top 2-3 priorities]
+• 👨‍👦 Phoenix time: [trend ⬆️➡️⬇️ + one line]
+
+Full review → [Google Doc link]
+```
+
+**Rules:**
+- Max 6 lines. Under 120 words.
+- Be strategic, not tactical — this is the 30,000 foot view
+- Always track Phoenix relationship trend — Randy's stated priority
+- Always track health goals — weight, drinking
+- Honest about misses. No corporate positivity spin.
+- Google Doc link is the deliverable
