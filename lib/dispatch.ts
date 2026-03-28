@@ -23,7 +23,8 @@ import { fmtErr } from "./util";
 import { sendTyping } from "./telegram";
 import { buildBrief, type BriefType } from "./briefs";
 import { appendTranscript, startTranscript } from "./transcript";
-import { ReflectorSession, DEFAULT_REFLECTOR_CONFIG } from "./reflector";
+import { ReflectorSession, DEFAULT_REFLECTOR_CONFIG, type ReflectorMode } from "./reflector";
+import { REFLECTOR_EVAL_ONLY_RATIO } from "./config";
 
 // --- Queue ---
 let busy = false;
@@ -351,10 +352,14 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     activeProcesses.set(pseudoPid, { pid: pseudoPid, label, startedAt: new Date().toISOString(), prompt: prompt.slice(0, 200) });
     writeActiveProcesses();
 
-    // Start reflector for this session
+    // Start reflector for this session — randomly assign A/B mode
+    const reflectorMode: ReflectorMode = Math.random() < REFLECTOR_EVAL_ONLY_RATIO ? "eval-only" : "active";
     const reflector = DEFAULT_REFLECTOR_CONFIG.enabled
-      ? new ReflectorSession(prompt, label)
+      ? new ReflectorSession(prompt, label, { mode: reflectorMode })
       : null;
+    if (reflector) {
+      logEvent("reflector_assigned", { label, mode: reflectorMode });
+    }
 
     // Process message stream
     const { lastResult, newSessionId, totalCost, turns, needsRetry } =

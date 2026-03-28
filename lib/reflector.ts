@@ -21,6 +21,8 @@ import { logEvent, PROJECT_ROOT } from "./state";
 // Config
 // ---------------------------------------------------------------------------
 
+export type ReflectorMode = "active" | "eval-only";
+
 export interface ReflectorConfig {
   /** Inject after every N tool calls (0 = disabled). */
   toolCallFrequency: number;
@@ -30,6 +32,8 @@ export interface ReflectorConfig {
   guardIrreversible: boolean;
   /** Enable/disable the whole reflector. */
   enabled: boolean;
+  /** "active" = full injection + eval. "eval-only" = record + score only, no injections (control group). */
+  mode: ReflectorMode;
 }
 
 export const DEFAULT_REFLECTOR_CONFIG: ReflectorConfig = {
@@ -37,6 +41,7 @@ export const DEFAULT_REFLECTOR_CONFIG: ReflectorConfig = {
   injectOnCompaction: true,
   guardIrreversible: true,
   enabled: REFLECTOR_ENABLED,
+  mode: "active",
 };
 
 // Tool calls that should trigger a quality gate before execution
@@ -122,19 +127,22 @@ export class ReflectorSession {
 
   /** Check if Nth tool call threshold is met. */
   shouldReflectOnToolCall(): boolean {
-    if (!this.config.enabled || this.config.toolCallFrequency <= 0) return false;
+    if (!this.config.enabled || this.config.mode === "eval-only") return false;
+    if (this.config.toolCallFrequency <= 0) return false;
     const sinceLast = this.toolCallCount - this.lastReflectionAt;
     return sinceLast >= this.config.toolCallFrequency;
   }
 
   /** Check if compaction just happened (always reflect). */
   shouldReflectOnCompaction(): boolean {
+    if (this.config.mode === "eval-only") return false;
     return this.config.enabled && this.config.injectOnCompaction;
   }
 
   /** Check if an irreversible tool call should be guarded. */
   shouldGuardTool(toolName: string, toolInput: any): boolean {
-    if (!this.config.enabled || !this.config.guardIrreversible) return false;
+    if (!this.config.enabled || this.config.mode === "eval-only") return false;
+    if (!this.config.guardIrreversible) return false;
     if (!IRREVERSIBLE_TOOLS.has(toolName)) return false;
 
     // For email/calendar, only guard write actions
@@ -160,11 +168,11 @@ export class ReflectorSession {
     try {
       const reflection = await callReflectorModel(reflectorPrompt);
       if (!reflection || reflection.trim().toLowerCase().includes("no injection needed")) {
-        logEvent("reflector_silent", { label: this.label, trigger, toolCalls: this.toolCallCount });
+        logEvent("reflector_silent", { label: this.label, trigger, toolCalls: this.toolCallCount, mode: this.config.mode });
         return null;
       }
 
-      logEvent("reflector_injection", { label: this.label, trigger, toolCalls: this.toolCallCount, reflection: reflection.slice(0, 200) });
+      logEvent("reflector_injection", { label: this.label, trigger, toolCalls: this.toolCallCount, reflection: reflection.slice(0, 200), mode: this.config.mode });
       return `<reflection source="edith-reflector" trigger="${trigger}">\n${reflection}\n</reflection>`;
     } catch (err) {
       console.error(`[reflector:${this.label}] Failed to generate reflection:`, err);
@@ -200,6 +208,7 @@ export class ReflectorSession {
         toolCalls: this.toolCallCount,
         score,
         assessment: assessment.slice(0, 300),
+        mode: this.config.mode,
       });
 
       return { score, assessment };
