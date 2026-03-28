@@ -1,84 +1,90 @@
 # Edith
 
-A proactive, always-on AI personal assistant powered by Claude Code.
+A proactive, always-on AI personal assistant. Cortana's brain, Bonzi's charm.
 
-Edith runs as a persistent Bun process on macOS, orchestrating Claude Code CLI calls. She communicates via Telegram, remembers everything via Cognee, accesses Google Calendar and Gmail via n8n, and runs scheduled tasks on a timer.
+Edith runs as a Bun daemon on macOS, dispatching to Claude via the Agent SDK. She communicates via Telegram, remembers via Cognee, manages Google services via n8n, and runs scheduled background agents on a timer.
 
-## Architecture
+## Architecture (v4 — Orchestrator Pattern)
 
 ```
-launch-edith.sh
-  ├── dashboard.ts        → monitoring UI (localhost:3456)
-  └── edith.ts             → persistent orchestrator
-        ├── Telegram poll  → claude -p --resume (conversation session)
-        ├── Scheduler      → claude -p (ephemeral task sessions)
-        └── Events         → ~/.edith/events.jsonl → dashboard
+edith.ts (Bun daemon)
+  ├── Telegram polling  → dispatch to persistent Claude session
+  ├── Scheduler         → fires skills on cron (morning-brief, midday-check, etc.)
+  └── Geofencing        → location-based reminders via OwnTracks pings
+
+Claude session (orchestrator):
+  Light tasks  → handles directly (reminders, lookups, quick questions)
+  Heavy tasks  → spawns background agents via Agent tool
+    ├── morning-briefer   (calendar, email, Cognee, meeting prep)
+    ├── email-triager     (scan inbox, archive noise, draft replies)
+    ├── midday-checker    (catch changes, prep afternoon)
+    ├── evening-wrapper   (day review, tomorrow prep, Cognee storage)
+    ├── researcher        (web + codebase research)
+    └── reminder-checker  (check due reminders — haiku)
 
 MCP tools (mcp/server.ts):
   send_message, send_notification, manage_emails, manage_calendar,
-  generate_image, save_reminder, list_reminders, mark_reminder_fired,
+  manage_docs, generate_image, save_reminder, list_reminders,
   save_location, list_locations, add/list/remove_scheduled_task,
   proactive_history, record_intervention
 
-Docker:
-  cognee (port 8001) — knowledge graph
-  n8n (port 5679)    — Google Calendar + Gmail proxy
+Integration backend (n8n, port 5679):
+  /webhook/calendar  — Google Calendar (get/create/update/delete)
+  /webhook/gmail     — Gmail (get/send/reply/draft/archive/trash)
+  /webhook/docs      — Google Docs (create)
+  /webhook/notify    — Telegram, WhatsApp, SMS routing
+
+External services:
+  Cognee (port 8001) — knowledge graph + semantic memory
+  Groq Whisper       — voice transcription (direct API)
+  Google Imagen      — image generation (direct API)
 ```
 
-## What's in the box
+## Key Files
 
 | File | What |
 |------|------|
-| `edith.ts` | Persistent orchestrator — Telegram polling, scheduler, event logging |
-| `mcp/server.ts` | MCP tool server — messaging, reminders, locations, schedule, Google |
-| `mcp/geo.ts` | Haversine distance + geofencing |
-| `dashboard.ts` | Monitoring dashboard |
-| `CLAUDE.md` | Edith's identity, protocols, memory instructions |
-| `.claude/skills/*.md` | 4 scheduled skills (morning-brief, midday-check, evening-wrap, check-reminders) |
-| `docker-compose.yml` | Cognee + n8n containers |
+| `edith.ts` | Daemon — Telegram polling, scheduler, geofencing, dispatch |
+| `lib/dispatch.ts` | Agent SDK dispatch — session management, event streaming |
+| `mcp/server.ts` | MCP tool server — all tools Edith can call |
+| `prompts/system.md` | Edith's identity, voice, orchestrator instructions |
+| `.claude/agents/*.md` | Background agent definitions (scoped tools + prompts) |
+| `.claude/rules/*.md` | Behavioral rules (communication, priorities, autonomy, memory) |
+| `n8n/` | Workflow JSONs + documentation |
+| `ARCHITECTURE-V4.md` | Full architecture doc, decision log, future plans |
 
 ## Requirements
 
-- **Claude Code CLI** v2.1.80+
+- **Claude Code CLI** v2.1.80+ (Agent SDK)
 - **Bun** (runtime)
-- **Docker** (Cognee + n8n)
-- **Telegram Bot** (create via [@BotFather](https://t.me/BotFather))
-- **OpenRouter API key** (for Cognee LLM)
+- **n8n** (`npx n8n start` — runs as child process, no Docker needed)
+- **Cognee** (Docker or MCP stdio)
+- **Telegram Bot** (via [@BotFather](https://t.me/BotFather))
 
 ## Setup
 
 ```bash
-./setup.sh
-```
-
-Or manually:
-
-```bash
+cp .env.example .env   # fill in API keys
 cd mcp && bun install && cd ..
-docker compose up -d
-# Configure .env with TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, OPENROUTER_API_KEY
-bash test-e2e.sh   # verify everything works
-./launch-edith.sh   # start Edith + dashboard
+./launch-edith.sh       # starts n8n + Edith
 ```
-
-## Dashboard
-
-http://localhost:3456 — auto-refreshes every 5 seconds.
-
-Shows system health, active Claude processes, message feed, scheduled tasks, errors, and daily stats.
 
 ## How It Works
 
-1. **edith.ts** polls Telegram for messages and runs scheduled tasks on a timer
-2. Each message dispatches `claude -p --resume` to maintain conversation context
-3. Claude sees MCP tools and calls `send_message` to reply via Telegram
-4. Scheduled tasks run as ephemeral `claude -p` calls and write to the taskboard
-5. **Cognee** stores long-term knowledge; the **taskboard** stores transient task output
-6. **n8n** proxies Google Calendar and Gmail via pre-authenticated OAuth webhooks
-7. **Geofencing** runs locally in edith.ts — instant alerts when entering named locations
+1. **edith.ts** polls Telegram and runs scheduled tasks on cron
+2. Messages dispatch to a persistent Claude session via Agent SDK
+3. Claude decides: handle directly (light) or spawn background agent (heavy)
+4. Background agents run in parallel, stream progress events
+5. Results flow back to Randy via Telegram
+6. **Cognee** stores long-term knowledge; agents query it for context
+7. **n8n** proxies Google services via pre-authenticated OAuth webhooks
 
-## Reminders
+## Notification Channels
 
-Tell Edith "remind me to X" — she uses the `save_reminder` tool:
-- **Time**: checked every 5 min by `/check-reminders` scheduled task
-- **Location**: fired instantly when GPS enters the geofence radius
+| Channel | Method | Status |
+|---------|--------|--------|
+| Telegram | Bot API | Working |
+| WhatsApp | Twilio sandbox | Working (rejoin every 72h) |
+| SMS | Twilio A2P | Pending registration (~2-3 weeks) |
+| Desktop | macOS toast | Working |
+| Dialog | macOS modal | Working |

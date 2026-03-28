@@ -210,18 +210,20 @@ Gemini Flash is ~40x cheaper than alternatives for image-heavy workloads. Only v
 n8n already handles Gmail and Calendar via webhooks. The pattern: **build integrations as n8n workflows, expose as webhook endpoints, Edith calls them like APIs.** n8n becomes Edith's integration backend — handles OAuth, retries, and error handling. Visually editable without touching code.
 
 ### Current n8n Workflows
-- `gmail` — get, archive, trash, batch manage emails
-- `calendar` — get, create, update, delete events
-- `notify` — multi-channel notifications (email, Slack, Discord)
+- `calendar` — get, create, update, delete events (both Google accounts)
+- `gmail` — get, send, reply, draft, archive, trash, batch manage (both accounts)
+- `docs` — create Google Docs with content
+- `notify` — route notifications to Telegram, WhatsApp, SMS
 
-### New Workflows to Build
-- **twilio** — SMS + WhatsApp (kills `lib/twilio.ts`)
-- **transcribe** — voice → text via OpenAI (simplifies voice handling in edith.ts)
+### Not in n8n (direct API)
+- **Transcription** — Groq Whisper via `mcp/server.ts` (n8n HTTP Request had connectivity issues)
+- **SMS/WhatsApp** — `lib/twilio.ts` handles directly for the MCP `send_notification` tool
+- **Image gen** — Google Imagen via `@google/generative-ai` SDK
+
+### Potential Future Workflows
 - **google-tasks** — create, list, update tasks
 - **google-drive** — search, read, share docs
 - **google-contacts** — lookup, create contacts
-- **web-research** — HTTP requests, scraping, search
-- **image-gen** — Google Imagen / DALL-E
 
 ### How It Connects
 
