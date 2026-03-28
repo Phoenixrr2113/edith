@@ -9,7 +9,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sendMessage, sendPhoto, tgCall } from "../lib/telegram";
 import { logEvent } from "../lib/state";
 import { fmtErr } from "../lib/util";
-import { CHAT_ID, GOOGLE_API_KEY, TWILIO_WA_FROM, TWILIO_SMS_FROM } from "../lib/config";
+import { CHAT_ID, GOOGLE_API_KEY, TWILIO_WA_FROM, TWILIO_SMS_FROM, GROQ_API_KEY } from "../lib/config";
 import { loadSchedule, saveSchedule, loadLocations, saveLocations, loadReminders, saveReminders } from "../lib/storage";
 import { textResponse, jsonResponse } from "../lib/mcp-helpers";
 import { sendTwilio } from "../lib/twilio";
@@ -140,7 +140,16 @@ server.registerTool("send_notification", {
     return textResponse(`SMS failed: ${result.error}`);
   }
 
-  // Email, Slack, Discord — route through n8n
+  // Email — route through working Gmail workflow
+  if (channel === "email") {
+    if (!recipient) return textResponse("Email requires a recipient");
+    const result = await n8nPost("gmail", { action: "send", to: recipient, subject: subject || "Message from Edith", message: text });
+    if (!result.ok) return textResponse(`Email failed: ${result.error}`);
+    log();
+    return textResponse(`Email sent to ${recipient}`);
+  }
+
+  // Slack, Discord — route through n8n notify workflow (when configured)
   if (!recipient) return textResponse(`${channel} requires a recipient`);
   const result = await n8nPost("notify", { channel, recipient, text, subject });
   if (!result.ok) return textResponse(`Notification failed: ${result.error}`);
@@ -498,6 +507,33 @@ server.registerTool("record_intervention", {
   recordIntervention(category, message);
   return textResponse(`Recorded: [${category}] ${message.slice(0, 80)}`);
 });
+
+// ============================================================
+// Transcribe — Groq Whisper
+// ============================================================
+
+async function transcribeAudio(audioUrl: string): Promise<{ ok: boolean; text?: string; error?: string }> {
+  if (!GROQ_API_KEY) return { ok: false, error: "GROQ_API_KEY not set" };
+  try {
+    const audioRes = await fetch(audioUrl);
+    if (!audioRes.ok) return { ok: false, error: `Failed to fetch audio: ${audioRes.status}` };
+    const blob = await audioRes.blob();
+    const form = new FormData();
+    form.append("file", blob, "audio.ogg");
+    form.append("model", "whisper-large-v3");
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: form,
+    });
+    const data = (await res.json()) as any;
+    return res.ok ? { ok: true, text: data.text } : { ok: false, error: data.error?.message ?? `HTTP ${res.status}` };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
+export { transcribeAudio };
 
 // ============================================================
 // Start
