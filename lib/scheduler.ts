@@ -18,7 +18,21 @@ function saveScheduleState(state: ScheduleState): void {
   saveJson(SCHEDULE_STATE_FILE, state);
 }
 
-function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number }, now: Date, state: ScheduleState): boolean {
+function isQuietHours(hour: number, quietStart?: number, quietEnd?: number): boolean {
+  if (quietStart == null || quietEnd == null) return false;
+  // Handles wrap past midnight: e.g., quietStart=21, quietEnd=7 means 9PM-7AM
+  if (quietStart > quietEnd) {
+    return hour >= quietStart || hour < quietEnd;
+  }
+  return hour >= quietStart && hour < quietEnd;
+}
+
+function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number; quietStart?: number; quietEnd?: number }, now: Date, state: ScheduleState): boolean {
+  // Check quiet hours for interval tasks
+  if (entry.intervalMinutes && isQuietHours(now.getHours(), entry.quietStart, entry.quietEnd)) {
+    return false;
+  }
+
   const lastFired = state.lastFired[entry.name];
   const lastFiredTime = lastFired ? new Date(lastFired).getTime() : 0;
 

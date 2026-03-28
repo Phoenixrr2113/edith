@@ -50,208 +50,93 @@ Edith v3 is single-threaded — one Claude session at a time, FIFO queue, busy f
 
 ---
 
-## Architecture: Three Layers
+## Architecture (Implemented)
 
-### Layer 1: edith.ts (TypeScript daemon)
-Pure TypeScript. No Claude session. Always alive.
-- Polls Telegram (30s long-poll)
-- Runs scheduler (60s tick)
-- Manages worker pool (spawn, monitor, cancel)
-- Routes messages to the orchestrator brain
-- Relays worker progress to Telegram
+### How It Works Today
 
-### Layer 2: Orchestrator Brain (persistent Claude session)
-A long-lived Claude session that IS Edith's intelligence.
-- Receives all Telegram messages via `streamInput()`
-- Decides what to do: answer directly OR spawn a worker
-- Has MCP tools: `spawn_worker`, `list_workers`, `worker_status`, `cancel_worker` + conversation tools (`send_message`, etc.)
-- Handles lightweight tasks directly (quick questions, reminders, "what's happening?")
-- Never does heavy work (no email scanning, no meeting prep, no research)
-- Persistent session survives across messages (like current model)
+**edith.ts** (TypeScript daemon) handles Telegram polling, scheduling, and dispatching. When a message or scheduled task arrives, it dispatches to a persistent Claude session via the Agent SDK.
 
-### Layer 3: Workers (ephemeral Claude sessions)
-Short-lived sessions for actual work.
-- Spawned by the orchestrator via `spawn_worker(prompt, label)` MCP tool
-- Each gets full MCP tool access (calendar, email, Cognee, web, files)
-- Runs independently — multiple can run in parallel (max 4)
-- Progress streamed to Telegram via edith.ts
-- Results optionally injected back into orchestrator for context
+**The orchestrator** is Edith herself (the Claude session). Her system prompt tells her to:
+- Handle light tasks directly (quick questions, lookups, reminders)
+- Spawn background agents via the Agent tool for heavy work (email triage, meeting prep, briefs)
+- Stay responsive while background agents run
 
----
+**Background agents** are defined in `.claude/agents/` with scoped tools and system prompts. They run as ephemeral sessions spawned by the Agent tool with `run_in_background: true`.
 
-## Message Flows
+### Message Flow
 
-### Incoming Telegram Message
 ```
-Telegram → edith.ts
-  → forward to orchestrator brain via streamInput()
-  → brain decides:
-     Light task? → handles directly (send_message reply)
-     Heavy task? → calls spawn_worker("research X and draft reply", "user-request")
-  → edith.ts receives spawn_worker tool call
-  → starts ephemeral query() with the prompt
-  → sends Telegram: "⚡ Working on it..."
-  → streams progress: "⚡ searching web... checking email... drafting..."
-  → worker finishes → "✅ Done (18s, 6 turns)"
-  → worker's final output sent as Telegram message
+Telegram message → edith.ts → dispatch to Claude session
+  → Edith decides:
+     Light? → handles directly (manage_calendar, send_message)
+     Heavy? → spawns Agent with run_in_background: true
+  → Background agent does the work (email, calendar, Cognee, files)
+  → task_started / task_progress / task_notification events stream through
+  → dispatch.ts logs all events
+  → Agent finishes → Edith reads result, sends summary to Randy
 ```
 
-### Scheduled Task
+### Scheduled Tasks
+
 ```
 Scheduler fires "morning-brief" at 8:03
-  → edith.ts injects into orchestrator: "[Scheduled: morning-brief] Run the morning brief."
-  → orchestrator calls spawn_worker with morning brief prompt
-  → worker does all the work (calendar, email, Cognee, prep)
-  → progress streams to Telegram
-  → worker sends brief via send_message when done
+  → edith.ts dispatches to Claude session with "[Scheduled: morning-brief]"
+  → Edith spawns morning-briefer agent in background
+  → Agent does all the work
+  → Edith stays free for incoming messages (when busy flag is resolved)
 ```
 
-### Meta-question ("what's happening?")
-```
-Randy: "what are the agents doing?"
-  → orchestrator calls list_workers()
-  → gets back: [{id: "w-1", label: "morning-brief", status: "running", elapsed: "45s", lastTool: "manage_emails"}]
-  → orchestrator replies directly via send_message
-```
+### Progress Visibility
+
+Task events stream through the parent query and are logged by `dispatch.ts`:
+- `🚀 task_started` — agent spawned with description
+- `📊 task_progress` — periodic updates with `last_tool_name`, token count, tool uses, duration
+- `🏁 task_notification` — completion/failure with summary and usage stats
+
+### Verified Behavior (2026-03-28)
+
+Test: "check my email from the last 24 hours, triage everything, prep for any meetings"
+- Edith acknowledged immediately ("On it — triaging...")
+- Spawned background agent: "Email triage and meeting prep"
+- Agent ran 14 tool calls over 142 seconds
+- Called: manage_emails, cognee search, manage_calendar, cognee cognify, send_message
+- Sent results to Randy via Telegram: 2 actionable items flagged, 14 archived
+- Total cost: $0.40
 
 ---
 
-## Progress Reporting
+## What Changed (2026-03-28)
 
-Each worker gets ONE Telegram message that edits in place (`editMessageText` API):
+**No new modules needed.** The orchestrator pattern was achieved with:
 
-```
-⚡ morning-brief: starting...
-⚡ morning-brief: manage_calendar (5s)
-⚡ morning-brief: manage_emails (12s)
-⚡ morning-brief: cognee search (18s)
-✅ morning-brief complete (25s, 8 turns, $0.04)
-```
+- `prompts/system.md` — added orchestrator instructions (light vs heavy tasks, how to spawn background agents)
+- `lib/dispatch.ts` — ~20 lines added to log `task_started`, `task_progress`, `task_notification` SDK events
+- `.claude/agents/` — 4 new agent definitions:
+  - **morning-briefer** — calendar, email, Cognee, meeting prep, file prep (sonnet)
+  - **midday-checker** — catch changes, prep afternoon, advance deadlines (sonnet)
+  - **evening-wrapper** — day review, tomorrow prep, Cognee storage (sonnet)
+  - **email-triager** — scan inbox, archive noise, draft replies (sonnet)
+  - **researcher** — already existed (sonnet)
+  - **reminder-checker** — already existed (haiku)
 
-- Debounced: edits every 3s max (Telegram rate limits)
-- Tool names extracted from `assistant` messages with `tool_use` blocks
-- Final edit includes duration, turns, cost
-- Worker's actual output (the brief, the reply, etc.) sent as a separate message
-
----
-
-## Orchestrator Implementation (Confirmed)
-
-**No new modules needed.** The Agent SDK's background task system handles everything:
-
-### How It Works
-1. Edith (Claude) receives messages via the existing dispatch engine
-2. For heavy work, she uses the **Agent tool** with `run_in_background: true`
-3. Background agents are defined in `.claude/agents/` with scoped tools and system prompts
-4. Task events stream through the parent query:
-   - `task_started` — agent spawned, includes description
-   - `task_progress` — periodic updates with `last_tool_name`, token count, tool uses
-   - `task_notification` — completion/failure with summary and usage stats
-5. `dispatch.ts` logs these events; could relay to Telegram for visibility
-6. Edith stays responsive while agents work in background
-
-### Agent Definitions (`.claude/agents/`)
-- **morning-briefer** — calendar, email, Cognee, meeting prep, file prep (sonnet)
-- **midday-checker** — catch changes, prep afternoon, advance deadlines (sonnet)
-- **evening-wrapper** — day review, tomorrow prep, Cognee storage (sonnet)
-- **email-triager** — scan inbox, archive noise, draft replies (sonnet)
-- **researcher** — web/codebase research, Cognee storage (sonnet)
-- **reminder-checker** — check and fire due reminders (haiku)
-
-### What Changed
-- `prompts/system.md` — orchestrator instructions (light vs heavy tasks, how to spawn agents)
-- `lib/dispatch.ts` — ~20 lines added for task event logging (task_started, task_progress, task_notification)
-- `.claude/agents/` — 4 new agent definitions
-
-### No New MCP Tools
-The Agent tool handles spawning. `stopTask(taskId)` on the Query interface handles cancellation. No custom worker management tools needed.
+The Agent tool handles spawning. `stopTask(taskId)` on the Query interface handles cancellation. No custom MCP tools, no WorkerPool class, no orchestrator module. Everything else (dispatch engine, session management, scheduler, Telegram) works as-is.
 
 ---
 
-## Current Orchestrator (Implemented)
+## Next Steps
 
-No code rewrite needed. The existing `edith.ts` + `dispatch.ts` already handles everything. The orchestrator pattern is achieved through:
+### Near-term (POC hardening)
+- Fix busy flag so scheduled tasks aren't blocked during background agent runs (see Known Limitations)
+- Remove Docker dependency — run n8n as child process, Cognee via MCP stdio (see Embedded Services)
+- Clean up disabled Claude Desktop scheduled tasks at `~/.claude/scheduled-tasks/`
+- Tune orchestrator prompt based on real-world usage
+- Add more agent types as needed (meeting-prepper, deadline-advancer, etc.)
 
-1. **System prompt** (`prompts/system.md`) — tells Edith to delegate heavy work to background agents
-2. **Agent definitions** (`.claude/agents/`) — specialized agents for each task type
-3. **Task event logging** (`lib/dispatch.ts`) — logs `task_started`, `task_progress`, `task_notification` events from background agents
-
-Edith's existing dispatch engine, session management, scheduler, and Telegram handling all work as-is. The only change is behavioral — Edith now spawns agents instead of doing heavy work herself.
-
----
-
-## File Disposition
-
-### Keep as-is (10 files)
-- `lib/config.ts` — env vars, paths
-- `lib/storage.ts` — JSON file I/O
-- `lib/n8n-client.ts` — n8n webhook client
-- `lib/twilio.ts` — SMS/WhatsApp
-- `lib/notify.ts` — macOS notifications
-- `lib/caffeinate.ts` — prevent Mac sleep
-- `lib/util.ts` — shared utilities
-- `lib/mcp-helpers.ts` — MCP response builders
-- `mcp/geo.ts` — geofencing
-- `mcp/types.ts` — shared types
-
-### Simplify (2 files)
-- `lib/state.ts` — remove dispatch queue, dead-letter queue. Keep: offset, session-id, events log, active processes
-- `lib/telegram.ts` — add `editMessage(chatId, messageId, text)` and `sendAndGetId(chatId, text)`
-
-### Rewrite (when ready for v4 full refactor)
-- `edith.ts` — simplified orchestrator loop
-- `lib/scheduler.ts` — just check schedule and inject into orchestrator
-
-### Remove (when ready for v4 full refactor, 15 files)
-- `lib/dispatch.ts` — replaced by workers.ts + orchestrator.ts
-- `lib/session.ts` — no single-session tracking needed
-- `lib/handlers.ts` — all messages forward to orchestrator
-- `lib/briefs.ts` — orchestrator writes worker prompts dynamically
-- `lib/reflector.ts` — workers are short-lived, don't drift
-- `lib/tick.ts` — folded into edith.ts main loop
-- `lib/prewake.ts` — workers gather their own context
-- `lib/context.ts` — orchestrator has its own system prompt
-- `lib/transcript.ts` — simplified or use SDK defaults
-- `lib/taskboard.ts` — replaced by orchestrator memory + Cognee
-- `lib/proactive.ts` — becomes a scheduled worker
-- `lib/screenpipe.ts` — workers use Screenpipe MCP directly
-- `lib/gemini.ts` — workers handle their own summarization
-- `lib/audio-extract.ts` — becomes a worker task
-- `dashboard.ts` — killed (Telegram progress is enough)
-- `dashboard.html` — killed
-
-**Net: 27 lib files + dashboard → 14 files. ~3500 lines → ~1500 lines.**
-
----
-
-## Implementation Phases
-
-### Phase 1: Foundation
-- Add `editMessage` and `sendAndGetId` to telegram.ts
-- Build WorkerPool class (lib/workers.ts)
-- Build Orchestrator class (lib/orchestrator.ts)
-- Unit tests for WorkerPool (mock query())
-
-### Phase 2: MCP Tools
-- Add spawn_worker, list_workers, worker_status, cancel_worker to mcp/server.ts
-- Wire tools to WorkerPool instance
-
-### Phase 3: Main Loop Rewrite
-- Rewrite edith.ts with new orchestrator + worker pattern
-- Simplify scheduler to inject messages into orchestrator
-- Remove handlers.ts, tick.ts
-
-### Phase 4: Cleanup
-- Delete removed files
-- Simplify state.ts
-- Update tests
-
-### Phase 5: Polish
-- Tune progress reporting (debounce interval, format)
-- Cost tracking across workers
-- Orchestrator system prompt refinement
-
----
+### Future (when ready)
+- Desktop companion (Tauri + Rive) — see Desktop Companion section
+- Screen awareness (Gemini Live API) — see Future: Real-Time Screen Awareness
+- Product packaging — see Distribution: Edith as a Product
+- Code cleanup — remove unused lib files as orchestrator pattern proves stable
 
 ---
 
@@ -320,8 +205,6 @@ Gemini Flash is ~40x cheaper than alternatives for image-heavy workloads. Only v
 
 ---
 
----
-
 ## n8n as Integration Backend
 
 n8n already handles Gmail and Calendar via webhooks. The pattern: **build integrations as n8n workflows, expose as webhook endpoints, Edith calls them like APIs.** n8n becomes Edith's integration backend — handles OAuth, retries, and error handling. Visually editable without touching code.
@@ -343,14 +226,13 @@ n8n already handles Gmail and Calendar via webhooks. The pattern: **build integr
 ### How It Connects
 
 ```
-Edith Orchestrator (brain)
-  → calls spawn_worker("check emails and draft replies", "email-triage")
-  → Worker (Claude session) needs to read emails
-  → Worker calls manage_emails MCP tool
+Edith spawns background agent (Agent tool, run_in_background: true)
+  → Agent needs to read emails
+  → Agent calls manage_emails MCP tool
   → MCP tool POSTs to n8n webhook: POST /webhook/gmail { action: "get", hoursBack: 4 }
   → n8n handles OAuth, pagination, formatting
-  → Returns structured data to Worker
-  → Worker drafts replies, calls send_email MCP tool
+  → Returns structured data to Agent
+  → Agent drafts replies, calls manage_emails to send
   → MCP tool POSTs to n8n: POST /webhook/gmail { action: "send", to: "...", body: "..." }
 ```
 
@@ -430,8 +312,6 @@ Edith needs a face — not a dashboard, a character. A visible presence on the d
 ### Reference Projects
 - **WindowPet** (Tauri + React + Phaser) — overlay/window mechanics
 - **Open-LLM-VTuber** (Electron + Live2D + LLM) — AI companion with desktop pet mode
-
----
 
 ---
 
@@ -534,8 +414,6 @@ A downloadable app anyone can install. No Docker, no n8n, no Screenpipe, no term
 
 ---
 
----
-
 ## Embedded Services (No Docker)
 
 Docker has been a pain point — port conflicts, stale containers, extra dependency. Both n8n and Cognee can run without Docker.
@@ -567,8 +445,6 @@ Docker has been a pain point — port conflicts, stale containers, extra depende
 1. Start n8n as child process
 2. Start Edith (Cognee starts automatically via MCP stdio)
 3. Done — no Docker, no port conflicts, no stale containers
-
----
 
 ---
 

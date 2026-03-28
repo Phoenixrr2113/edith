@@ -292,8 +292,8 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
   }
 
   if (busy) {
-    // If session is running and this is a message, try streamInput
-    if (resume && getActiveQuery()) {
+    // Try streamInput injection if session is running — works for both messages and scheduled tasks
+    if (getActiveQuery()) {
       const injected = await injectMessage(prompt, opts.chatId);
       if (injected) {
         logEvent("message_injected", { label, prompt: prompt.slice(0, 200) });
@@ -302,7 +302,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     }
 
     if (opts.skipIfBusy) {
-      console.log(`[edith:${label}] Skipped — Claude is busy`);
+      console.log(`[edith:${label}] Skipped — Claude is busy and injection failed`);
       logEvent("dispatch_skipped", { label, reason: "busy" });
       return "";
     }

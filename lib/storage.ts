@@ -24,7 +24,7 @@ const DEFAULT_SCHEDULE: ScheduleEntry[] = [
   { name: "midday-check", prompt: "/midday-check", hour: 12, minute: 7 },
   { name: "evening-wrap", prompt: "/evening-wrap", hour: 16, minute: 53 },
   { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
-  { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 3 },
+  { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 10, quietStart: 21, quietEnd: 7 },
 ];
 
 export function loadSchedule(): ScheduleEntry[] {
