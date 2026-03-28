@@ -8,7 +8,7 @@ import { GOOGLE_API_KEY } from "./config";
 import { fmtErr } from "./util";
 import type { ScreenContext } from "./screenpipe";
 
-const MODEL = "gemini-2.5-flash-lite-preview-06-17";
+const MODEL = "gemini-2.5-flash";
 
 let client: GoogleGenerativeAI | null = null;
 

@@ -274,6 +274,34 @@ const routes: Record<string, RouteHandler> = {
 
   "/api/reminders": () =>
     Response.json(readJsonFile(join(STATE_DIR, "reminders.json")) ?? []),
+
+  "/api/upcoming": async () => {
+    // Calendar events for the next 12 hours
+    let calendarEvents: any[] = [];
+    try {
+      const res = await fetch(`${N8N_URL}/webhook/calendar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hoursAhead: 12, includeAllDay: true }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const body = await res.text();
+        if (!body.includes("No item to return")) {
+          try {
+            const data = JSON.parse(body);
+            calendarEvents = Array.isArray(data) ? data : data.events ?? [data];
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // Unfired reminders
+    const reminders = (readJsonFile(join(STATE_DIR, "reminders.json")) ?? [])
+      .filter((r: any) => !r.fired);
+
+    return Response.json({ calendar: calendarEvents, reminders });
+  },
 };
 
 // --- Server ---
@@ -295,6 +323,7 @@ setInterval(() => {
 const server = Bun.serve({
   port: PORT,
   hostname: "127.0.0.1",
+  idleTimeout: 120, // SSE connections can be long-lived
   async fetch(req) {
     const url = new URL(req.url);
 

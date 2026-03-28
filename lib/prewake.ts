@@ -1,6 +1,7 @@
 /**
  * Pre-wake context gathering — fetch calendar and email BEFORE waking Edith.
  * This gives Edith context without needing tool calls, saving turns and time.
+ * Used only for boot/morning briefs as a head start before Claude is live.
  */
 import { n8nPost } from "./n8n-client";
 import { fmtErr } from "./util";
@@ -30,22 +31,28 @@ async function getCalendarEvents(): Promise<string> {
 }
 
 /**
- * Fetch recent emails via n8n.
+ * Fetch recent emails via n8n (lightweight preview — full scan done by Claude via Gmail MCP).
  */
 async function getRecentEmails(): Promise<string> {
   try {
-    const result = await n8nPost("gmail", { hoursBack: 12, unreadOnly: false, maxResults: 8 });
+    const result = await n8nPost("gmail", { hoursBack: 12, unreadOnly: false, maxResults: 20 });
     if (!result.ok || !result.data) return "";
     if (typeof result.data === "string") return "";
 
-    const emails = Array.isArray(result.data) ? result.data : [result.data];
+    const emails = Array.isArray(result.data)
+      ? result.data
+      : result.data.emails ?? [result.data];
     if (emails.length === 0) return "";
 
     return emails.map((e: any) => {
-      const from = e.from ?? e.sender ?? "Unknown";
-      const subject = e.subject ?? "(no subject)";
+      const from = e.from ?? e.sender ?? "";
+      const subject = e.subject ?? "";
+      const snippet = e.snippet?.slice(0, 120) ?? "";
       const date = e.date ? new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-      return `- ${date} | ${from} | ${subject}`;
+      if (from || subject) {
+        return `- ${date} | ${from} | ${subject}`;
+      }
+      return `- ${snippet}`;
     }).join("\n");
   } catch (err) {
     console.error("[prewake] Email fetch failed:", fmtErr(err));

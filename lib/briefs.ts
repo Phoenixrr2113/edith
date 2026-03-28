@@ -64,9 +64,11 @@ async function buildFullBrief(type: "boot" | "morning"): Promise<string> {
   }
 
   sections.push(
-    `\nOrient yourself: search Cognee for relevant context, check calendar (manage_calendar action=get, hoursAhead=16, includeAllDay=true), check email (manage_emails action=get, maxResults=10), check reminders.`,
+    `\nOrient yourself: search Cognee for relevant context, check calendar (manage_calendar action=get, hoursAhead=16, includeAllDay=true), check reminders.`,
+    `\n## Email Scan`,
+    `Use gmail_search_messages (maxResults=50) to get the last 50 emails. Review ALL of them — not just unread.`,
     `For anything you find, think: what would a brilliant human assistant do with this? Research deeply before acting.`,
-    `After checking email, clean the inbox: archive newsletters, promos, automated notifications, shipping updates, and social media alerts. Trash obvious spam. Keep emails from real people, calendar invites, active projects, and anything financial/legal. Use manage_emails with operations array for efficiency. Report what you cleaned, not what you found.`,
+    `Clean the inbox: archive newsletters, promos, automated notifications, shipping updates, and social media alerts. Trash obvious spam. Keep emails from real people, calendar invites, active projects, and anything financial/legal. Use manage_emails with operations array for efficiency. Report what you cleaned, not what you found.`,
     `Store genuinely new knowledge in Cognee. Write findings to taskboard at ${TASKBOARD_FILE}.`,
     `Send Randy ONE short message (3-5 lines) with what you DID, not what you FOUND. Chat ID: ${CHAT_ID}.`,
   );
@@ -92,10 +94,12 @@ async function buildMiddayBrief(): Promise<string> {
   }
 
   sections.push(
-    `\nScan for changes since morning: new emails (manage_emails action=get, maxResults=10), afternoon calendar (manage_calendar action=get, hoursAhead=8, includeAllDay=true), reminders.`,
+    `\nScan for changes since morning: afternoon calendar (manage_calendar action=get, hoursAhead=8, includeAllDay=true), reminders.`,
+    `\n## Email Scan`,
+    `Use gmail_search_messages (maxResults=50) to get recent emails. Review ALL — not just unread.`,
     `If a meeting is < 4h away, prep now. Advance any deadline work. Draft replies for actionable emails.`,
     `\n## Inbox Triage`,
-    `After scanning emails, clean the inbox using manage_emails with operations array:`,
+    `Clean the inbox using manage_emails with operations array:`,
     `- **Archive**: marketing, newsletters, automated notifications, shipping updates, social media alerts, subscription confirmations, promotional emails`,
     `- **Trash**: obvious spam that got past filters`,
     `- **Keep in inbox**: emails from real people expecting a reply, calendar invites needing action, emails about active projects/deadlines, anything financial or legal`,
@@ -177,32 +181,39 @@ async function buildProactiveBrief(): Promise<string> {
   const taskboard = getRecentTaskboardEntries();
 
   const sections: string[] = [
-    `Proactive check. Current time: ${time}`,
+    `Current time: ${time}`,
+    ``,
+    `You are Randy's personal assistant. Think about the next few hours of his life.`,
+    ``,
+    `**Step 1 — Gather context.** Do all of these:`,
+    `- Pull today's calendar: manage_calendar action=get, hoursAhead=8, includeAllDay=true`,
+    `- Search Cognee for anything relevant to what's coming up (people, routines, preferences, family)`,
+    `- Check proactive_history to see what you've already told him recently`,
+    ``,
+    `**Step 2 — Think.** With everything in front of you, reason about Randy's life right now:`,
+    `- What's coming up and what does he need to be ready for it?`,
+    `- What's happening with his family? School pickup, dinner, evening plans?`,
+    `- Is there something nearby worth doing? A local event, a restaurant, an activity for Phoenix?`,
+    `- Is he stuck, burnt out, forgetting to eat, or about to miss something?`,
+    `- Is there an email or message he should know about?`,
+    `- What would a thoughtful human assistant who genuinely cares about this person do right now?`,
+    ``,
+    `Use WebSearch if it would help — local events, restaurant ideas, weather, whatever's relevant. Use Cognee to remember what you know about the people and places in his life. Actually think about this.`,
+    ``,
+    `**Step 3 — Act or stay silent.** If you have something genuinely useful, reach out:`,
+    `- Quick heads-up or suggestion → send_notification channel=desktop`,
+    `- Something that needs a real response → send_message (chat_id: ${CHAT_ID})`,
+    `- After acting: call record_intervention so you don't repeat yourself`,
+    `- If you have nothing useful to add right now — exit silently. No "nothing to report."`,
   ];
 
   if (screen) {
-    sections.push(`\n## What Randy Is Doing\n${screen}`);
+    sections.push(`\n## What Randy Is Doing Right Now\n${screen}`);
   }
 
   if (taskboard.trim()) {
-    sections.push(`\n## Recent Taskboard\n${taskboard}`);
+    sections.push(`\n## Recent Context\n${taskboard}`);
   }
-
-  sections.push(
-    `\n## Detection Rules`,
-    `Check these in order. Act on the FIRST one that applies, then exit.`,
-    ``,
-    `**Time blindness** — Meeting/event in <15 min (manage_calendar action=get) and no prep activity visible → send_notification channel=desktop with meeting details`,
-    `**Marathon session** — "Continuous activity" above shows 90+ min → send_notification channel=desktop suggesting a break. Be warm, not naggy.`,
-    `**Stuck** — Error messages, stack traces, or same terminal output visible for a long time → offer debugging help via send_message`,
-    `**Eating** — Current time is 11am-2pm or 5pm-8pm AND 4+ hours of continuous activity with no food-related apps → gentle nudge via send_notification channel=desktop`,
-    `**Actionable email** — If you can see email content on screen that looks like it needs a reply → offer to draft via send_message`,
-    ``,
-    `Before acting: check proactive_history to avoid repeating yourself.`,
-    `After acting: call record_intervention with the category.`,
-    `If nothing matches — exit silently. Do NOT message "nothing to report".`,
-    `Chat ID: ${CHAT_ID}.`,
-  );
 
   return sections.join("\n");
 }

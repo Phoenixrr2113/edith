@@ -5,14 +5,15 @@
  *
  * Flow: screenpipe audio → Qwen 3 235B (extract key facts) → Cognee (graph DB)
  */
-import { OPENROUTER_API_KEY } from "./config";
+import { mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
+import { OPENROUTER_API_KEY, STATE_DIR } from "./config";
 import { logEvent } from "./state";
 import { fmtErr } from "./util";
 import type { AudioTranscript } from "./screenpipe";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "qwen/qwen3-235b-a22b-2507";
-const COGNEE_URL = process.env.COGNEE_URL ?? "http://localhost:8001";
+const MODEL = "qwen/qwen3-235b-a22b";
 
 export interface ExtractedKnowledge {
   type: "meeting" | "call" | "conversation" | "note" | "noise";
@@ -110,12 +111,14 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 }
 
 /**
- * Store extracted knowledge in Cognee graph DB.
- * Uses Cognee's REST API directly (not MCP) since this runs outside Claude.
+ * Store extracted knowledge for Cognee ingestion.
+ *
+ * Cognee runs as an MCP server (SSE transport), not a REST API — so we can't
+ * call it directly from outside Claude. Instead, write to a pending file that
+ * Claude's session will pick up and store via the cognify MCP tool.
  */
 export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<boolean> {
   try {
-    // Format as a knowledge document for Cognee
     const parts: string[] = [
       `[${knowledge.type.toUpperCase()}] ${new Date().toISOString().slice(0, 16)}`,
       knowledge.summary,
@@ -136,40 +139,25 @@ export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<bool
 
     const document = parts.join("\n");
 
-    // Add to Cognee via REST API
-    const addRes = await fetch(`${COGNEE_URL}/api/v1/add`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: document, dataset_name: "edith_audio" }),
-      signal: AbortSignal.timeout(10_000),
-    });
+    // Write to pending knowledge file for Claude to ingest via Cognee MCP
+    const pendingDir = join(STATE_DIR, "pending-knowledge");
+    mkdirSync(pendingDir, { recursive: true });
+    const filename = `audio-${Date.now()}.json`;
+    writeFileSync(
+      join(pendingDir, filename),
+      JSON.stringify({ document, type: knowledge.type, ts: new Date().toISOString() }, null, 2),
+      "utf-8",
+    );
 
-    if (!addRes.ok) {
-      console.warn(`[audio-extract] Cognee add failed: ${addRes.status}`);
-      return false;
-    }
-
-    // Trigger cognify to process into graph
-    const cognifyRes = await fetch(`${COGNEE_URL}/api/v1/cognify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dataset_name: "edith_audio" }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!cognifyRes.ok) {
-      console.warn(`[audio-extract] Cognee cognify failed: ${cognifyRes.status}`);
-      return false;
-    }
-
-    logEvent("audio_stored", {
+    logEvent("audio_pending", {
       type: knowledge.type,
       summary: knowledge.summary.slice(0, 100),
+      file: filename,
     });
-    console.log(`[audio-extract] Stored in Cognee: [${knowledge.type}] ${knowledge.summary.slice(0, 80)}`);
+    console.log(`[audio-extract] Queued for Cognee: [${knowledge.type}] ${knowledge.summary.slice(0, 80)}`);
     return true;
   } catch (err) {
-    console.warn("[audio-extract] Cognee storage failed:", fmtErr(err));
+    console.warn("[audio-extract] Failed to queue knowledge:", fmtErr(err));
     return false;
   }
 }

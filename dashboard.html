@@ -77,6 +77,15 @@
   .reminder-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.85em; }
   .reminder-due { color: #facc15; font-size: 0.8em; }
   .reminder-fired { color: #666; text-decoration: line-through; }
+  .upcoming-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.88em; }
+  .upcoming-item:last-child { border-bottom: none; }
+  .upcoming-time { color: #60a5fa; font-weight: 600; min-width: 110px; }
+  .upcoming-title { flex: 1; margin-left: 12px; }
+  .upcoming-location { color: #666; font-size: 0.82em; margin-left: 8px; }
+  .upcoming-soon { color: #facc15; font-size: 0.78em; font-weight: 500; }
+  .upcoming-now { color: #22c55e; font-size: 0.78em; font-weight: 600; }
+  .upcoming-reminder { color: #c084fc; }
+  .upcoming-section { color: #555; font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; padding: 8px 0 4px; }
 </style>
 </head>
 <body>
@@ -101,6 +110,11 @@
 <div class="card" style="margin-bottom:16px">
   <h2>Today's Stats</h2>
   <div class="stats-grid" id="stats"></div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Coming Up</h2>
+  <div id="upcoming" style="max-height:240px;overflow-y:auto"></div>
 </div>
 
 <div class="grid" style="margin-bottom:16px">
@@ -266,10 +280,11 @@ async function viewTranscript(name) {
 // --- Main refresh ---
 async function refresh() {
   try {
-    const [statusRes, eventsRes, taskboardRes] = await Promise.all([
+    const [statusRes, eventsRes, taskboardRes, upcomingRes] = await Promise.all([
       fetch('/api/status').then(r => r.json()),
       fetch('/api/events?limit=50').then(r => r.json()),
       fetch('/api/taskboard').then(r => r.text()),
+      fetch('/api/upcoming').then(r => r.json()).catch(() => ({ calendar: [], reminders: [] })),
     ]);
 
     const status = statusRes;
@@ -304,6 +319,52 @@ async function refresh() {
     ].map(([v, l]) =>
       '<div class="stat"><div class="value">' + v + '</div><div class="label">' + l + '</div></div>'
     ).join('');
+
+    // Coming Up
+    const upEl = document.getElementById('upcoming');
+    const calEvents = (upcomingRes.calendar || []).map(e => {
+      const start = e.start ? new Date(e.start) : null;
+      const end = e.end ? new Date(e.end) : null;
+      return { ...e, startDate: start, endDate: end, type: 'calendar' };
+    }).filter(e => e.startDate).sort((a, b) => a.startDate - b.startDate);
+
+    const upReminders = (upcomingRes.reminders || []).filter(r => r.type === 'time' && r.fireAt).map(r => ({
+      text: r.text, startDate: new Date(r.fireAt), type: 'reminder'
+    })).sort((a, b) => a.startDate - b.startDate);
+
+    const allUpcoming = [...calEvents.map(e => {
+      const now = Date.now();
+      const startMs = e.startDate.getTime();
+      const endMs = e.endDate ? e.endDate.getTime() : startMs + 3600000;
+      const minsUntil = Math.round((startMs - now) / 60000);
+      let timeLabel;
+      if (!e.start) {
+        timeLabel = 'All day';
+      } else {
+        const fmt = { hour: '2-digit', minute: '2-digit', hour12: true };
+        const startStr = e.startDate.toLocaleTimeString('en-US', fmt);
+        const endStr = e.endDate ? e.endDate.toLocaleTimeString('en-US', fmt) : '';
+        timeLabel = endStr ? startStr + '–' + endStr : startStr;
+      }
+      let badge = '';
+      if (now >= startMs && now <= endMs) badge = '<span class="upcoming-now">NOW</span>';
+      else if (minsUntil > 0 && minsUntil <= 30) badge = '<span class="upcoming-soon">in ' + minsUntil + 'min</span>';
+      else if (minsUntil > 0 && minsUntil <= 60) badge = '<span class="upcoming-soon">in ' + minsUntil + 'min</span>';
+
+      const loc = e.location ? '<span class="upcoming-location">' + esc(e.location) + '</span>' : '';
+      return '<div class="upcoming-item"><span class="upcoming-time">' + timeLabel + '</span><span class="upcoming-title">' + esc(e.summary || e.title || 'Untitled') + loc + '</span>' + badge + '</div>';
+    }), ...upReminders.map(r => {
+      const minsUntil = Math.round((r.startDate.getTime() - Date.now()) / 60000);
+      const timeStr = r.startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      let badge = '';
+      if (minsUntil <= 0) badge = '<span class="upcoming-now">DUE</span>';
+      else if (minsUntil <= 60) badge = '<span class="upcoming-soon">in ' + minsUntil + 'min</span>';
+      return '<div class="upcoming-item"><span class="upcoming-time upcoming-reminder">⏰ ' + timeStr + '</span><span class="upcoming-title">' + esc(r.text) + '</span>' + badge + '</div>';
+    })];
+
+    upEl.innerHTML = allUpcoming.length === 0
+      ? '<div style="color:#666;padding:8px 0">No upcoming events or reminders</div>'
+      : allUpcoming.join('');
 
     // Task triggers
     const sched = status.schedule;

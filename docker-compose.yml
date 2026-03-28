@@ -34,6 +34,7 @@ services:
       - GENERIC_TIMEZONE=${TZ:-America/New_York}
     volumes:
       - ./n8n/data:/home/node/.n8n
+      - /Users/randywilson/.claude:/claude-data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
       interval: 30s
