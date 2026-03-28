@@ -459,10 +459,13 @@ The dispatch engine's `busy` flag in `lib/dispatch.ts` is set to `true` while th
 
 ---
 
+## Resolved Questions
+
+- **Worker results → orchestrator?** Resolved: `task_notification` SDK events stream back automatically. Orchestrator reads the summary and acts on it. See `dispatch.ts` line 196.
+- **Screenpipe access?** Resolved: Workers (midday-checker, evening-wrapper, morning-briefer, reviewers) have `mcp__screenpipe__activity-summary` in their allowed tools. Orchestrator accesses it through workers, not directly.
+- **Context window fills up?** Handled by Claude Code's automatic context compression. Sessions continue with compressed history.
+- **Sub-workers?** No. Flat structure — orchestrator spawns agents, agents don't spawn sub-agents.
+
 ## Open Questions
 
-- How should worker results flow back to the orchestrator? Options: inject summary into brain session, or brain polls via worker_status
-- Should the orchestrator have access to Screenpipe directly for context awareness, or only through workers?
-- What happens when the orchestrator's context window fills up? Auto-restart with Cognee context reload?
-- Should workers be able to spawn sub-workers? (Probably not — keep it flat)
-- Cost budget per worker? Per day? Alert thresholds?
+- Cost budget per worker? Per day? Alert thresholds? (Currently tracked via `/costs` skill but no enforcement)
