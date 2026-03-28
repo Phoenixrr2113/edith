@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "cognee": {
-      "type": "sse",
-      "url": "http://localhost:8001/sse"
+      "command": "uv",
+      "args": ["--directory", "/Users/randywilson/Desktop/edith-v3/cognee-repo/cognee-mcp", "run", "cognee-mcp"]
     },
     "edith": {
       "command": "bash",

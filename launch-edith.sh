@@ -19,7 +19,8 @@ mkdir -p "$STATE_DIR"
 # --- Check required tools ---
 MISSING=""
 command -v bun >/dev/null 2>&1 || MISSING="$MISSING bun"
-command -v docker >/dev/null 2>&1 || MISSING="$MISSING docker"
+command -v node >/dev/null 2>&1 || MISSING="$MISSING node"
+command -v uv >/dev/null 2>&1 || MISSING="$MISSING uv"
 if [ -n "$MISSING" ]; then
   echo "[launch] ERROR: Missing required tools:$MISSING"
   exit 1
@@ -66,37 +67,20 @@ fi
 N8N_PORT="${N8N_PORT:-5679}"
 N8N_SKIP=false
 if lsof -i ":$N8N_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  # Check if it's an n8n container we can reuse
-  EXISTING_CONTAINER=$(docker ps --filter "publish=$N8N_PORT" --format "{{.Names}}" 2>/dev/null)
-  if echo "$EXISTING_CONTAINER" | grep -qi "n8n"; then
-    echo "[launch] n8n already running (container $EXISTING_CONTAINER), reusing"
+  # Check if it's already an n8n process we can reuse
+  EXISTING_PID=$(lsof -i ":$N8N_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1)
+  if ps -p "$EXISTING_PID" -o command= 2>/dev/null | grep -qi "n8n"; then
+    echo "[launch] n8n already running (PID $EXISTING_PID), reusing"
     N8N_SKIP=true
   else
-    echo "[launch] ERROR: Port $N8N_PORT is already in use by another process"
+    echo "[launch] ERROR: Port $N8N_PORT is already in use by another process (PID $EXISTING_PID)"
     echo "         Run: lsof -i :$N8N_PORT  to see what's using it"
-    echo "         Either free the port or set N8N_PORT to a different value"
     exit 1
   fi
 fi
 
 # --- Pre-flight ---
 mkdir -p "$STATE_DIR" "$DIR/logs"
-
-# Start Docker Desktop if not running (macOS)
-if ! docker info >/dev/null 2>&1; then
-  echo "[launch] Docker not running, starting Docker Desktop..."
-  open -a "Docker" 2>/dev/null
-  # Wait up to 60s for Docker to be ready
-  for i in {1..30}; do
-    if docker info >/dev/null 2>&1; then break; fi
-    sleep 2
-  done
-  if ! docker info >/dev/null 2>&1; then
-    echo "[launch] ERROR: Docker failed to start after 60s. Start Docker Desktop manually."
-    exit 1
-  fi
-  echo "[launch] Docker Desktop started"
-fi
 
 # --- Backup n8n credentials (OAuth tokens etc) ---
 N8N_DB="$DIR/n8n/data/database.sqlite"
@@ -109,27 +93,32 @@ if [ -f "$N8N_DB" ]; then
   echo "[launch] n8n database backed up to $N8N_BACKUP_DIR"
 fi
 
-# --- Start Docker services (Cognee + n8n) ---
-echo "[launch] Starting Docker services..."
-if [ "$N8N_SKIP" = true ]; then
-  docker compose up -d cognee 2>&1 | grep -v "^$"
+# --- Symlink n8n data dir (n8n reads from ~/.n8n by default) ---
+if [ ! -L "$HOME/.n8n" ] && [ ! -d "$HOME/.n8n" ]; then
+  ln -s "$DIR/n8n/data" "$HOME/.n8n"
+  echo "[launch] Symlinked ~/.n8n -> n8n/data"
+elif [ -L "$HOME/.n8n" ]; then
+  echo "[launch] ~/.n8n symlink already exists"
 else
-  docker compose up -d 2>&1 | grep -v "^$"
+  echo "[launch] WARNING: ~/.n8n exists as a directory, not a symlink. n8n may use wrong data."
 fi
 
-# Wait for services to be healthy
-echo "[launch] Waiting for services..."
+# --- Start n8n as child process ---
+echo "[launch] Starting n8n..."
+N8N_PORT=5679 GENERIC_TIMEZONE="${TZ:-America/New_York}" npx n8n start > "$STATE_DIR/n8n.log" 2>&1 &
+N8N_PID=$!
+echo "[launch] n8n started (PID $N8N_PID)"
+
+# Wait for n8n to be healthy
 N8N_OK="down"
-COGNEE_OK="down"
 for i in {1..30}; do
-  [ "$N8N_OK" = "down" ] && curl -s -o /dev/null -w "" "http://localhost:$N8N_PORT/healthz" 2>/dev/null && N8N_OK="up"
-  if [ "$COGNEE_OK" = "down" ]; then curl -s -o /dev/null --max-time 2 "http://localhost:8001/sse" 2>/dev/null; RC=$?; [ $RC -eq 0 ] || [ $RC -eq 28 ] && COGNEE_OK="up"; fi
-  if [ "$N8N_OK" = "up" ] && [ "$COGNEE_OK" = "up" ]; then break; fi
+  curl -s -o /dev/null --max-time 2 "http://localhost:$N8N_PORT/healthz" 2>/dev/null && N8N_OK="up" && break
   sleep 2
 done
-echo "[launch] n8n: $N8N_OK, cognee: $COGNEE_OK"
+echo "[launch] n8n: $N8N_OK"
 [ "$N8N_OK" = "down" ] && echo "[launch] WARNING: n8n not healthy — calendar/email may not work"
-[ "$COGNEE_OK" = "down" ] && echo "[launch] WARNING: Cognee not healthy — knowledge graph unavailable"
+
+# Cognee starts automatically via MCP stdio when Agent SDK launches — no separate process needed
 
 # --- Start Screenpipe if not running ---
 if command -v screenpipe >/dev/null 2>&1; then
@@ -181,6 +170,7 @@ cleanup() {
     rm -f "$EDITH_PIDFILE"
   fi
   kill $DASHBOARD_PID 2>/dev/null
+  [ -n "$N8N_PID" ] && kill $N8N_PID 2>/dev/null
   [ -n "$TAIL_PID" ] && kill $TAIL_PID 2>/dev/null
   [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"
