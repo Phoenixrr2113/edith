@@ -45,7 +45,7 @@ Edith v3 is single-threaded — one Claude session at a time, FIFO queue, busy f
 ## Decision Log
 
 - **Claude Desktop migration**: Abandoned. Claude Desktop's scheduler can't match Edith's battle-tested dispatch (dead-letter recovery, circuit breakers, session continuity, brief building). Delete the migrated scheduled tasks at `~/.claude/scheduled-tasks/` and services at `~/.claude/services/`.
-- **Dashboard**: Killed. Telegram progress updates give enough visibility. Dashboard was extra maintenance.
+- **Dashboard**: Deprioritized. `dashboard.ts` still exists (localhost:3456) but isn't actively maintained. Telegram is the primary visibility channel.
 - **Orchestrator scope**: Brain handles lightweight tasks directly (quick questions, reminders, status checks). Only heavy work spawns workers.
 
 ---
@@ -88,10 +88,12 @@ Scheduler fires "morning-brief" at 8:03
 
 ### Progress Visibility
 
-Task events stream through the parent query and are logged by `dispatch.ts`:
+Task events stream through the parent query and are logged by `dispatch.ts` to console and JSONL:
 - `🚀 task_started` — agent spawned with description
 - `📊 task_progress` — periodic updates with `last_tool_name`, token count, tool uses, duration
 - `🏁 task_notification` — completion/failure with summary and usage stats
+
+**Note:** These events are logged locally only. No live Telegram progress updates yet — Randy only sees the final result message when the agent completes.
 
 ### Verified Behavior (2026-03-28)
 
@@ -111,26 +113,62 @@ Test: "check my email from the last 24 hours, triage everything, prep for any me
 
 - `prompts/system.md` — added orchestrator instructions (light vs heavy tasks, how to spawn background agents)
 - `lib/dispatch.ts` — ~20 lines added to log `task_started`, `task_progress`, `task_notification` SDK events
-- `.claude/agents/` — 4 new agent definitions:
+- `.claude/agents/` — 10 agent definitions:
   - **morning-briefer** — calendar, email, Cognee, meeting prep, file prep (sonnet)
   - **midday-checker** — catch changes, prep afternoon, advance deadlines (sonnet)
   - **evening-wrapper** — day review, tomorrow prep, Cognee storage (sonnet)
+  - **weekend-briefer** — family activities, local events, weather, beach (sonnet)
   - **email-triager** — scan inbox, archive noise, draft replies (sonnet)
-  - **researcher** — already existed (sonnet)
-  - **reminder-checker** — already existed (haiku)
+  - **weekly-reviewer** — GTD weekly review, Google Doc output (sonnet)
+  - **monthly-reviewer** — scorecard, life areas, retrospective (sonnet)
+  - **quarterly-reviewer** — strategic review, trajectory (sonnet)
+  - **researcher** — web + codebase research (sonnet)
+  - **reminder-checker** — time-based reminders only (haiku)
 
 The Agent tool handles spawning. `stopTask(taskId)` on the Query interface handles cancellation. No custom MCP tools, no WorkerPool class, no orchestrator module. Everything else (dispatch engine, session management, scheduler, Telegram) works as-is.
+
+---
+
+## Internal Subsystems (Underdocumented)
+
+These systems exist in the codebase and are actively used, but weren't covered in the original architecture doc.
+
+### Brief Building (`lib/briefs.ts`, `lib/prewake.ts`)
+Before Claude wakes, Edith pre-fetches calendar and email from n8n and assembles a context brief. 8 brief types: boot, morning, midday, evening, message, location, scheduled, proactive. Pre-wake optimization saves Claude turns by front-loading context.
+
+### Reflection System (`lib/reflector.ts`)
+Observes running sessions and injects contextual feedback via `streamInput()`. Triggers after every Nth tool call, on context compaction, and on irreversible tool use (send_message, manage_emails writes). Guards geofencing-sensitive operations. Non-blocking fire-and-forget.
+
+### Screen Awareness (`lib/screenpipe.ts`, `lib/gemini.ts`, `lib/audio-extract.ts`)
+- **Screenpipe client** — health check, OCR + audio context, app usage tracking, continuous activity calculation
+- **Gemini summarization** — Gemini 2.5 Flash for screen context summaries, skips LLM for trivial cases
+- **Audio extraction** — Qwen 3 235B (OpenRouter) extracts structured knowledge from meeting audio (decisions, action items)
+
+Workers (morning-briefer, midday-checker, evening-wrapper, reviewers) all have `mcp__screenpipe__activity-summary` in their allowed tools.
+
+### Transcript Logging (`lib/transcript.ts`)
+Every session is logged to JSONL — tool uses, text blocks, results, costs. Skips stream events to minimize size. Used for debugging and the `/costs` skill.
+
+### Proactive Interventions (`lib/proactive.ts`)
+Rate limiting infrastructure for proactive messages: quiet hours (22:00–08:00), per-category cooldowns (60min), max 2 interventions/hour. `canIntervene()` and `recordIntervention()` are wired into the MCP server. **Gap:** The trigger that decides WHEN to proactively intervene is not connected to the main loop — infrastructure exists but no automatic firing.
+
+### Session Injection (`lib/session.ts`)
+Tracks the active Agent SDK query handle. Exposes `streamInput()` for mid-session message injection — new messages/tasks inject into the running session instead of waiting in the dispatch queue.
+
+### Caffeinate (`lib/caffeinate.ts`)
+Prevents macOS sleep while Edith is running (`caffeinate -dis -w PID`).
 
 ---
 
 ## Next Steps
 
 ### Near-term (POC hardening)
-- Fix busy flag so scheduled tasks aren't blocked during background agent runs (see Known Limitations)
-- Remove Docker dependency — run n8n as child process, Cognee via MCP stdio (see Embedded Services)
+- ~~Fix busy flag~~ Done — streamInput injection handles mid-session messages (see Known Limitations)
+- ~~Add more agent types~~ Done — 10 agents covering briefs, reviews, email, research, reminders
+- Remove Docker dependency — run n8n as child process, Cognee via MCP stdio (see Embedded Services). Docker still required today.
 - Clean up disabled Claude Desktop scheduled tasks at `~/.claude/scheduled-tasks/`
-- Tune orchestrator prompt based on real-world usage
-- Add more agent types as needed (meeting-prepper, deadline-advancer, etc.)
+- Wire proactive intervention triggers into main loop (infrastructure built in lib/proactive.ts, trigger not connected)
+- Stream task progress to Telegram (currently only logged to console/JSONL)
 
 ### Future (when ready)
 - Desktop companion (Tauri + Rive) — see Desktop Companion section
@@ -238,17 +276,9 @@ Edith spawns background agent (Agent tool, run_in_background: true)
   → MCP tool POSTs to n8n: POST /webhook/gmail { action: "send", to: "...", body: "..." }
 ```
 
-### MCP Server Simplification
+### MCP Server Structure
 
-`mcp/server.ts` becomes mostly thin wrappers around n8n webhooks:
-
-```typescript
-// Before: custom Twilio implementation in lib/twilio.ts
-// After: one n8n webhook call
-server.tool("send_sms", async ({ to, body }) => {
-  return await n8nPost("twilio", { channel: "sms", to, body });
-});
-```
+`mcp/server.ts` (540+ lines) registers 25+ tools. Most Google tools are thin wrappers around `n8nPost()`. Telegram, Twilio, image generation, and transcription call APIs directly. See `n8n/WORKFLOWS.md` for details on what's in n8n vs direct API.
 
 ### What n8n Does NOT Handle
 - Orchestrator brain (persistent Claude session — Agent SDK only)
