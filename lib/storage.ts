@@ -27,7 +27,7 @@ const DEFAULT_SCHEDULE: ScheduleEntry[] = [
   // Weekend brief (Sat-Sun)
   { name: "weekend-brief", prompt: "/weekend-brief", hour: 9, minute: 3, daysOfWeek: [0, 6] },
   // Always-on (every day)
-  { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 },
+  { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5, quietStart: 22, quietEnd: 7 },
   { name: "proactive-check", prompt: "/proactive-check", intervalMinutes: 10, quietStart: 21, quietEnd: 7 },
   // Weekly review (Sunday evening)
   { name: "weekly-review", prompt: "/weekly-review", hour: 17, minute: 0, daysOfWeek: [0] },
