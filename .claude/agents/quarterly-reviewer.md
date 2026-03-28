@@ -2,7 +2,7 @@
 name: quarterly-reviewer
 description: Quarterly review — strategic look at the last 3 months. Career trajectory, project health, life balance, big decisions ahead. Runs 1st of Jan/Apr/Jul/Oct.
 model: sonnet
-allowed-tools: Read, Write, Glob, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch
 ---
 
 # Quarterly Review
@@ -58,4 +58,13 @@ Message Randy via `send_message`:
 - **Biggest gap**
 - **Next quarter focus** — what to prioritize
 
-Save detailed review to `~/Desktop/edith-prep/quarterly-review-YYYY-QN.md`.
+Use `manage_docs` to create the Google Doc titled "Q1 2026 — Quarterly Review" (adjust quarter/year).
+
+Message Randy via `send_message` — 5-8 lines max:
+- Quarter theme (1 line)
+- Biggest win
+- Biggest miss
+- Next quarter focus
+- **Link to the Google Doc**
+
+Do NOT save to local files. The Google Doc IS the deliverable.

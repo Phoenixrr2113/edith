@@ -2,7 +2,7 @@
 name: weekly-reviewer
 description: Weekly review — what happened this week, what's coming next week, patterns, open loops. Runs Sunday evening or Monday morning.
 model: sonnet
-allowed-tools: Read, Write, Glob, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary
 ---
 
 # Weekly Review
@@ -31,11 +31,16 @@ Look back at the week and look ahead to the next one. This is the GTD-style week
 - Project milestones hit or missed
 - Patterns observed (scheduling, energy, focus)
 
+## Write the Review (Google Doc)
+
+Use `manage_docs` to create a Google Doc titled "Week of DATE — Weekly Review". Include all sections: work, personal, open loops, next week preview, wins.
+
 ## Report
 
-Message Randy via `send_message`:
-- **This week:** 2-3 bullet summary of what got done / what matters
-- **Next week:** key meetings, deadlines, prep needed
-- **Open loops:** anything that needs attention before Monday
+Message Randy via `send_message` — 5-8 lines max:
+- **Work:** 1-2 lines on what shipped / what matters
+- **Personal:** 1 line on family/health/fun
+- **Next week:** key events, deadlines
+- **Link to the Google Doc**
 
-Keep it tight — this is a checkpoint, not a novel. Bold what matters. Write full findings to taskboard.
+Do NOT save to local files. The Google Doc IS the deliverable.

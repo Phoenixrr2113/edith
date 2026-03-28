@@ -1,0 +1,99 @@
+{
+  "name": "Google Docs",
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "nodes": [
+    {
+      "id": "webhook-docs",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "docs-webhook-id",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "docs",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "create-doc",
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "HEfkkrZDqXCfD5iI",
+          "name": "phoenixrr2113"
+        }
+      },
+      "parameters": {
+        "resource": "file",
+        "operation": "createFromText",
+        "name": "={{ $json.body.title || 'Untitled' }}",
+        "content": "={{ $json.body.content || '' }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.body.folderId || 'root' }}"
+        },
+        "options": {
+          "convertToGoogleDocument": true
+        }
+      }
+    },
+    {
+      "id": "format-response",
+      "name": "Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{ json: {\n  ok: true,\n  docId: item.id,\n  docUrl: 'https://docs.google.com/document/d/' + item.id + '/edit',\n  name: item.name\n} }];"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "id": "b0ca6220ea5140b7"
+}
