@@ -452,17 +452,10 @@ Docker has been a pain point — port conflicts, stale containers, extra depende
 
 ## Known Limitations
 
-### Busy flag blocks scheduled tasks during background agent execution
-The dispatch engine's `busy` flag in `lib/dispatch.ts` is set to `true` while the orchestrator session is running — including while it waits for a background agent to complete. This means scheduled tasks (check-reminders, proactive-check) get `skipIfBusy` dropped during long operations.
+### Busy flag mitigated with streamInput injection
+The dispatch engine's `busy` flag in `lib/dispatch.ts` is set to `true` while the orchestrator session is running. When a new message or scheduled task arrives while busy, `dispatch()` now attempts `streamInput()` injection into the active session (line 296-301). If injection succeeds, the message is handled inline without queuing.
 
-**Impact:** If a background agent runs for 2+ minutes, scheduled tasks that fire during that window are skipped entirely.
-
-**Fix (future):** The busy flag exists because `query()` is single-session. Options:
-1. Run scheduled tasks as separate `query()` calls (parallel sessions) instead of going through the dispatch queue
-2. Let the orchestrator handle scheduled task messages via `streamInput()` injection even while a background agent is running (the stream is still open)
-3. Full v4 refactor where the orchestrator session is always alive and scheduled tasks are just injected messages
-
-**Workaround (now):** Background agents typically finish in 1-3 minutes. The 5-minute check-reminders and 3-minute proactive-check will catch up on the next tick. Morning brief at 8:03 AM is the longest operation — during that window, reminders may be delayed by a few minutes.
+**Remaining gap:** If injection fails (e.g., session not in a state that accepts input), `skipIfBusy` tasks are still dropped. In practice this is rare — most injections succeed.
 
 ---
 
