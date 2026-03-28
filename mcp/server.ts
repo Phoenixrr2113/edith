@@ -436,13 +436,11 @@ server.registerTool("manage_docs", {
     content: z.string().describe("Document content (plain text or markdown)"),
     folderId: z.string().optional().describe("Google Drive folder ID (optional, defaults to root)"),
   },
-  annotations: { title: "Google Docs", readOnlyHint: false },
-  cb: async ({ title, content, folderId }) => {
-    const result = await n8nPost("docs", { title, content, folderId });
-    if (!result.ok) return textResponse(`Failed to create doc: ${result.error}`);
-    const data = result.data as any;
-    return jsonResponse({ ok: true, docId: data.docId, docUrl: data.docUrl, name: data.name });
-  },
+}, async ({ title, content, folderId }) => {
+  const result = await n8nPost("docs", { title, content, folderId });
+  if (!result.ok) return textResponse(`Failed to create doc: ${result.error}`);
+  const data = result.data as any;
+  return jsonResponse({ ok: true, docId: data.docId, docUrl: data.docUrl, name: data.name });
 });
 
 // ============================================================
