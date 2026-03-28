@@ -9,7 +9,7 @@
  *   - Circuit breaker for repeated failures
  *   - AbortController timeout to prevent hangs
  */
-import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage, type SDKTaskStartedMessage, type SDKTaskProgressMessage, type SDKTaskNotificationMessage } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
 import { CHAT_ID } from "./config";
@@ -173,6 +173,31 @@ async function processMessageStream(
           reflector.recordCompaction(preTokens, trigger);
           // Compaction reflection is critical — always fire
           await maybeInject("compaction");
+        }
+      }
+
+      // --- Background agent task events ---
+      if (message.type === "system" && "subtype" in message) {
+        const subtype = (message as any).subtype;
+
+        if (subtype === "task_started") {
+          const m = message as SDKTaskStartedMessage;
+          console.log(`[edith:${label}] 🚀 Agent started: ${m.description} (${m.task_id})`);
+          logEvent("task_started", { label, taskId: m.task_id, description: m.description });
+        }
+
+        if (subtype === "task_progress") {
+          const m = message as SDKTaskProgressMessage;
+          const tool = m.last_tool_name ?? "working";
+          const secs = Math.round((m.usage?.duration_ms ?? 0) / 1000);
+          console.log(`[edith:${label}] 📊 Agent progress: ${m.task_id} — ${tool} (${secs}s, ${m.usage?.tool_uses ?? 0} tools)`);
+        }
+
+        if (subtype === "task_notification") {
+          const m = message as SDKTaskNotificationMessage;
+          const durSecs = m.usage?.duration_ms ? Math.round(m.usage.duration_ms / 1000) : 0;
+          console.log(`[edith:${label}] 🏁 Agent ${m.status}: ${m.summary ?? m.task_id} (${durSecs}s, ${m.usage?.tool_uses ?? 0} tools)`);
+          logEvent("task_complete", { label, taskId: m.task_id, status: m.status, summary: m.summary, duration: durSecs, toolUses: m.usage?.tool_uses });
         }
       }
 
