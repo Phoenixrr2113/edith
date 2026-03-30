@@ -6,10 +6,11 @@ import { readTaskboard, getRecentTaskboardEntries } from "./taskboard";
 import { gatherPrewakeContext } from "./prewake";
 import { CHAT_ID } from "./config";
 import { TASKBOARD_FILE } from "./config";
-import { isAvailable as screenpipeAvailable, getContext as getScreenContext, formatContext } from "./screenpipe";
+import { isAvailable as screenpipeAvailable, getContext as getScreenContext, formatContext, type ScreenContext } from "./screenpipe";
 import { appendActivity, readActivity, getActivityFile } from "./activity";
 import { summarizeScreenContext } from "./gemini";
 import { processAudioTranscripts } from "./audio-extract";
+import { canIntervene } from "./proactive";
 
 export type BriefType = "boot" | "morning" | "midday" | "evening" | "message" | "location" | "scheduled" | "proactive";
 
@@ -185,11 +186,77 @@ async function gatherScreenContext(minutes: number = 15, processAudio: boolean =
   }
 }
 
+// --- Proactive heuristic triggers ---
+
+const SOCIAL_MEDIA_APPS = new Set([
+  "Safari", "Google Chrome", "Firefox", "Arc",
+]);
+const SOCIAL_MEDIA_PATTERNS = /twitter|x\.com|reddit|facebook|instagram|tiktok|youtube|hacker\s?news|threads|bluesky|mastodon|linkedin.*feed/i;
+const SOCIAL_MEDIA_THRESHOLD_MIN = 20;
+
+interface ProactiveTrigger {
+  type: string;
+  message: string;
+}
+
+/**
+ * Check screen context for known trigger patterns.
+ * Returns triggers found, or empty array if nothing noteworthy.
+ */
+function detectTriggers(screenCtx: ScreenContext | null): ProactiveTrigger[] {
+  const triggers: ProactiveTrigger[] = [];
+  if (!screenCtx || screenCtx.empty) return triggers;
+
+  // Trigger 1: Prolonged social media / doom-scrolling
+  for (const app of screenCtx.apps) {
+    if (!SOCIAL_MEDIA_APPS.has(app.appName)) continue;
+    const socialTitles = app.windowTitles.filter(t => SOCIAL_MEDIA_PATTERNS.test(t));
+    if (socialTitles.length > 0 && app.durationMinutes >= SOCIAL_MEDIA_THRESHOLD_MIN) {
+      triggers.push({
+        type: "social-media-time",
+        message: `Randy has been on social media (${socialTitles[0]}) for ${Math.round(app.durationMinutes)} minutes`,
+      });
+    }
+  }
+
+  // Trigger 2: Continuous screen time without a break
+  if (screenCtx.continuousActivityMinutes >= 90) {
+    triggers.push({
+      type: "break-reminder",
+      message: `Randy has been at the screen for ${Math.round(screenCtx.continuousActivityMinutes)} minutes without a break`,
+    });
+  }
+
+  return triggers;
+}
+
 async function buildProactiveBrief(): Promise<string> {
+  // Gate: check if intervention is even allowed before doing any work
+  const gate = canIntervene();
+  if (!gate.allowed) {
+    return ""; // empty brief = skip dispatch
+  }
+
   const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 
-  // Fetch screen context (wide window for session detection)
+  // Fetch raw screen context for heuristic check
+  let rawCtx: ScreenContext | null = null;
+  try {
+    if (await screenpipeAvailable()) {
+      rawCtx = await getScreenContext(15);
+    }
+  } catch {}
+
+  // Run heuristic triggers on raw context
+  const triggers = detectTriggers(rawCtx);
+
+  // Summarize screen context (also persists to activity log)
   const screen = await gatherScreenContext(15, true);
+
+  // If no triggers and no screen activity worth analyzing, skip dispatch entirely
+  if (triggers.length === 0 && !screen) {
+    return ""; // empty brief = skip dispatch
+  }
 
   const taskboard = getRecentTaskboardEntries();
 
@@ -219,6 +286,14 @@ async function buildProactiveBrief(): Promise<string> {
     `- After acting: call record_intervention so you don't repeat yourself`,
     `- If you have nothing useful to add right now — exit silently. No "nothing to report."`,
   ];
+
+  if (triggers.length > 0) {
+    sections.push(`\n## ⚡ Triggered Heuristics`);
+    sections.push(`These patterns were detected locally. You should address them:`);
+    for (const t of triggers) {
+      sections.push(`- **${t.type}**: ${t.message}`);
+    }
+  }
 
   if (screen) {
     sections.push(`\n## What Randy Is Doing Right Now\n${screen}`);

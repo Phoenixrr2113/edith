@@ -113,6 +113,14 @@ export async function runScheduler(): Promise<void> {
       prompt = await buildBrief("scheduled", { prompt: entry.prompt, taskName: entry.name });
     }
 
+    // Empty brief = heuristics decided to skip (e.g. proactive-check with no triggers)
+    if (!prompt.trim()) {
+      console.log(`[scheduler] ${entry.name}: skipped (no triggers)`);
+      state.lastFired[entry.name] = now.toISOString();
+      saveScheduleState(state);
+      continue;
+    }
+
     const result = await dispatchToClaude(prompt, {
       resume: false,
       label: entry.name,
