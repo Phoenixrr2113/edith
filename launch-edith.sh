@@ -29,6 +29,15 @@ fi
 command -v terminal-notifier >/dev/null 2>&1 || echo "[launch] NOTE: terminal-notifier not installed — desktop notifications disabled"
 command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed — auto-restart on file changes disabled"
 
+# --- Start Docker services (Langfuse + Cognee + n8n) ---
+if command -v docker >/dev/null 2>&1; then
+  echo "[launch] Starting Docker services..."
+  docker compose -f "$DIR/docker-compose.yml" up -d 2>/dev/null
+  docker compose -f "$DIR/docker-compose.langfuse.yml" up -d 2>/dev/null
+else
+  echo "[launch] NOTE: Docker not available — Langfuse tracing and Cognee disabled"
+fi
+
 # --- Check required env vars ---
 if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
   echo "[launch] ERROR: TELEGRAM_BOT_TOKEN not set in .env"
