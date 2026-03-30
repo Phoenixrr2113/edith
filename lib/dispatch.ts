@@ -16,7 +16,7 @@ import { CHAT_ID } from "./config";
 import {
   sessionId, saveSession, clearSession,
   logEvent, activeProcesses, writeActiveProcesses,
-  saveDeadLetter, PROJECT_ROOT,
+  PROJECT_ROOT,
 } from "./state";
 import { loadJson } from "./storage";
 import { fmtErr } from "./util";
@@ -447,25 +447,16 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
 }
 
 /**
- * Dispatch a conversation message — builds brief, handles retries + dead-letter.
+ * Dispatch a conversation message — builds brief, dispatches to Claude.
  */
-export async function dispatchToConversation(chatId: number, messageId: number, message: string, retryCount = 0): Promise<void> {
+export async function dispatchToConversation(chatId: number, messageId: number, message: string): Promise<void> {
   const brief = await buildBrief("message", { message, chatId: String(chatId) });
   const result = await dispatchToClaude(brief, { resume: true, label: "message", chatId });
 
   // "injected" means streamInput was used — no need to check for errors
   if (result === "injected") return;
 
-  let failed = !result.trim();
-
-  if (failed) {
-    if (retryCount < 2) {
-      const delay = (retryCount + 1) * 3000;
-      console.log(`[edith] Message dispatch failed, retrying in ${delay / 1000}s (attempt ${retryCount + 2}/3)...`);
-      logEvent("dispatch_retry", { label: "message", attempt: retryCount + 2 });
-      await Bun.sleep(delay);
-      return dispatchToConversation(chatId, messageId, message, retryCount + 1);
-    }
-    saveDeadLetter(chatId, message, "empty response after retries");
-  }
+  // Note: empty result is normal — responses sent via tool calls (send_message)
+  // produce no text output. Actual failures throw exceptions in dispatchToClaude
+  // and are handled by the caller (bootstrap dead-letters on exception).
 }

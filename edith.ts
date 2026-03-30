@@ -98,12 +98,12 @@ async function poll(): Promise<void> {
 
         await sendTyping(chatId);
         if (paused) { paused = false; console.log("[edith] Unpaused by incoming message."); }
-        const msgType = msg.location ? "📍 location" : msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
-        const msgPreview = msg.text?.slice(0, 80) ?? (msg.caption?.slice(0, 80) ?? "");
-        console.log(`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`);
-        // Skip logging raw location updates — they fire every ~250ms from live location sharing
+        // Skip logging raw location updates — they fire frequently from live location sharing
         // and create massive log spam. Geofence transitions are logged inside handleLocation.
         if (!msg.location) {
+          const msgType = msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
+          const msgPreview = msg.text?.slice(0, 80) ?? (msg.caption?.slice(0, 80) ?? "");
+          console.log(`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`);
           logEvent("message_received", {
             chatId,
             type: msg.voice ? "voice" : msg.photo ? "photo" : "text",
@@ -171,7 +171,12 @@ async function bootstrap(): Promise<void> {
     logEvent("dead_letter_replay", { count: deadLetters.length });
     for (const dl of deadLetters) {
       console.log(`[edith] Replaying: "${dl.message.slice(0, 60)}..."`);
-      await dispatchToConversation(dl.chatId, 0, dl.message);
+      try {
+        await dispatchToConversation(dl.chatId, 0, dl.message);
+      } catch (err) {
+        console.error(`[edith] Dead-letter replay failed, re-queuing:`, err);
+        saveDeadLetter(dl.chatId, dl.message, `replay failed: ${err}`);
+      }
     }
     clearDeadLetters();
     console.log("[edith] Dead-letter replay complete.");
