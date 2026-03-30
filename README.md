@@ -53,6 +53,17 @@ External services:
 | `n8n/` | Workflow JSONs + documentation |
 | `ARCHITECTURE-V4.md` | Full architecture doc, decision log, future plans |
 
+## Services
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **Langfuse** | http://localhost:3000 | LLM traces, cost dashboard, latency analysis |
+| **BetterStack Logs** | https://telemetry.betterstack.com | Structured logs, search, alerts |
+| **BetterStack Uptime** | https://uptime.betterstack.com | Heartbeat monitoring, uptime alerts |
+| **n8n** | http://localhost:5679 | Google Calendar/Gmail/Docs via OAuth webhooks |
+| **Cognee** | http://localhost:8001 | Knowledge graph, semantic memory |
+| **GitHub Project** | https://github.com/users/Phoenixrr2113/projects/1 | Task backlog and pipeline |
+
 ## Requirements
 
 - **Claude Code CLI** v2.1.80+ (Agent SDK)

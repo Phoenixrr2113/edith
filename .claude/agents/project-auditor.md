@@ -9,18 +9,20 @@ allowed-tools: Read, Write, Glob, Grep, Bash, WebSearch
 
 Audit the edith-v3 project by comparing documentation (what's planned) against code (what exists). Produce GitHub Issues for every gap found.
 
-## Step 1: Read all documentation
+## Step 1: Discover and read ALL documentation
 
-Read these files completely:
-- `ARCHITECTURE-V4.md` — primary source of truth for planned architecture
-- `docs/data-sources.md` — capability gaps and data source plans
-- `docs/distribution.md` — product packaging plans
-- `docs/screen-awareness.md` — Gemini Live API plans
-- `docs/desktop-companion.md` — presence/UI plans
-- `CLAUDE.md` — operational reference
-- `prompts/system.md` — Edith's identity and voice
-- `.claude/agents/*.md` — existing agent definitions
-- `.claude/skills/*/SKILL.md` — existing skill definitions
+Use Glob to find every .md file in the project (excluding node_modules):
+```
+Glob: *.md
+Glob: docs/**/*.md
+Glob: prompts/**/*.md
+Glob: .claude/agents/*.md
+Glob: .claude/skills/*/SKILL.md
+Glob: .claude/rules/*.md
+Glob: .claude/commands/*.md
+```
+
+Read every file found. Do NOT use a hardcoded list — new docs may be added at any time. If a .md file exists in the project root, docs/, prompts/, or .claude/, it's part of the audit.
 
 Extract every distinct requirement, feature, or planned component mentioned.
 
