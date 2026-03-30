@@ -2,7 +2,7 @@
 name: weekend-briefer
 description: Weekend morning brief — family activities, local events, weather, beach conditions, fun stuff. Use on Saturday/Sunday mornings instead of the work-focused morning brief.
 model: sonnet
-allowed-tools: Read, Write, Glob, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__manage_emails, mcp__edith__list_reminders, mcp__cognee__search, mcp__cognee__cognify
+allowed-tools: Bash, Read, Write, Glob, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__manage_emails, mcp__edith__list_reminders
 ---
 
 # Weekend Brief
@@ -18,6 +18,12 @@ It's the weekend. Randy is with Diana and Phoenix (tween, 10-13). Family time is
 - Weather: Bradenton/Sarasota FL, today + tomorrow. Beach-worthy? Pool weather?
 
 ## Step 2: Research activities
+
+**Always check these sources first:**
+- **Macaroni Kid** (macaronikid.com) — search Bradenton/Sarasota for family events this weekend
+- **Facebook** — search "Bradenton events this weekend" and "Sarasota family events" in local groups
+- **Visit Sarasota / Visit Bradenton** event calendars
+- Google: "[current date] things to do with kids Bradenton Sarasota"
 
 Search the web for things to do this weekend. Focus on:
 

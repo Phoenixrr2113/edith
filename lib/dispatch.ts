@@ -58,6 +58,11 @@ let pidCounter = 0;
 
 // --- Query timeout ---
 const QUERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max per dispatch
+const LIGHTWEIGHT_TIMEOUT_MS = 90 * 1000; // 90 seconds for lightweight tasks
+const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
+
+// --- Inter-dispatch cooldown (allow MCP servers to shut down) ---
+const INTER_DISPATCH_DELAY_MS = 3_000;
 
 // --- MCP config ---
 function loadMcpConfig(): Record<string, any> {
@@ -320,13 +325,14 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
   const wakeId = `${label}-${Date.now()}`;
   let pseudoPid = 0;
 
-  // AbortController for timeout
+  // AbortController for timeout — use shorter timeout for lightweight tasks
   const abortController = new AbortController();
+  const timeoutMs = LIGHTWEIGHT_TASKS.has(label) ? LIGHTWEIGHT_TIMEOUT_MS : QUERY_TIMEOUT_MS;
   const timeoutHandle = setTimeout(() => {
-    console.error(`[edith:${label}] Query timeout after ${QUERY_TIMEOUT_MS / 1000}s, aborting...`);
-    logEvent("dispatch_timeout", { label, timeoutMs: QUERY_TIMEOUT_MS });
+    console.error(`[edith:${label}] Query timeout after ${timeoutMs / 1000}s, aborting...`);
+    logEvent("dispatch_timeout", { label, timeoutMs });
     abortController.abort();
-  }, QUERY_TIMEOUT_MS);
+  }, timeoutMs);
 
   try {
     console.log(`[edith:${label}] Dispatching via Agent SDK (session: ${resume && sessionId ? sessionId.slice(0, 8) : "ephemeral"})...`);
@@ -431,6 +437,8 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     busy = false;
 
     if (dispatchQueue.length > 0) {
+      // Delay to allow MCP servers from previous dispatch to shut down (prevents Kuzu lock contention)
+      await Bun.sleep(INTER_DISPATCH_DELAY_MS);
       const next = dispatchQueue.shift()!;
       console.log(`[edith] Processing queued job (${dispatchQueue.length} remaining)`);
       dispatchToClaude(next.prompt, next.opts).then(next.resolve).catch(() => next.resolve(""));

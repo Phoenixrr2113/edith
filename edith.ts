@@ -101,11 +101,15 @@ async function poll(): Promise<void> {
         const msgType = msg.location ? "📍 location" : msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
         const msgPreview = msg.text?.slice(0, 80) ?? (msg.caption?.slice(0, 80) ?? "");
         console.log(`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`);
-        logEvent("message_received", {
-          chatId,
-          type: msg.location ? "location" : msg.voice ? "voice" : msg.photo ? "photo" : "text",
-          text: (msg.text ?? "").slice(0, 200),
-        });
+        // Skip logging raw location updates — they fire every ~250ms from live location sharing
+        // and create massive log spam. Geofence transitions are logged inside handleLocation.
+        if (!msg.location) {
+          logEvent("message_received", {
+            chatId,
+            type: msg.voice ? "voice" : msg.photo ? "photo" : "text",
+            text: (msg.text ?? "").slice(0, 200),
+          });
+        }
 
         // Dispatch to type-specific handler
         if (msg.location) {

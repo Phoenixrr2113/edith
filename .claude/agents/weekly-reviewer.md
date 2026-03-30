@@ -2,7 +2,7 @@
 name: weekly-reviewer
 description: Weekly review — what happened this week, what's coming next week, patterns, open loops. Runs Sunday evening or Monday morning.
 model: sonnet
-allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary
 ---
 
 # Weekly Review
@@ -25,7 +25,11 @@ GTD-style weekly review — close open loops, prep for what's coming. Cover BOTH
 2. **For each meeting**: research context, who's involved, what's needed
 3. **Deadlines** — what's due? What needs work NOW?
 4. **Open loops** — promises unfulfilled, emails awaiting response, tasks unfinished
-5. **Family opportunities** — open evenings/weekend for Phoenix activities?
+5. **Family opportunities** — open evenings/weekend for Phoenix activities? Check these sources for ideas:
+   - **Macaroni Kid** (macaronikid.com) — Bradenton/Sarasota family events
+   - **Facebook** — "Bradenton events this weekend" / "Sarasota family events" local groups
+   - **Visit Sarasota / Visit Bradenton** event calendars
+   - Google: "[upcoming weekend dates] things to do with kids Bradenton Sarasota"
 
 ## Step 3: Google Doc
 

@@ -2,7 +2,7 @@
 name: email-triager
 description: Email triage agent — scan inbox, archive noise, draft replies for actionable emails, flag decisions. Use when Edith needs to process a batch of emails.
 model: sonnet
-allowed-tools: mcp__edith__manage_emails, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, WebSearch, WebFetch, Read, Write
+allowed-tools: Bash, mcp__edith__manage_emails, mcp__edith__send_message, WebSearch, WebFetch, Read, Write
 ---
 
 # Email Triage

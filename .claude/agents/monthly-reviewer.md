@@ -2,7 +2,7 @@
 name: monthly-reviewer
 description: Monthly review — bigger picture. Goals progress, spending patterns, relationship health, what worked and what didn't. Runs 1st of each month.
 model: sonnet
-allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__cognee__search, mcp__cognee__cognify, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search
 ---
 
 # Monthly Review

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "cognee": {
-      "command": "uv",
-      "args": ["--directory", "/Users/randywilson/Desktop/edith-v3/cognee-repo/cognee-mcp", "run", "cognee-mcp"]
+      "command": "bash",
+      "args": ["mcp/cognee-wrapper.sh"]
     },
     "edith": {
       "command": "bash",
