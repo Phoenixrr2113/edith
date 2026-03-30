@@ -7,6 +7,7 @@
  *
  * All logic is in lib/ modules. This file is just the startup + poll loop.
  */
+import "./lib/telemetry";
 import { existsSync, writeFileSync, appendFileSync, statSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 

@@ -18,6 +18,9 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.83",
-    "@google/generative-ai": "^0.24.1"
+    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2.0",
+    "@google/generative-ai": "^0.24.1",
+    "@langfuse/otel": "^5.0.1",
+    "@opentelemetry/sdk-node": "^0.214.0"
   }
 }
