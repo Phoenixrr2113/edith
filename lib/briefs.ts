@@ -79,7 +79,7 @@ async function buildFullBrief(type: "boot" | "morning"): Promise<string> {
 async function buildMiddayBrief(): Promise<string> {
   const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
   const taskboard = getRecentTaskboardEntries();
-  const screen = await gatherScreenContext();
+  const screen = await gatherScreenContext(240);
 
   const sections: string[] = [
     `Midday check. Current time: ${time}`,
@@ -176,7 +176,7 @@ async function buildProactiveBrief(): Promise<string> {
   const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 
   // Fetch screen context (wide window for session detection)
-  const screen = await gatherScreenContext(180, true);
+  const screen = await gatherScreenContext(15, true);
 
   const taskboard = getRecentTaskboardEntries();
 

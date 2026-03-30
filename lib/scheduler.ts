@@ -5,6 +5,7 @@ import { SCHEDULE_STATE_FILE, logEvent } from "./state";
 import { loadJson, saveJson, loadSchedule } from "./storage";
 import { dispatchToClaude } from "./dispatch";
 import { buildBrief, BRIEF_TYPE_MAP } from "./briefs";
+import { isUserIdle } from "./screenpipe";
 
 interface ScheduleState {
   lastFired: Record<string, string>;
@@ -82,8 +83,22 @@ export async function runScheduler(): Promise<void> {
   const schedule = loadSchedule();
   const state = loadScheduleState();
 
+  // Check idle once for all interval tasks this tick
+  let userIdle: boolean | null = null;
+
   for (const entry of schedule) {
     if (!shouldFire(entry, now, state)) continue;
+
+    // Skip interval tasks when user is idle — no point running proactive/reminder
+    // checks if nobody is at the keyboard. Window tasks (morning/midday/evening)
+    // always fire since they run once at a fixed time.
+    if (entry.intervalMinutes) {
+      if (userIdle === null) userIdle = await isUserIdle();
+      if (userIdle) {
+        console.log(`[edith:scheduler] Skipping ${entry.name} — user idle`);
+        continue;
+      }
+    }
 
     console.log(`[edith:scheduler] Firing ${entry.name}`);
     logEvent("schedule_fire", { task: entry.name, prompt: entry.prompt });

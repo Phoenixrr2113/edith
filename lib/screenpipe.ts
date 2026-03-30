@@ -7,6 +7,7 @@ import { fmtErr } from "./util";
 
 const BASE_URL = process.env.SCREENPIPE_URL ?? "http://localhost:3030";
 const TIMEOUT = 5000;
+const IDLE_THRESHOLD_SECONDS = 5 * 60; // 5 minutes of no keyboard/mouse = idle
 
 export interface ScreenContext {
   timeRange: { start: string; end: string };
@@ -26,6 +27,30 @@ export interface AppUsage {
 export interface AudioTranscript {
   timestamp: string;
   text: string;
+}
+
+/**
+ * Get macOS system idle time (seconds since last keyboard/mouse input).
+ * Uses IOKit's HIDIdleTime which is the most reliable signal.
+ */
+export async function getSystemIdleSeconds(): Promise<number> {
+  try {
+    const proc = Bun.spawn(["ioreg", "-c", "IOHIDSystem"], { stdout: "pipe", stderr: "ignore" });
+    const text = await new Response(proc.stdout).text();
+    const match = text.match(/HIDIdleTime.*?(\d+)/);
+    if (!match) return 0;
+    return Number(match[1]) / 1_000_000_000; // nanoseconds → seconds
+  } catch {
+    return 0; // assume active if we can't check
+  }
+}
+
+/**
+ * Returns true if the user has been idle (no keyboard/mouse) for longer than threshold.
+ */
+export async function isUserIdle(thresholdSeconds: number = IDLE_THRESHOLD_SECONDS): Promise<boolean> {
+  const idle = await getSystemIdleSeconds();
+  return idle >= thresholdSeconds;
 }
 
 /**
