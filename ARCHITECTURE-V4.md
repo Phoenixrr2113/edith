@@ -497,7 +497,18 @@ Docker has been a pain point — port conflicts, stale containers, extra depende
 
 ---
 
-## Observability (Planned)
+## Observability
+
+### Service URLs
+
+| Service | URL | Login | Purpose |
+|---------|-----|-------|---------|
+| **Langfuse** | http://localhost:3000 | randy@edith.local / edith-local | LLM traces, cost dashboard, latency analysis |
+| **BetterStack Logs** | https://telemetry.betterstack.com | (your BetterStack account) | Structured logs, search, alerts |
+| **BetterStack Uptime** | https://uptime.betterstack.com | (your BetterStack account) | Heartbeat monitoring, incident alerts |
+| **n8n** | http://localhost:5679 | admin / (N8N_PASSWORD in .env) | Workflow automation |
+| **Cognee** | http://localhost:8001 | — | Memory/knowledge graph |
+| **GitHub Project** | https://github.com/users/Phoenixrr2113/projects/1 | — | Task backlog and pipeline |
 
 ### Problem
 Edith is hard to debug. Errors surface only in console logs. There's no way to trace a user message through dispatch → agent → tool calls → LLM responses → final output. Cost tracking is manual (`/costs` skill parses events.jsonl). When something breaks, diagnosing requires re-reading all the code.
