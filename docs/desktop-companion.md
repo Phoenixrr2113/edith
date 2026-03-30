@@ -14,7 +14,7 @@ Give Edith a visible presence on the desktop. Not a dashboard — a character. A
 |-----------|-----------|-----|
 | App shell | Tauri v2 | 30-50MB RAM (vs Electron 150-300MB), Rust backend, cross-platform |
 | Character | Rive | State machine animations (idle/thinking/talking/sleeping), tiny .riv files, free editor. Used by Duolingo. |
-| UI chrome | React | Speech bubbles, status indicators, settings panel |
+| UI chrome | Svelte 5 | Speech bubbles, status indicators, settings panel. Plain Svelte 5 (not SvelteKit — no SSR/routing needed in a desktop app). Lighter than React, smaller bundle. |
 | Window | Transparent, frameless, always-on-top | Click-through when not interacting |
 
 ## How It Works
@@ -53,7 +53,7 @@ Give Edith a visible presence on the desktop. Not a dashboard — a character. A
 - **pet-therapy** (Swift/SwiftUI) — native macOS desktop pet, App Store reference
 
 ## Implementation Path
-1. Scaffold Tauri v2 app with React frontend
+1. Scaffold Tauri v2 app with Svelte frontend
 2. Create character in Rive editor (idle, thinking, talking, sleeping states)
 3. Implement transparent always-on-top window with click-through
 4. Connect to Edith via WebSocket (send messages, receive responses + state updates)
