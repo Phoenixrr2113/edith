@@ -331,6 +331,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
   const timeoutMs = LIGHTWEIGHT_TASKS.has(label) ? LIGHTWEIGHT_TIMEOUT_MS : QUERY_TIMEOUT_MS;
   const timeoutHandle = setTimeout(() => {
     console.error(`[edith:${label}] Query timeout after ${timeoutMs / 1000}s, aborting...`);
+    logger.error(`[dispatch:timeout] ${label}`, { label, timeoutMs });
     logEvent("dispatch_timeout", { label, timeoutMs });
     abortController.abort();
   }, timeoutMs);
@@ -396,7 +397,11 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     const costStr = totalCost ? `$${totalCost.toFixed(4)}` : "";
     console.log(`[edith:${label}] ✅ done (${secs}s, ${turns} turns${costStr ? `, ${costStr}` : ""})`);
     if (lastResult) console.log(`[edith:${label}] → ${lastResult.replace(/\n/g, " ").slice(0, 120)}`);
-    logger.info(`[dispatch:complete] ${label}`, { label, durationMs, turns, cost: totalCost });
+    logger.info(`[dispatch:complete] ${label}`, {
+      label, durationMs, turns, cost: totalCost,
+      result: lastResult?.replace(/\n/g, " ").slice(0, 200),
+      session: newSessionId?.slice(0, 8) ?? "ephemeral",
+    });
     logEvent("dispatch_end", { label, durationMs, turns, cost: totalCost });
 
     // Reflector: post-completion evaluation (non-blocking)
@@ -404,6 +409,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
       reflector.evaluateCompletion(lastResult).then((eval_) => {
         if (eval_) {
           console.log(`[reflector:${label}] Eval: ${eval_.score}/10 — ${eval_.assessment.slice(0, 100)}`);
+          logger.info(`[reflector:eval] ${label}`, { label, score: eval_.score, assessment: eval_.assessment.slice(0, 200) });
         }
       }).catch(() => {}); // fire-and-forget
     }
@@ -427,6 +433,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
       circuitBreakerUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN;
       console.error(`[edith] ⚠️ Circuit breaker activated (${consecutiveFailures} failures). Cooling down for 10 minutes.`);
+      logger.error(`[dispatch:circuit-breaker]`, { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN });
       logEvent("circuit_breaker", { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN });
     }
 
