@@ -40,7 +40,7 @@ Edith v3 is single-threaded — one Claude session at a time, FIFO queue, busy f
 - If something breaks mid-session, nobody knows until timeout
 - 27 lib files handle queuing, session management, reflection, dead-letters — complexity from a fundamentally limited model
 
-**v4 Goal**: Edith becomes an orchestrator that spawns sub-agents for work, stays responsive, and streams live progress to Telegram. Way more capability with way less code.
+**v4 Goal**: Edith becomes an orchestrator that spawns sub-agents for work, stays responsive, and provides visibility via observability tools (Langfuse, BetterStack). Way more capability with way less code.
 
 ## Decision Log
 
@@ -93,7 +93,7 @@ Task events stream through the parent query and are logged by `dispatch.ts` to c
 - `📊 task_progress` — periodic updates with `last_tool_name`, token count, tool uses, duration
 - `🏁 task_notification` — completion/failure with summary and usage stats
 
-**Note:** These events are logged locally only. No live Telegram progress updates yet — Randy only sees the final result message when the agent completes.
+**Note:** These events are logged to console, JSONL, and BetterStack for full observability.
 
 ### Verified Behavior (2026-03-28)
 
@@ -185,7 +185,6 @@ Files live at `~/.edith/activity/YYYY-MM-DD.md`, never rotated. MCP tool `get_ac
 - Remove Docker dependency — run n8n as child process, Cognee via MCP stdio (see Embedded Services). Docker still required today.
 - Clean up disabled Claude Desktop scheduled tasks at `~/.claude/scheduled-tasks/`
 - Wire proactive intervention triggers into main loop (infrastructure built in lib/proactive.ts, trigger not connected)
-- Stream task progress to Telegram (currently only logged to console/JSONL)
 
 ### Future (when ready)
 - Desktop companion (Tauri + Rive) — see Desktop Companion section
