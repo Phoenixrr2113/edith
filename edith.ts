@@ -44,6 +44,7 @@ import { buildBrief } from "./lib/briefs";
 import { fmtErr } from "./lib/util";
 import { handleLocation, handleVoice, handlePhoto, handleText } from "./lib/handlers";
 import { schedulerTick, type TickState } from "./lib/tick";
+import { pingHeartbeat } from "./lib/logger";
 
 // --- Signal files ---
 const SIGNAL_FRESH = join(STATE_DIR, ".signal-fresh");
@@ -242,6 +243,7 @@ setInterval(async () => {
     paused = tickState.paused;
     await schedulerTick(tickState);
     paused = tickState.paused;
+    pingHeartbeat();
   } catch (err) {
     console.error("[edith:scheduler] Error:", fmtErr(err));
   } finally {

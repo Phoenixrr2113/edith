@@ -20,6 +20,7 @@ import {
 } from "./state";
 import { loadJson } from "./storage";
 import { fmtErr } from "./util";
+import { logger } from "./logger";
 import { sendTyping } from "./telegram";
 import { buildBrief, type BriefType } from "./briefs";
 import { appendTranscript, startTranscript } from "./transcript";
@@ -336,6 +337,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
 
   try {
     console.log(`[edith:${label}] Dispatching via Agent SDK (session: ${resume && sessionId ? sessionId.slice(0, 8) : "ephemeral"})...`);
+    logger.info(`[dispatch:start] ${label}`, { label, session: resume ? sessionId : "ephemeral" });
     logEvent("dispatch_start", { label, session: resume ? sessionId : "ephemeral", prompt: prompt.slice(0, 200) });
 
     // Typing indicator
@@ -394,6 +396,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     const costStr = totalCost ? `$${totalCost.toFixed(4)}` : "";
     console.log(`[edith:${label}] ✅ done (${secs}s, ${turns} turns${costStr ? `, ${costStr}` : ""})`);
     if (lastResult) console.log(`[edith:${label}] → ${lastResult.replace(/\n/g, " ").slice(0, 120)}`);
+    logger.info(`[dispatch:complete] ${label}`, { label, durationMs, turns, cost: totalCost });
     logEvent("dispatch_end", { label, durationMs, turns, cost: totalCost });
 
     // Reflector: post-completion evaluation (non-blocking)
@@ -416,6 +419,7 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
   } catch (err) {
     const errMsg = fmtErr(err);
     console.error(`[edith:${label}] Error:`, errMsg);
+    logger.error(`[dispatch:error] ${label}`, { label, error: errMsg });
     logEvent("dispatch_error", { label, error: errMsg });
 
     // Circuit breaker
