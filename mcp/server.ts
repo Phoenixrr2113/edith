@@ -16,6 +16,7 @@ import { sendTwilio } from "../lib/twilio";
 import { n8nPost } from "../lib/n8n-client";
 import { showNotification, showDialog } from "../lib/notify";
 import { getInterventionHistory, recordIntervention, canIntervene } from "../lib/proactive";
+import { readActivity, getRecentActivity, getActivityFile } from "../lib/activity";
 import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
 
 
@@ -504,6 +505,23 @@ server.registerTool("record_intervention", {
   }
   recordIntervention(category, message);
   return textResponse(`Recorded: [${category}] ${message.slice(0, 80)}`);
+});
+
+// ============================================================
+// Activity Log
+// ============================================================
+
+server.registerTool("get_activity", {
+  description: "Get Randy's activity log — what he was doing on a given day or over recent days. Use for questions like 'what did I do today/yesterday/this week/last month'.",
+  inputSchema: {
+    days: z.number().default(1).describe("Number of days to look back (default: 1 for today only, 7 for a week, 30 for a month)"),
+  },
+}, async ({ days }) => {
+  if (days <= 1) {
+    const content = readActivity();
+    return textResponse(content || "No activity recorded today yet.");
+  }
+  return textResponse(getRecentActivity(days));
 });
 
 // ============================================================

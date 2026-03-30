@@ -7,6 +7,7 @@ import { gatherPrewakeContext } from "./prewake";
 import { CHAT_ID } from "./config";
 import { TASKBOARD_FILE } from "./config";
 import { isAvailable as screenpipeAvailable, getContext as getScreenContext, formatContext } from "./screenpipe";
+import { appendActivity, readActivity, getActivityFile } from "./activity";
 import { summarizeScreenContext } from "./gemini";
 import { processAudioTranscripts } from "./audio-extract";
 
@@ -115,6 +116,8 @@ async function buildMiddayBrief(): Promise<string> {
 async function buildEveningBrief(): Promise<string> {
   const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
   const taskboard = readTaskboard();
+  const todayActivity = readActivity();
+  const activityFile = getActivityFile();
 
   const sections: string[] = [
     `Evening wrap-up. Current time: ${time}`,
@@ -124,12 +127,19 @@ async function buildEveningBrief(): Promise<string> {
     sections.push(`\n## Today's Taskboard\n${taskboard}`);
   }
 
+  if (todayActivity.trim()) {
+    sections.push(`\n## Today's Activity Log\n${todayActivity}`);
+  }
+
   sections.push(
-    `\nReview today (taskboard). Check tomorrow's calendar (manage_calendar action=get, hoursAhead=24, includeAllDay=true).`,
+    `\nReview today (taskboard + activity log). Check tomorrow's calendar (manage_calendar action=get, hoursAhead=24, includeAllDay=true).`,
     `For tomorrow's events: research context, prep materials. If deadline < 48h, do as much work as possible now.`,
     `Final inbox sweep: archive any remaining noise from today. Only keep emails that need action tomorrow. Use manage_emails with operations array.`,
     `Store new knowledge in Cognee. Write summary to taskboard at ${TASKBOARD_FILE}.`,
-    `Only message Randy if tomorrow needs his attention tonight. Respect family time. Chat ID: ${CHAT_ID}.`,
+    `\n## Daily Summary`,
+    `Write a "## Daily Summary" section at the end of today's activity log at ${activityFile}.`,
+    `Summarize the day in 3-5 lines: what Randy worked on, key meetings/calls, decisions made, focus blocks. This is for future retrieval ("what did I do last week?").`,
+    `\nOnly message Randy if tomorrow needs his attention tonight. Respect family time. Chat ID: ${CHAT_ID}.`,
   );
 
   return sections.join("\n");
@@ -159,6 +169,9 @@ async function gatherScreenContext(minutes: number = 15, processAudio: boolean =
     if (ctx.empty) return "";
     const raw = formatContext(ctx);
     const summary = await summarizeScreenContext(ctx, raw);
+
+    // Persist L1 snapshot to daily activity log
+    appendActivity(summary);
 
     if (processAudio && ctx.audioTranscripts.length > 0) {
       processAudioTranscripts(ctx.audioTranscripts)
