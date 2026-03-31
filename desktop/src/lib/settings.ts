@@ -47,6 +47,10 @@ export interface DesktopSettings {
 	autoDeleteCaptures: boolean;
 	/** How long to retain captures in hours */
 	captureRetentionHours: number;
+	/** Google Generative AI API key for Gemini screen understanding */
+	geminiApiKey: string;
+	/** Whether Gemini-powered screen understanding is enabled */
+	geminiEnabled: boolean;
 }
 
 const STORAGE_KEY = "edith-settings";
@@ -72,6 +76,8 @@ const DEFAULTS: DesktopSettings = {
 	maxCaptures: 50,
 	autoDeleteCaptures: true,
 	captureRetentionHours: 2,
+	geminiApiKey: "",
+	geminiEnabled: false,
 };
 
 // ── Load / save ───────────────────────────────────────────────────────────────

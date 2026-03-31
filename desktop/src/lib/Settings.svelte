@@ -24,6 +24,7 @@
 	let cartesiaApiKeyDraft = $state(settingsStore.value.cartesiaApiKey);
 	let cartesiaVoiceIdDraft = $state(settingsStore.value.cartesiaVoiceId);
 	let groqApiKeyDraft = $state(settingsStore.value.groqApiKey);
+	let geminiApiKeyDraft = $state(settingsStore.value.geminiApiKey);
 
 	function handleThemeChange(mode: ThemeMode) {
 		settingsStore.update('theme', mode);
@@ -101,6 +102,9 @@
 	$effect(() => {
 		groqApiKeyDraft = settingsStore.value.groqApiKey;
 	});
+	$effect(() => {
+		geminiApiKeyDraft = settingsStore.value.geminiApiKey;
+	});
 
 	function handleSttEnabledChange(e: Event) {
 		settingsStore.update('sttEnabled', (e.target as HTMLInputElement).checked);
@@ -108,6 +112,14 @@
 
 	function handleGroqApiKeyBlur() {
 		settingsStore.update('groqApiKey', groqApiKeyDraft);
+	}
+
+	function handleGeminiEnabledChange(e: Event) {
+		settingsStore.update('geminiEnabled', (e.target as HTMLInputElement).checked);
+	}
+
+	function handleGeminiApiKeyBlur() {
+		settingsStore.update('geminiApiKey', geminiApiKeyDraft);
 	}
 
 	// Audio capture handlers
@@ -507,6 +519,41 @@
 					</label>
 					<p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0;">
 						Requires Screen Recording permission in macOS System Settings.
+					</p>
+				{/if}
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Gemini Screen Understanding -->
+			<section class="section">
+				<div class="section-label">Screen Understanding (Gemini)</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Enable Gemini analysis</span>
+					<span class="toggle-track" class:on={settingsStore.value.geminiEnabled}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.geminiEnabled}
+							onchange={handleGeminiEnabledChange}
+							aria-label="Enable Gemini screen understanding"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				{#if settingsStore.value.geminiEnabled}
+					<label class="field-col">
+						<span class="field-label">Google AI API key</span>
+						<input
+							type="password"
+							class="text-input"
+							bind:value={geminiApiKeyDraft}
+							onblur={handleGeminiApiKeyBlur}
+							placeholder="AIza..."
+							aria-label="Google Generative AI API key"
+						/>
+					</label>
+					<p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0;">
+						Uses Gemini 2.0 Flash. Requires Screen Capture to be enabled.
 					</p>
 				{/if}
 			</section>

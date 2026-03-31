@@ -25,6 +25,9 @@
 		onScreenFrame,
 		isCaptureActive,
 	} from './lib/screen-capture.js';
+	import { StreamManager } from './lib/stream-to-cloud.js';
+	import { ScreenTriggerEngine } from './lib/screen-triggers.js';
+	import { sendToGemini } from './lib/gemini-bridge.js';
 
 	const MAX_BUBBLES = 3;
 
@@ -77,6 +80,13 @@
 	// WebSocket client
 	const wsClient = new EdithWsClient();
 	const unsubs: Array<() => void> = [];
+
+	// Stream manager: batches + compresses screen frames before sending to cloud
+	const streamManager = new StreamManager(wsClient, audioCapture, {
+		batchIntervalMs: 5_000,
+		maxImageWidth: 800,
+		maxQueuedFrames: 3,
+	});
 
 	// Sync manager
 	const syncManager = new SyncManager(wsClient);
@@ -257,6 +267,38 @@
 	// ── Screen capture lifecycle ────────────────────────────────────────────────
 
 	let _screenFrameUnsub: (() => void) | null = null;
+	let _triggerEngine: ScreenTriggerEngine | null = null;
+	let _triggerUnsub: (() => void) | null = null;
+	/** Prevent concurrent Gemini requests */
+	let _geminiInFlight = false;
+
+	/**
+	 * Handle a significant-change or app-switched trigger:
+	 * send the frame to Gemini for understanding, then forward
+	 * the structured context to the cloud via WS.
+	 */
+	async function handleTrigger(imageData: string): Promise<void> {
+		if (_geminiInFlight) return;
+		const { geminiEnabled, geminiApiKey } = settingsStore.value;
+		if (!geminiEnabled || !geminiApiKey?.trim()) return;
+
+		_geminiInFlight = true;
+		try {
+			const ctx = await sendToGemini(imageData);
+			wsClient.send({
+				type: 'screen_context',
+				summary: ctx.activity,
+				imageData,
+				apps: ctx.apps,
+				confidence: ctx.confidence,
+				ts: Date.now(),
+			});
+		} catch (err) {
+			console.warn('[App] Gemini bridge error:', err);
+		} finally {
+			_geminiInFlight = false;
+		}
+	}
 
 	/** Start/stop periodic screen capture based on current settings. */
 	async function syncScreenCapture(): Promise<void> {
@@ -264,28 +306,56 @@
 
 		if (screenCaptureEnabled && !isCaptureActive()) {
 			try {
-				// Subscribe to frames before starting — forward each frame to the cloud via WS.
-				_screenFrameUnsub = onScreenFrame((frame) => {
-					wsClient.send({
-						type: 'screen_context',
-						// summary will be populated server-side after vision analysis
-						summary: '',
-						imageData: frame.data,
-						apps: [],
-						confidence: 1.0,
-						ts: frame.ts,
-					});
+				// Create a fresh trigger engine for this capture session.
+				_triggerEngine = new ScreenTriggerEngine({
+					significantChangeThreshold: 0.15,
+					appSwitchThreshold: 0.40,
+					debounceMs: 3_000,
 				});
+
+				// On significant-change or app-switch → run Gemini understanding.
+				// Keep last frame data available via closure.
+				let _lastFrameData = '';
+				_triggerUnsub = _triggerEngine.on((evt) => {
+					if (evt.type === 'significant-change' || evt.type === 'app-switched') {
+						handleTrigger(_lastFrameData).catch(() => {});
+					}
+				});
+
+				// Subscribe to frames before starting.
+				_screenFrameUnsub = onScreenFrame((frame) => {
+					_lastFrameData = frame.data;
+
+					// Always feed frames to the trigger engine for diff analysis.
+					_triggerEngine?.processFrame(frame.data, frame.ts);
+
+					// Batch frames through StreamManager (resizes + attaches audio).
+					// When Gemini is enabled the trigger handler sends enriched payloads;
+					// StreamManager handles the ambient/raw stream in both cases.
+					streamManager.pushFrame(frame);
+				});
+
+				streamManager.start();
 				await startPeriodicCapture(screenCaptureIntervalMs);
 			} catch (err) {
 				console.warn('[App] Screen capture start failed:', err);
+				streamManager.stop();
 				_screenFrameUnsub?.();
 				_screenFrameUnsub = null;
+				_triggerUnsub?.();
+				_triggerUnsub = null;
+				_triggerEngine?.destroy();
+				_triggerEngine = null;
 			}
 		} else if (!screenCaptureEnabled && isCaptureActive()) {
+			streamManager.stop();
 			await stopPeriodicCapture();
 			_screenFrameUnsub?.();
 			_screenFrameUnsub = null;
+			_triggerUnsub?.();
+			_triggerUnsub = null;
+			_triggerEngine?.destroy();
+			_triggerEngine = null;
 		}
 	}
 
@@ -306,9 +376,14 @@
 		wsClient.disconnect();
 		stopAudio();
 		audioCapture.stopAudioCapture();
+		streamManager.stop();
 		stopPeriodicCapture().catch(() => {});
 		_screenFrameUnsub?.();
 		_screenFrameUnsub = null;
+		_triggerUnsub?.();
+		_triggerUnsub = null;
+		_triggerEngine?.destroy();
+		_triggerEngine = null;
 	});
 </script>
 

@@ -27,6 +27,7 @@ export type WsMessageType =
 	| "audio"
 	| "input"
 	| "screen_context"
+	| "screen_query"
 	| "sync-request";
 
 // Cloud → Device
@@ -131,10 +132,27 @@ export interface WsScreenContextMessage extends WsMessage {
 	type: "screen_context";
 	/** Human-readable summary of screen contents (populated server-side). */
 	summary: string;
-	/** Base64-encoded PNG of the captured frame (device → cloud). */
+	/** Base64-encoded PNG/JPEG of the captured frame (device → cloud). */
 	imageData?: string;
+	/** Base64-encoded audio buffer attached with this frame (device → cloud). */
+	audioData?: string;
+	/** MIME type of audioData (e.g. "audio/webm;codecs=opus"). */
+	audioMimeType?: string;
 	apps: string[];
 	confidence: number;
+}
+
+/** Device → Cloud: query screen context with a natural-language question. */
+export interface WsScreenQueryMessage extends WsMessage {
+	type: "screen_query";
+	/** Client-generated correlation id. */
+	id: string;
+	/** Natural-language question about the screen. */
+	question: string;
+	/** Optional base64 image of the current frame. */
+	imageData?: string;
+	/** Optional array of recent captures (base64, most-recent first). */
+	recentCaptures?: string[];
 }
 
 export interface WsSyncRequestMessage extends WsMessage {
@@ -163,6 +181,7 @@ export type AnyWsMessage =
 	| WsAudioMessage
 	| WsInputMessage
 	| WsScreenContextMessage
+	| WsScreenQueryMessage
 	| WsSyncRequestMessage
 	| WsPingMessage
 	| WsPongMessage;
@@ -171,6 +190,7 @@ export type AnyWsMessage =
 export type DeviceMessage =
 	| WsInputMessage
 	| WsScreenContextMessage
+	| WsScreenQueryMessage
 	| WsSyncRequestMessage
 	| WsPingMessage;
 
