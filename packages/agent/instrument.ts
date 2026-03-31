@@ -15,8 +15,8 @@ Sentry.init({
 
 	environment: process.env.NODE_ENV ?? "production",
 
-	// 100% in dev, 10% in production
-	tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
+	// 100% — single-user app, no need to sample
+	tracesSampleRate: 1.0,
 
 	enableLogs: true,
 });
