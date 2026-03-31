@@ -60,7 +60,8 @@ Week of March 24-28, 2026
 - Taskboard: all entries from this week
 - Cognee: people, projects, decisions
 - Events log: cost summary, dispatch count
-- Screenpipe: week activity if available
+- Activity log: `~/.edith/activity-YYYY-MM-DD.md` — primary history source for the week
+- Screenpipe: week activity (optional enhancement, if available)
 
 ---
 
@@ -183,7 +184,8 @@ Monthly Review — March 2026
 - Taskboard: all entries from this month (daily briefs captured email/calendar each day)
 - Cognee: people, projects, decisions, patterns stored throughout the month
 - Events log: full month of cost data, dispatch counts, error rates
-- Screenpipe: recent activity summary
+- Activity log: `~/.edith/activity-YYYY-MM-DD.md` — primary history source for the month
+- Screenpipe: recent activity (optional enhancement, if available)
 - Prep files: any reviews/prep created this month
 - Google Drive: docs created/modified this month
 

@@ -69,12 +69,12 @@ What Edith can access, how far back, and what's missing.
 
 ## Infrastructure Gaps (blocking better reviews)
 
-### 1. Google Docs Creation (BLOCKER)
-**Problem:** Reviews produce local file paths that are useless on mobile.
-**Solution:** n8n workflow at `POST /webhook/docs` that creates a Google Doc and returns a shareable URL.
+### 1. Google Docs Creation (Working via n8n)
+**Status:** Resolved — `manage_docs` MCP tool now exists and creates Google Docs via n8n.
+**Implementation:** n8n workflow at `POST /webhook/docs` creates a Google Doc and returns a shareable URL.
 **Required fields:** `title`, `content` (markdown), `folderId` (optional)
 **Returns:** `{ docId, docUrl }`
-**Priority:** HIGH — blocks all review improvements
+**Priority:** ~~HIGH — blocks all review improvements~~ Complete
 
 ### 2. Historical Calendar
 **Problem:** Can only look forward (next 7 days), not back.

@@ -113,7 +113,7 @@ Test: "check my email from the last 24 hours, triage everything, prep for any me
 
 - `prompts/system.md` — added orchestrator instructions (light vs heavy tasks, how to spawn background agents)
 - `lib/dispatch.ts` — ~20 lines added to log `task_started`, `task_progress`, `task_notification` SDK events
-- `.claude/agents/` — 10 agent definitions:
+- `.claude/agents/` — 11 agent definitions:
   - **morning-briefer** — calendar, email, Cognee, meeting prep, file prep (sonnet)
   - **midday-checker** — catch changes, prep afternoon, advance deadlines (sonnet)
   - **evening-wrapper** — day review, tomorrow prep, Cognee storage (sonnet)
@@ -177,14 +177,14 @@ Files live at `~/.edith/activity/YYYY-MM-DD.md`, never rotated. MCP tool `get_ac
 
 ### Near-term (POC hardening)
 - ~~Fix busy flag~~ Done — streamInput injection handles mid-session messages (see Known Limitations)
-- ~~Add more agent types~~ Done — 10 agents covering briefs, reviews, email, research, reminders
+- ~~Add more agent types~~ Done — 11 agents covering briefs, reviews, email, research, reminders
 - ~~Idle detection + scheduler gating~~ Done — macOS HIDIdleTime check, interval tasks skip when user idle >5 min (see Idle Detection)
 - ~~Activity log system~~ Done — L1 snapshots every 10 min, L2 daily summaries, MCP tool for queries (see Activity Log)
 - ~~Fix screen context windows~~ Done — proactive 180→15 min, midday 15→240 min (see Activity Log)
-- Observability: Langfuse self-hosted — full trace of every LLM call, tool invocation, agent step (see Observability)
+- ~~Observability: Langfuse + BetterStack~~ Done — full LLM tracing via Langfuse, structured logs + heartbeats via BetterStack (see Observability)
+- ~~Wire proactive intervention triggers into main loop~~ Done — heuristic triggers connected in lib/proactive.ts
 - Remove Docker dependency — run n8n as child process, Cognee via MCP stdio (see Embedded Services). Docker still required today.
 - Clean up disabled Claude Desktop scheduled tasks at `~/.claude/scheduled-tasks/`
-- Wire proactive intervention triggers into main loop (infrastructure built in lib/proactive.ts, trigger not connected)
 
 ### Future (when ready)
 - Desktop companion (Tauri + Rive) — see Desktop Companion section
@@ -620,10 +620,10 @@ fetch("https://uptime.betterstack.com/api/v1/heartbeat/xxx").catch(() => {});
 
 ---
 
-## Development Process (Planned)
+## Development Process
 
-### Problem
-Edith is developed ad-hoc — no pre-commit checks, no CI, no integration tests, no backlog, no specs. Bugs are discovered when Randy runs the app and reads logs. Type errors and broken imports ship because nothing runs `tsc` before code lands. Unit tests cover isolated functions but nobody tests the actual dispatch → agent → tool call flows that break in production.
+### Status
+Pre-commit hooks (Husky + `tsc --noEmit` + `bun test`) and CI (GitHub Actions on push to main) are in place. Tasks are tracked in GitHub Issues. Integration tests still needed — nobody tests the actual dispatch → agent → tool call flows that break in production.
 
 ### Pre-Commit Hook
 Husky + pre-commit hook running `tsc --noEmit` + `bun test`. Takes 2 seconds, catches type errors and regressions before they land.
