@@ -14,7 +14,6 @@ import {
 	type McpServerConfig,
 	type Options,
 	type Query,
-	query,
 	type SDKAssistantMessage,
 	type SDKCompactBoundaryMessage,
 	type SDKResultMessage,
@@ -22,6 +21,8 @@ import {
 	type SDKTaskProgressMessage,
 	type SDKTaskStartedMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+// Import query from instrument.ts — uses the Langfuse-patched version when available
+import { query } from "../instrument";
 import { type BriefType, buildBrief } from "./briefs";
 import {
 	CHAT_ID,

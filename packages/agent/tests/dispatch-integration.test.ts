@@ -72,6 +72,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
 	query: (...args: any[]) => mockQueryFn(...args),
 }));
 
+// Also mock the instrument module since dispatch.ts imports query from there
+mock.module("../instrument", () => ({
+	query: (...args: any[]) => mockQueryFn(...args),
+}));
+
 // Mock briefs so we control what gets built
 let mockBuildBriefFn = mock(async (type: string, extra?: Record<string, string>) => {
 	return `[mock-brief:${type}]${extra?.message ? ` msg="${extra.message}"` : ""}`;
