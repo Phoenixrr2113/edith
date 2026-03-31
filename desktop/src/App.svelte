@@ -11,11 +11,13 @@
 	import { initTheme } from './lib/theme.js';
 	import AudioPlayer from './lib/AudioPlayer.svelte';
 	import { playAudio, stopAudio } from './lib/audio.js';
+	import { speak } from './lib/tts.js';
 	import TaskQueueStatus from './lib/TaskQueueStatus.svelte';
 	import { taskQueue } from './lib/task-queue.js';
 	import type { QueuedTask } from './lib/task-queue.js';
 	import { SyncManager, type SyncStatus as SyncStatusType } from './lib/sync.js';
 	import SyncStatus from './lib/SyncStatus.svelte';
+	import VoiceInput from './lib/VoiceInput.svelte';
 
 	const MAX_BUBBLES = 3;
 
@@ -153,6 +155,12 @@
 						...messages.slice(-(MAX_BUBBLES - 1)),
 						{ id: nextId++, text: msg.text, type: 'message' as BubbleType },
 					];
+					// If the message requests TTS, synthesize and speak it
+					if (msg.speak) {
+						speak(msg.text).catch((err) => {
+							console.error('[App] TTS speak error:', err);
+						});
+					}
 				} else if (msg.type === 'state') {
 					agentTyping = msg.state === 'thinking' || msg.state === 'working';
 				} else if (msg.type === 'error') {
@@ -198,6 +206,18 @@
 
 		wsClient.connect(settingsStore.value.wsUrl, settingsStore.value.wsToken);
 	});
+
+	/** Send a voice-transcribed message to the orchestrator via WebSocket. */
+	function handleVoiceTranscript(text: string) {
+		if (!text.trim()) return;
+		wsClient.send({
+			type: 'input',
+			text: text.trim(),
+			source: 'voice',
+			deviceId: 'desktop',
+			ts: Date.now(),
+		});
+	}
 
 	onDestroy(() => {
 		for (const unsub of unsubs) unsub();
@@ -257,6 +277,12 @@
 			onForceLocal={() => { connectionModeManager.forceMode('local'); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
 			onForceAuto={() => { connectionModeManager.forceMode(null); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
 		/>
+		{#if settingsStore.value.sttEnabled}
+			<VoiceInput
+				onTranscript={handleVoiceTranscript}
+				disabled={connectionState !== 'connected'}
+			/>
+		{/if}
 		<button
 			class="gear-btn"
 			onclick={() => (settingsOpen = !settingsOpen)}

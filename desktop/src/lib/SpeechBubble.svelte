@@ -85,15 +85,16 @@
 	</div>
 
 	<!-- Speech bubble -->
-	<button
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
 		class="bubble"
 		class:bubble--message={type === 'message'}
 		class:bubble--progress={type === 'progress'}
 		class:bubble--error={type === 'error'}
 		class:bubble--typing={type === 'typing'}
 		onclick={dismiss}
-		type="button"
-		aria-label="Dismiss message"
+		role="presentation"
 	>
 		<!-- Tail triangle (points toward avatar on the left) -->
 		<span class="bubble-tail" aria-hidden="true"></span>
@@ -119,12 +120,12 @@
 		{#if type !== 'typing'}
 			<button
 				class="close-btn"
-				onclick|stopPropagation={dismiss}
+				onclick={(e) => { e.stopPropagation(); dismiss(); }}
 				type="button"
 				aria-label="Close"
 			>×</button>
 		{/if}
-	</button>
+	</div>
 </div>
 
 <style>

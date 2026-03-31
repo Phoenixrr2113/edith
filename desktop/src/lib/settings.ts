@@ -19,6 +19,18 @@ export interface DesktopSettings {
 	autoFadeMs: number;
 	/** Ollama base URL for local LLM fallback */
 	ollamaUrl: string;
+	/** Whether text-to-speech is enabled */
+	ttsEnabled: boolean;
+	/** Active TTS provider */
+	ttsProvider: "cartesia" | "piper" | "none";
+	/** Cartesia API key */
+	cartesiaApiKey: string;
+	/** Cartesia voice ID (empty = use default) */
+	cartesiaVoiceId: string;
+	/** Groq API key used for Whisper STT transcription */
+	groqApiKey: string;
+	/** Whether voice input (STT) is enabled */
+	sttEnabled: boolean;
 }
 
 const STORAGE_KEY = "edith-settings";
@@ -30,6 +42,12 @@ const DEFAULTS: DesktopSettings = {
 	notificationSounds: true,
 	autoFadeMs: 5000,
 	ollamaUrl: "http://localhost:11434",
+	ttsEnabled: false,
+	ttsProvider: "cartesia",
+	cartesiaApiKey: "",
+	cartesiaVoiceId: "",
+	groqApiKey: "",
+	sttEnabled: false,
 };
 
 // ── Load / save ───────────────────────────────────────────────────────────────

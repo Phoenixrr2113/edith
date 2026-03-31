@@ -2,6 +2,7 @@
 	import { settingsStore } from './settings.js';
 	import { setTheme, type ThemeMode } from './theme.js';
 	import OllamaStatus from './OllamaStatus.svelte';
+	import PiperStatus from './PiperStatus.svelte';
 	import CacheStatus from './CacheStatus.svelte';
 	import { localCache, type CacheKey } from './local-cache.js';
 
@@ -16,6 +17,9 @@
 	let wsUrlDraft = $state(settingsStore.value.wsUrl);
 	let wsTokenDraft = $state(settingsStore.value.wsToken);
 	let ollamaUrlDraft = $state(settingsStore.value.ollamaUrl);
+	let cartesiaApiKeyDraft = $state(settingsStore.value.cartesiaApiKey);
+	let cartesiaVoiceIdDraft = $state(settingsStore.value.cartesiaVoiceId);
+	let groqApiKeyDraft = $state(settingsStore.value.groqApiKey);
 
 	function handleThemeChange(mode: ThemeMode) {
 		settingsStore.update('theme', mode);
@@ -49,6 +53,23 @@
 		}
 	}
 
+	function handleTtsEnabledChange(e: Event) {
+		settingsStore.update('ttsEnabled', (e.target as HTMLInputElement).checked);
+	}
+
+	function handleTtsProviderChange(e: Event) {
+		const val = (e.target as HTMLSelectElement).value as 'cartesia' | 'piper' | 'none';
+		settingsStore.update('ttsProvider', val);
+	}
+
+	function handleCartesiaApiKeyBlur() {
+		settingsStore.update('cartesiaApiKey', cartesiaApiKeyDraft);
+	}
+
+	function handleCartesiaVoiceIdBlur() {
+		settingsStore.update('cartesiaVoiceId', cartesiaVoiceIdDraft.trim());
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && open) onClose();
 	}
@@ -67,6 +88,23 @@
 	$effect(() => {
 		ollamaUrlDraft = settingsStore.value.ollamaUrl;
 	});
+	$effect(() => {
+		cartesiaApiKeyDraft = settingsStore.value.cartesiaApiKey;
+	});
+	$effect(() => {
+		cartesiaVoiceIdDraft = settingsStore.value.cartesiaVoiceId;
+	});
+	$effect(() => {
+		groqApiKeyDraft = settingsStore.value.groqApiKey;
+	});
+
+	function handleSttEnabledChange(e: Event) {
+		settingsStore.update('sttEnabled', (e.target as HTMLInputElement).checked);
+	}
+
+	function handleGroqApiKeyBlur() {
+		settingsStore.update('groqApiKey', groqApiKeyDraft);
+	}
 
 	// Used to force CacheStatus to re-render after clear
 	let cacheRevision = $state(0);
@@ -94,7 +132,7 @@
 	onclick={handleOverlayClick}
 	aria-hidden={!open}
 >
-	<aside class="panel" class:open role="dialog" aria-label="Settings" aria-modal="true">
+	<div class="panel" class:open role="dialog" aria-label="Settings" aria-modal="true">
 		<header class="panel-header">
 			<span class="panel-title">Settings</span>
 			<button class="close-btn" onclick={onClose} type="button" aria-label="Close settings">✕</button>
@@ -211,6 +249,101 @@
 
 			<div class="separator"></div>
 
+			<!-- Voice (TTS) -->
+			<section class="section">
+				<div class="section-label">Voice (TTS)</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Enable text-to-speech</span>
+					<span class="toggle-track" class:on={settingsStore.value.ttsEnabled}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.ttsEnabled}
+							onchange={handleTtsEnabledChange}
+							aria-label="Enable text-to-speech"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				{#if settingsStore.value.ttsEnabled}
+					<label class="field-col" style="margin-bottom: 10px;">
+						<span class="field-label">Provider</span>
+						<select
+							class="text-input"
+							value={settingsStore.value.ttsProvider}
+							onchange={handleTtsProviderChange}
+							aria-label="TTS provider"
+						>
+							<option value="cartesia">Cartesia (cloud)</option>
+							<option value="piper">Piper (local)</option>
+							<option value="none">None</option>
+						</select>
+					</label>
+					{#if settingsStore.value.ttsProvider === 'cartesia'}
+						<label class="field-col" style="margin-bottom: 10px;">
+							<span class="field-label">Cartesia API key</span>
+							<input
+								type="password"
+								class="text-input"
+								bind:value={cartesiaApiKeyDraft}
+								onblur={handleCartesiaApiKeyBlur}
+								placeholder="sk-..."
+								aria-label="Cartesia API key"
+							/>
+						</label>
+						<label class="field-col">
+							<span class="field-label">Voice ID <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></span>
+							<input
+								type="text"
+								class="text-input"
+								bind:value={cartesiaVoiceIdDraft}
+								onblur={handleCartesiaVoiceIdBlur}
+								placeholder="leave blank for default"
+								aria-label="Cartesia voice ID"
+							/>
+						</label>
+					{:else if settingsStore.value.ttsProvider === 'piper'}
+						<PiperStatus />
+					{/if}
+				{/if}
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Voice Input (STT) -->
+			<section class="section">
+				<div class="section-label">Voice Input (STT)</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Enable voice input</span>
+					<span class="toggle-track" class:on={settingsStore.value.sttEnabled}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.sttEnabled}
+							onchange={handleSttEnabledChange}
+							aria-label="Enable voice input"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				{#if settingsStore.value.sttEnabled}
+					<label class="field-col">
+						<span class="field-label">Groq API key</span>
+						<input
+							type="password"
+							class="text-input"
+							bind:value={groqApiKeyDraft}
+							onblur={handleGroqApiKeyBlur}
+							placeholder="gsk_..."
+							aria-label="Groq API key for Whisper STT"
+						/>
+					</label>
+					<p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0;">
+						Uses Groq Whisper for ~300ms transcription.
+					</p>
+				{/if}
+			</section>
+
+			<div class="separator"></div>
+
 			<!-- Cache -->
 			<section class="section">
 				<div class="section-label">Offline Cache</div>
@@ -228,7 +361,7 @@
 			</section>
 
 		</div>
-	</aside>
+	</div>
 </div>
 
 <style>
