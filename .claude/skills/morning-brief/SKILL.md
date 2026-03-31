@@ -1,6 +1,6 @@
 ---
 name: morning-brief
-description: "Full morning brief — calendar, email, meeting prep, family activities. Runs at 8:03 AM or when Randy asks for a morning update."
+description: "Full morning brief — calendar, email, meeting prep, Cognee memory, file prep. Runs at 8:03 AM or when Randy asks for a morning update."
 ---
 
 # Morning Brief
