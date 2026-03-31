@@ -10,7 +10,7 @@ import { isAvailable as screenpipeAvailable, getContext as getScreenContext, for
 import { appendActivity, readActivity, getActivityFile } from "./activity";
 import { summarizeScreenContext } from "./gemini";
 import { processAudioTranscripts } from "./audio-extract";
-import { canIntervene } from "./proactive";
+import { canIntervene, recordIntervention } from "./proactive";
 
 export type BriefType = "boot" | "morning" | "midday" | "evening" | "message" | "location" | "scheduled" | "proactive";
 
@@ -249,6 +249,11 @@ async function buildProactiveBrief(): Promise<string> {
 
   // Run heuristic triggers on raw context
   const triggers = detectTriggers(rawCtx);
+
+  // Record each heuristic trigger so the cooldown gate sees them
+  for (const t of triggers) {
+    recordIntervention(t.type, t.message);
+  }
 
   // Summarize screen context (also persists to activity log)
   const screen = await gatherScreenContext(15, true);

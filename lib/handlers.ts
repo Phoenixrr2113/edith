@@ -6,6 +6,7 @@ import { logEvent } from "./state";
 import { sendMessage, downloadFile, transcribeAudio } from "./telegram";
 import { dispatchToClaude, dispatchToConversation } from "./dispatch";
 import { buildBrief } from "./briefs";
+import { canIntervene } from "./proactive";
 import { fmtErr } from "./util";
 import {
   checkLocationReminders,
@@ -34,12 +35,17 @@ export async function handleLocation(chatId: number, lat: number, lon: number): 
 
   const transitions = checkLocationTransitions(lat, lon);
   if (transitions.length > 0) {
-    const desc = transitions.map((t) => {
-      const emoji = t.type === "arrived" ? "📍" : "🚗";
-      return `${emoji} ${t.type === "arrived" ? "Arrived at" : "Left"} ${t.locationLabel}`;
-    }).join(". ");
-    const brief = await buildBrief("location", { description: desc, lat: String(lat), lon: String(lon), chatId: String(chatId) });
-    await dispatchToClaude(brief, { label: "location", briefType: "location" });
+    const gate = canIntervene("location-transition");
+    if (gate.allowed) {
+      const desc = transitions.map((t) => {
+        const emoji = t.type === "arrived" ? "📍" : "🚗";
+        return `${emoji} ${t.type === "arrived" ? "Arrived at" : "Left"} ${t.locationLabel}`;
+      }).join(". ");
+      const brief = await buildBrief("location", { description: desc, lat: String(lat), lon: String(lon), chatId: String(chatId) });
+      await dispatchToClaude(brief, { label: "location", briefType: "location" });
+    } else {
+      console.log(`[edith] location-transition skipped: ${gate.reason}`);
+    }
   }
 }
 
