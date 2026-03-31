@@ -272,6 +272,11 @@ async function gracefulShutdown(): Promise<void> {
 		dispatchQueue.length = 0;
 	}
 	stopCaffeinate();
+	// Flush Langfuse traces before exit
+	try {
+		const { flushTraces } = await import("./lib/telemetry");
+		await flushTraces();
+	} catch {}
 	// Flush buffered Sentry events before exit
 	await Sentry.close(2000);
 	try {

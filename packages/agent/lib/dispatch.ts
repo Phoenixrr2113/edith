@@ -9,6 +9,7 @@
  *   - Circuit breaker for repeated failures
  *   - AbortController timeout to prevent hangs
  */
+
 import {
 	type McpServerConfig,
 	type Options,
@@ -46,6 +47,7 @@ import {
 } from "./state";
 import { loadJson } from "./storage";
 import { sendTyping } from "./telegram";
+import { recordGeneration, startTrace } from "./telemetry";
 import { appendTranscript, startTranscript } from "./transcript";
 import { fmtErr } from "./util";
 
@@ -404,6 +406,13 @@ export async function dispatchToClaude(
 			prompt: prompt.slice(0, 200),
 		});
 
+		// Langfuse trace for this dispatch
+		const lfTrace = startTrace(label, {
+			session: resume ? sessionId : "ephemeral",
+			briefType: opts.briefType,
+			prompt: prompt.slice(0, 500),
+		});
+
 		// Typing indicator
 		const typingChatId = opts.chatId ?? CHAT_ID;
 		if (typingChatId) {
@@ -486,6 +495,18 @@ export async function dispatchToClaude(
 			session: newSessionId?.slice(0, 8) ?? "ephemeral",
 		});
 		logEvent("dispatch_end", { label, durationMs, turns, cost: totalCost });
+
+		// Record in Langfuse
+		if (lfTrace) {
+			recordGeneration(lfTrace, {
+				name: `agent-sdk:${label}`,
+				model: "claude-sonnet-4-20250514",
+				input: prompt.slice(0, 1000),
+				output: lastResult?.slice(0, 1000),
+				usage: { totalTokens: turns * 1000 }, // approximate
+				durationMs,
+			});
+		}
 
 		// Reflector: post-completion evaluation (non-blocking)
 		if (reflector) {
