@@ -34,6 +34,7 @@
 		"active": true,
 		"targets": "all",
 		"macOS": {
+			"signingIdentity": null,
 			"infoPlist": {
 				"NSScreenCaptureUsageDescription": "Edith uses screen capture to understand your context and proactively assist you.",
 				"NSMicrophoneUsageDescription": "Edith uses the microphone for ambient audio capture and voice input."
@@ -46,5 +47,12 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		]
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "PLACEHOLDER_UPDATER_PUBLIC_KEY",
+			"endpoints": ["https://github.com/randywilson/edith-v3/releases/latest/download/latest.json"],
+			"dialog": false
+		}
 	}
 }

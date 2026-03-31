@@ -9,6 +9,7 @@
 	import { addWorker, updateWorker, removeWorker } from './lib/stores.js';
 	import { settingsStore } from './lib/settings.js';
 	import { initTheme } from './lib/theme.js';
+	import Onboarding from './lib/Onboarding.svelte';
 	import AudioPlayer from './lib/AudioPlayer.svelte';
 	import { playAudio, stopAudio } from './lib/audio.js';
 	import { speak } from './lib/tts.js';
@@ -28,6 +29,15 @@
 	import { StreamManager } from './lib/stream-to-cloud.js';
 	import { ScreenTriggerEngine } from './lib/screen-triggers.js';
 	import { sendToGemini } from './lib/gemini-bridge.js';
+	import UpdateNotification from './lib/UpdateNotification.svelte';
+	import {
+		checkForUpdate,
+		startPeriodicCheck,
+		stopPeriodicCheck,
+		onUpdateAvailable,
+		type UpdateInfo,
+	} from './lib/updater.js';
+	import { listen } from '@tauri-apps/api/event';
 
 	const MAX_BUBBLES = 3;
 
@@ -46,6 +56,32 @@
 	let settingsOpen = $state(false);
 	/** True while TTS audio is playing */
 	let audioPlaying = $state(false);
+
+	// ── Onboarding ────────────────────────────────────────────────────────────
+	/** Show onboarding when: never completed, OR wsUrl/wsToken are missing */
+	function needsOnboarding(): boolean {
+		try {
+			const done = localStorage.getItem('edith-onboarding-complete');
+			if (done === 'true') {
+				// Still show if critical settings are missing
+				const s = settingsStore.value;
+				return !s.wsUrl || !s.wsToken;
+			}
+		} catch {
+			// ignore
+		}
+		return true;
+	}
+	let onboardingVisible = $state(needsOnboarding());
+
+	function handleOnboardingComplete(): void {
+		onboardingVisible = false;
+		// Reconnect WS with potentially new settings
+		wsClient.disconnect();
+		wsClient.connect(settingsStore.value.wsUrl, settingsStore.value.wsToken);
+	}
+	/** Non-null when an update is available */
+	let pendingUpdate = $state<UpdateInfo | null>(null);
 
 	// Connection mode state (cloud / local / offline)
 	let connMode = $state<ConnectionMode>(connectionModeManager.mode);
@@ -237,6 +273,20 @@
 
 		wsClient.connect(settingsStore.value.wsUrl, settingsStore.value.wsToken);
 
+		// ── Auto-updater ──────────────────────────────────────────────────────────
+		// Listen for the Rust-side `update-available` event (fired ~5s after launch)
+		listen<UpdateInfo>('update-available', (event) => {
+			pendingUpdate = event.payload;
+		}).then((unlisten) => unsubs.push(unlisten)).catch(() => {});
+
+		// Also wire the JS-side updater callbacks (for manual/periodic checks)
+		unsubs.push(onUpdateAvailable((info) => { pendingUpdate = info; }));
+
+		// Kick off an initial check and start periodic 6-hour re-checks
+		checkForUpdate().catch(() => {});
+		startPeriodicCheck();
+		unsubs.push(stopPeriodicCheck);
+
 		// Start ambient audio capture if enabled in settings
 		syncAudioCapture().catch((err) => console.warn('[App] syncAudioCapture:', err));
 
@@ -387,8 +437,17 @@
 	});
 </script>
 
+{#if onboardingVisible}
+	<Onboarding onComplete={handleOnboardingComplete} />
+{/if}
+
 <main>
 	<div class="bubble-stack">
+		<UpdateNotification
+			update={pendingUpdate}
+			onDismiss={() => { pendingUpdate = null; }}
+		/>
+
 		{#if agentTyping}
 			<SpeechBubble
 				type="typing"
