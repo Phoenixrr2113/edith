@@ -10,6 +10,7 @@ export const LOCATIONS_FILE = join(STATE_DIR, "locations.json");
 export const REMINDERS_FILE = join(STATE_DIR, "reminders.json");
 export const EVENTS_FILE = join(STATE_DIR, "events.jsonl");
 export const TASKBOARD_FILE = join(STATE_DIR, "taskboard.md");
+export const TASKBOARD_ARCHIVE_DIR = join(STATE_DIR, "taskboard-archive");
 export const SESSION_FILE = join(STATE_DIR, "session-id");
 export const PID_FILE = join(STATE_DIR, "edith.pid");
 export const DEAD_LETTER_FILE = join(STATE_DIR, "dead-letters.json");
