@@ -31,6 +31,7 @@ import {
 	QUERY_TIMEOUT_MS,
 	REFLECTOR_EVAL_ONLY_RATIO,
 } from "./config";
+import { checkCostBudget } from "./cost-monitor";
 import { assembleSystemPrompt } from "./context";
 import { logger } from "./logger";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
@@ -69,6 +70,17 @@ export interface DispatchOptions {
 	briefType?: BriefType;
 	maxTurns?: number;
 	_sessionRetried?: boolean;
+	/**
+	 * Abort the dispatch mid-stream if accumulated cost exceeds this value (USD).
+	 * Useful for guarding cheap scheduled tasks (e.g. check-reminders: 0.05).
+	 */
+	maxCostUsd?: number;
+	/**
+	 * When true, the dispatch runs even if the daily cost budget is exceeded.
+	 * Set this for user-initiated messages so Randy is never silently ignored.
+	 * Defaults to false (non-critical background tasks are skipped over budget).
+	 */
+	critical?: boolean;
 }
 
 // --- Circuit breaker ---
@@ -167,7 +179,8 @@ export async function processMessageStream(
 	resume: boolean,
 	opts: DispatchOptions,
 	pseudoPid: number,
-	reflector: ReflectorSession | null
+	reflector: ReflectorSession | null,
+	abortController?: AbortController
 ): Promise<StreamResult> {
 	let turns = 0;
 	let lastResult = "";
@@ -314,6 +327,19 @@ export async function processMessageStream(
 					lastResult = resultMsg.result ?? lastResult;
 				}
 
+				// Per-dispatch cost budget abort
+				if (opts.maxCostUsd !== undefined && totalCost > opts.maxCostUsd) {
+					console.warn(
+						`[edith:${label}] Per-dispatch cost budget exceeded ($${totalCost.toFixed(4)} > $${opts.maxCostUsd}), aborting`
+					);
+					logEvent("cost_budget_exceeded", {
+						label,
+						totalCost,
+						maxCostUsd: opts.maxCostUsd,
+					});
+					abortController?.abort();
+				}
+
 				// Check for errors
 				if (resultMsg.is_error) {
 					const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
@@ -353,6 +379,23 @@ export async function dispatchToClaude(
 		console.log(`[edith:${label}] Circuit breaker active, skipping dispatch`);
 		logEvent("dispatch_skipped", { label, reason: "circuit_breaker" });
 		return "";
+	}
+
+	// Daily cost budget check — skip non-critical background tasks when over budget
+	if (!opts.critical) {
+		const budget = checkCostBudget();
+		if (budget.overBudget) {
+			console.warn(
+				`[edith:${label}] Over daily budget ($${budget.totalToday.toFixed(4)}/$${budget.budget.toFixed(2)}), skipping non-critical dispatch`
+			);
+			logger.warn(`[dispatch:budget-skip] ${label}`, {
+				label,
+				totalToday: budget.totalToday,
+				budget: budget.budget,
+			});
+			logEvent("dispatch_skipped", { label, reason: "over_budget" });
+			return "";
+		}
 	}
 
 	if (busy) {
@@ -447,7 +490,8 @@ export async function dispatchToClaude(
 			resume,
 			opts,
 			pseudoPid,
-			reflector
+			reflector,
+			abortController
 		);
 
 		// Handle session retry — push to front of queue so finally block drains it
@@ -574,7 +618,8 @@ export async function dispatchToConversation(
 	message: string
 ): Promise<void> {
 	const brief = await buildBrief("message", { message, chatId: String(chatId) });
-	const result = await dispatchToClaude(brief, { resume: true, label: "message", chatId });
+	// User messages are always critical — never skip due to cost budget
+	const result = await dispatchToClaude(brief, { resume: true, label: "message", chatId, critical: true });
 
 	// "injected" means streamInput was used — no need to check for errors
 	if (result === "injected") return;

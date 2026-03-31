@@ -61,6 +61,9 @@ export const PROACTIVE_COOLDOWN_MINUTES = 60;
 export const PROACTIVE_QUIET_START = 22;
 export const PROACTIVE_QUIET_END = 8;
 
+// --- Cost governance ---
+export const DAILY_COST_LIMIT_USD = Number(process.env.DAILY_COST_LIMIT_USD ?? "5");
+
 // --- State / polling ---
 export const POLL_INTERVAL_MS = 3_000;
 export const SCHEDULE_CHECK_MS = 60_000;
