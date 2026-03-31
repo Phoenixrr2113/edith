@@ -23,6 +23,7 @@ import {
 	SESSION_FILE,
 	STATE_DIR,
 } from "./config";
+import { openDatabase } from "./db";
 import { saveJson } from "./storage";
 
 const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
@@ -49,10 +50,19 @@ if (existsSync(OFFSET_FILE)) {
 }
 
 export let sessionId = "";
-if (existsSync(SESSION_FILE)) {
-	try {
-		sessionId = readFileSync(SESSION_FILE, "utf-8").trim();
-	} catch {}
+// Load from SQLite first, fall back to file
+try {
+	const db = openDatabase();
+	const row = db
+		.query<{ value: string }, [string]>("SELECT value FROM sessions WHERE key = ?")
+		.get("session_id");
+	if (row) sessionId = row.value;
+} catch {
+	if (existsSync(SESSION_FILE)) {
+		try {
+			sessionId = readFileSync(SESSION_FILE, "utf-8").trim();
+		} catch {}
+	}
 }
 
 export function saveOffset(newOffset: number): void {
@@ -64,13 +74,23 @@ export function saveOffset(newOffset: number): void {
 
 export function saveSession(id: string): void {
 	sessionId = id;
-	const tmp = `${SESSION_FILE}.tmp`;
-	writeFileSync(tmp, id, "utf-8");
-	renameSync(tmp, SESSION_FILE);
+	try {
+		const db = openDatabase();
+		db.run("INSERT OR REPLACE INTO sessions (key, value) VALUES (?, ?)", ["session_id", id]);
+	} catch {
+		// fallback to file
+		const tmp = `${SESSION_FILE}.tmp`;
+		writeFileSync(tmp, id, "utf-8");
+		renameSync(tmp, SESSION_FILE);
+	}
 }
 
 export function clearSession(): void {
 	sessionId = "";
+	try {
+		const db = openDatabase();
+		db.run("DELETE FROM sessions WHERE key = ?", ["session_id"]);
+	} catch {}
 	try {
 		unlinkSync(SESSION_FILE);
 	} catch {}
@@ -130,30 +150,53 @@ export interface DeadLetter {
 }
 
 export function saveDeadLetter(chatId: number, message: string, error: string): void {
-	const entry: DeadLetter = {
-		ts: new Date().toISOString(),
-		chatId,
-		message: message.slice(0, 500),
-		error: error.slice(0, 300),
-	};
-	appendFileSync(DEAD_LETTER_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
+	const ts = new Date().toISOString();
+	const msg = message.slice(0, 500);
+	const err = error.slice(0, 300);
+	try {
+		const db = openDatabase();
+		db.run("INSERT INTO dead_letters (ts, chat_id, message, error) VALUES (?, ?, ?, ?)", [
+			ts,
+			chatId,
+			msg,
+			err,
+		]);
+	} catch {
+		// fallback to file
+		const entry: DeadLetter = { ts, chatId, message: msg, error: err };
+		appendFileSync(DEAD_LETTER_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
+	}
 	logEvent("dead_letter", { chatId, message: message.slice(0, 100), error: error.slice(0, 200) });
 	console.log(`[edith] Dead-lettered message: "${message.slice(0, 80)}..."`);
 }
 
 export function loadDeadLetters(): DeadLetter[] {
-	if (!existsSync(DEAD_LETTER_FILE)) return [];
 	try {
-		return readFileSync(DEAD_LETTER_FILE, "utf-8")
-			.split("\n")
-			.filter(Boolean)
-			.map((l) => JSON.parse(l));
+		const db = openDatabase();
+		type DLRow = { ts: string; chat_id: number; message: string; error: string };
+		return db
+			.query<DLRow, []>("SELECT ts, chat_id, message, error FROM dead_letters ORDER BY id")
+			.all()
+			.map((r) => ({ ts: r.ts, chatId: r.chat_id, message: r.message, error: r.error }));
 	} catch {
-		return [];
+		// fallback to file
+		if (!existsSync(DEAD_LETTER_FILE)) return [];
+		try {
+			return readFileSync(DEAD_LETTER_FILE, "utf-8")
+				.split("\n")
+				.filter(Boolean)
+				.map((l) => JSON.parse(l));
+		} catch {
+			return [];
+		}
 	}
 }
 
 export function clearDeadLetters(): void {
+	try {
+		const db = openDatabase();
+		db.run("DELETE FROM dead_letters");
+	} catch {}
 	try {
 		unlinkSync(DEAD_LETTER_FILE);
 	} catch {}

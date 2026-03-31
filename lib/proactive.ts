@@ -10,20 +10,15 @@ import {
 	PROACTIVE_QUIET_START,
 	STATE_DIR,
 } from "./config";
+import { openDatabase } from "./db";
 import { loadJson, saveJson } from "./storage";
 
-const PROACTIVE_STATE_FILE = join(STATE_DIR, "proactive-state.json");
 const PROACTIVE_CONFIG_FILE = join(STATE_DIR, "proactive-config.json");
 
 interface Intervention {
 	timestamp: string;
 	category: string;
 	message: string;
-}
-
-interface ProactiveState {
-	interventions: Intervention[];
-	lastCheck: string;
 }
 
 interface ProactiveConfig {
@@ -40,12 +35,35 @@ const DEFAULT_CONFIG: ProactiveConfig = {
 	quietHoursEnd: PROACTIVE_QUIET_END,
 };
 
-function loadState(): ProactiveState {
-	return loadJson<ProactiveState>(PROACTIVE_STATE_FILE, { interventions: [], lastCheck: "" });
+function loadInterventions(): Intervention[] {
+	try {
+		const db = openDatabase();
+		type Row = { ts: string; category: string; message: string };
+		const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+		return db
+			.query<Row, [string]>(
+				"SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts"
+			)
+			.all(cutoff)
+			.map((r) => ({ timestamp: r.ts, category: r.category, message: r.message }));
+	} catch {
+		return [];
+	}
 }
 
-function saveState(state: ProactiveState): void {
-	saveJson(PROACTIVE_STATE_FILE, state);
+function appendIntervention(category: string, message: string): void {
+	try {
+		const db = openDatabase();
+		const ts = new Date().toISOString();
+		db.run("INSERT INTO proactive_state (ts, category, message) VALUES (?, ?, ?)", [
+			ts,
+			category,
+			message,
+		]);
+		// Prune rows older than 24h
+		const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+		db.run("DELETE FROM proactive_state WHERE ts <= ?", [cutoff]);
+	} catch {}
 }
 
 /**
@@ -74,11 +92,11 @@ export function canIntervene(category?: string): { allowed: boolean; reason?: st
 		}
 	}
 
-	const state = loadState();
+	const interventions = loadInterventions();
 	const oneHourAgo = now.getTime() - 60 * 60 * 1000;
 
 	// Rate limit: max interventions per hour
-	const recentCount = state.interventions.filter(
+	const recentCount = interventions.filter(
 		(i) => new Date(i.timestamp).getTime() > oneHourAgo
 	).length;
 	if (recentCount >= config.maxPerHour) {
@@ -88,7 +106,7 @@ export function canIntervene(category?: string): { allowed: boolean; reason?: st
 	// Cooldown per category
 	if (category) {
 		const cooldownMs = config.cooldownMinutes * 60 * 1000;
-		const lastSameCategory = state.interventions
+		const lastSameCategory = interventions
 			.filter((i) => i.category === category)
 			.sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
 
@@ -107,29 +125,24 @@ export function canIntervene(category?: string): { allowed: boolean; reason?: st
  * Record that an intervention was made.
  */
 export function recordIntervention(category: string, message: string): void {
-	const state = loadState();
-
-	state.interventions.push({
-		timestamp: new Date().toISOString(),
-		category,
-		message: message.slice(0, 200),
-	});
-
-	// Keep only last 24h of history
-	const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-	state.interventions = state.interventions.filter((i) => new Date(i.timestamp).getTime() > cutoff);
-
-	state.lastCheck = new Date().toISOString();
-	saveState(state);
+	appendIntervention(category, message.slice(0, 200));
 }
 
 /**
  * Get recent intervention history (for Claude to check what it already suggested).
  */
 export function getInterventionHistory(hours: number = 4): Intervention[] {
-	const state = loadState();
-	const cutoff = Date.now() - hours * 60 * 60 * 1000;
-	return state.interventions
-		.filter((i) => new Date(i.timestamp).getTime() > cutoff)
-		.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+	try {
+		const db = openDatabase();
+		type Row = { ts: string; category: string; message: string };
+		const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+		return db
+			.query<Row, [string]>(
+				"SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts DESC"
+			)
+			.all(cutoff)
+			.map((r) => ({ timestamp: r.ts, category: r.category, message: r.message }));
+	} catch {
+		return [];
+	}
 }

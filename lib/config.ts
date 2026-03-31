@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 // --- Paths ---
 export const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
+export const DB_FILE = join(STATE_DIR, "edith.db");
 export const SCHEDULE_FILE = join(STATE_DIR, "schedule.json");
 export const LOCATIONS_FILE = join(STATE_DIR, "locations.json");
 export const REMINDERS_FILE = join(STATE_DIR, "reminders.json");

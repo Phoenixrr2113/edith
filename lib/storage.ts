@@ -1,10 +1,11 @@
 /**
- * Shared JSON file load/save — used by MCP server and geo.ts.
- * Eliminates duplicate load/save functions across modules.
+ * Shared load/save for schedule, locations, and reminders.
+ * SQLite is the primary store; JSON helpers remain for backwards compat.
  */
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { LocationEntry, Reminder, ScheduleEntry } from "../mcp/types";
 import { LOCATIONS_FILE, REMINDERS_FILE, SCHEDULE_FILE } from "./config";
+import { openDatabase } from "./db";
 
 // --- Generic helpers ---
 
@@ -80,45 +81,186 @@ const DEFAULT_SCHEDULE: ScheduleEntry[] = [
 	},
 ];
 
+// --- Schedule (SQLite primary) ---
+
 export function loadSchedule(): ScheduleEntry[] {
-	const schedule = loadJson<ScheduleEntry[]>(SCHEDULE_FILE, []);
-	if (schedule.length === 0) {
-		saveSchedule(DEFAULT_SCHEDULE);
-		console.log("[storage] Seeded default schedule to", SCHEDULE_FILE);
-		return [...DEFAULT_SCHEDULE];
-	}
-	// Ensure new default tasks get added to existing schedules
-	let updated = false;
-	for (const def of DEFAULT_SCHEDULE) {
-		if (!schedule.some((s) => s.name === def.name)) {
-			schedule.push(def);
-			updated = true;
-			console.log(`[storage] Added missing default task: ${def.name}`);
+	try {
+		const db = openDatabase();
+		const rows = db
+			.query<{ name: string; data: string }, []>("SELECT name, data FROM schedule")
+			.all();
+		let schedule: ScheduleEntry[] = rows.map((r) => JSON.parse(r.data) as ScheduleEntry);
+
+		if (schedule.length === 0) {
+			saveSchedule(DEFAULT_SCHEDULE);
+			console.log("[storage] Seeded default schedule to SQLite");
+			return [...DEFAULT_SCHEDULE];
 		}
+
+		// Ensure new default tasks get added to existing schedules
+		let updated = false;
+		for (const def of DEFAULT_SCHEDULE) {
+			if (!schedule.some((s) => s.name === def.name)) {
+				schedule.push(def);
+				updated = true;
+				console.log(`[storage] Added missing default task: ${def.name}`);
+			}
+		}
+		if (updated) saveSchedule(schedule);
+		return schedule;
+	} catch (err) {
+		console.error("[storage] loadSchedule SQLite error, falling back to JSON:", err);
+		return loadJson<ScheduleEntry[]>(SCHEDULE_FILE, []);
 	}
-	if (updated) saveSchedule(schedule);
-	return schedule;
 }
 
 export function saveSchedule(entries: ScheduleEntry[]): void {
-	saveJson(SCHEDULE_FILE, entries);
+	try {
+		const db = openDatabase();
+		const upsert = db.prepare("INSERT OR REPLACE INTO schedule (name, data) VALUES (?, ?)");
+		const del = db.prepare("DELETE FROM schedule WHERE name = ?");
+		const existingNames = new Set(
+			db.query<{ name: string }, []>("SELECT name FROM schedule").all().map((r) => r.name)
+		);
+		const newNames = new Set(entries.map((e) => e.name));
+
+		db.transaction(() => {
+			// Remove deleted entries
+			for (const name of existingNames) {
+				if (!newNames.has(name)) del.run(name);
+			}
+			// Upsert all current entries
+			for (const entry of entries) {
+				upsert.run(entry.name, JSON.stringify(entry));
+			}
+		})();
+	} catch (err) {
+		console.error("[storage] saveSchedule SQLite error, falling back to JSON:", err);
+		saveJson(SCHEDULE_FILE, entries);
+	}
 }
 
+// --- Locations (SQLite primary) ---
+
 export function loadLocations(): LocationEntry[] {
-	const raw = loadJson<{ locations?: LocationEntry[] } | LocationEntry[]>(LOCATIONS_FILE, {
-		locations: [],
-	});
-	return (raw as { locations?: LocationEntry[] }).locations ?? (raw as LocationEntry[]) ?? [];
+	try {
+		const db = openDatabase();
+		return db
+			.query<
+				{ name: string; label: string; lat: number; lon: number; radius_meters: number },
+				[]
+			>("SELECT name, label, lat, lon, radius_meters FROM locations")
+			.all()
+			.map((r) => ({
+				name: r.name,
+				label: r.label,
+				lat: r.lat,
+				lon: r.lon,
+				radiusMeters: r.radius_meters,
+			}));
+	} catch (err) {
+		console.error("[storage] loadLocations SQLite error, falling back to JSON:", err);
+		const raw = loadJson<{ locations?: LocationEntry[] } | LocationEntry[]>(LOCATIONS_FILE, {
+			locations: [],
+		});
+		return (raw as { locations?: LocationEntry[] }).locations ?? (raw as LocationEntry[]) ?? [];
+	}
 }
 
 export function saveLocations(locations: LocationEntry[]): void {
-	saveJson(LOCATIONS_FILE, { locations });
+	try {
+		const db = openDatabase();
+		const upsert = db.prepare(
+			"INSERT OR REPLACE INTO locations (name, label, lat, lon, radius_meters) VALUES (?, ?, ?, ?, ?)"
+		);
+		const del = db.prepare("DELETE FROM locations WHERE name = ?");
+		const existingNames = new Set(
+			db.query<{ name: string }, []>("SELECT name FROM locations").all().map((r) => r.name)
+		);
+		const newNames = new Set(locations.map((l) => l.name));
+
+		db.transaction(() => {
+			for (const name of existingNames) {
+				if (!newNames.has(name)) del.run(name);
+			}
+			for (const loc of locations) {
+				upsert.run(loc.name, loc.label, loc.lat, loc.lon, loc.radiusMeters ?? 500);
+			}
+		})();
+	} catch (err) {
+		console.error("[storage] saveLocations SQLite error, falling back to JSON:", err);
+		saveJson(LOCATIONS_FILE, { locations });
+	}
 }
 
+// --- Reminders (SQLite primary) ---
+
 export function loadReminders(): Reminder[] {
-	return loadJson<Reminder[]>(REMINDERS_FILE, []);
+	try {
+		const db = openDatabase();
+		type ReminderRow = {
+			id: string;
+			text: string;
+			type: string;
+			location: string | null;
+			radius_meters: number | null;
+			fire_at: string | null;
+			fired: number;
+			created: string;
+		};
+		return db
+			.query<ReminderRow, []>(
+				"SELECT id, text, type, location, radius_meters, fire_at, fired, created FROM reminders"
+			)
+			.all()
+			.map((r) => ({
+				id: r.id,
+				text: r.text,
+				type: r.type as "time" | "location",
+				location: r.location ?? undefined,
+				radiusMeters: r.radius_meters ?? undefined,
+				fireAt: r.fire_at ?? undefined,
+				fired: r.fired === 1,
+				created: r.created,
+			}));
+	} catch (err) {
+		console.error("[storage] loadReminders SQLite error, falling back to JSON:", err);
+		return loadJson<Reminder[]>(REMINDERS_FILE, []);
+	}
 }
 
 export function saveReminders(reminders: Reminder[]): void {
-	saveJson(REMINDERS_FILE, reminders);
+	try {
+		const db = openDatabase();
+		const upsert = db.prepare(`
+      INSERT OR REPLACE INTO reminders (id, text, type, location, radius_meters, fire_at, fired, created)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+		const del = db.prepare("DELETE FROM reminders WHERE id = ?");
+		const existingIds = new Set(
+			db.query<{ id: string }, []>("SELECT id FROM reminders").all().map((r) => r.id)
+		);
+		const newIds = new Set(reminders.map((r) => r.id));
+
+		db.transaction(() => {
+			for (const id of existingIds) {
+				if (!newIds.has(id)) del.run(id);
+			}
+			for (const r of reminders) {
+				upsert.run(
+					r.id,
+					r.text,
+					r.type,
+					r.location ?? null,
+					r.radiusMeters ?? null,
+					r.fireAt ?? null,
+					r.fired ? 1 : 0,
+					r.created
+				);
+			}
+		})();
+	} catch (err) {
+		console.error("[storage] saveReminders SQLite error, falling back to JSON:", err);
+		saveJson(REMINDERS_FILE, reminders);
+	}
 }

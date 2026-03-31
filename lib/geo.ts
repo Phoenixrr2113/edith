@@ -3,6 +3,7 @@
  */
 
 import type { LocationEntry, Reminder } from "../mcp/types";
+import { openDatabase } from "./db";
 import { loadLocations, loadReminders, saveReminders } from "./storage";
 
 export type { LocationEntry, Reminder };
@@ -64,9 +65,32 @@ export function markFired(ids: string[]): void {
 	saveReminders(reminders);
 }
 
-// --- Location transition detection (stateful) ---
-let currentLocationName: string | null = null;
-let initialized = false;
+// --- Location transition detection (stateful, persisted to SQLite) ---
+
+function _loadGeoState(): string | null {
+	try {
+		const db = openDatabase();
+		const row = db
+			.query<{ value: string | null }, [string]>("SELECT value FROM geo_state WHERE key = ?")
+			.get("current_location");
+		return row?.value ?? null;
+	} catch {
+		return null;
+	}
+}
+
+function _saveGeoState(name: string | null): void {
+	try {
+		const db = openDatabase();
+		db.run("INSERT OR REPLACE INTO geo_state (key, value) VALUES (?, ?)", [
+			"current_location",
+			name,
+		]);
+	} catch {}
+}
+
+let currentLocationName: string | null = _loadGeoState();
+let initialized = currentLocationName !== null; // if we have a persisted value, skip silent init
 
 /** Detect arrive/depart events when Randy moves between named locations. */
 export function checkLocationTransitions(lat: number, lon: number): LocationTransition[] {
@@ -85,6 +109,7 @@ export function checkLocationTransitions(lat: number, lon: number): LocationTran
 
 	if (!initialized) {
 		currentLocationName = newName;
+		_saveGeoState(newName);
 		initialized = true;
 		return [];
 	}
@@ -109,5 +134,6 @@ export function checkLocationTransitions(lat: number, lon: number): LocationTran
 	}
 
 	currentLocationName = newName;
+	_saveGeoState(newName);
 	return transitions;
 }
