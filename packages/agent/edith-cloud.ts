@@ -502,7 +502,14 @@ setInterval(async () => {
 
 runScheduler().catch((err) => console.error("[edith-cloud:scheduler] Error:", fmtErr(err)));
 
-poll().catch((err) => {
-	console.error("[edith-cloud] Poll loop crashed:", err);
-	process.exit(1);
-});
+// Telegram polling is DISABLED in cloud mode — the local Edith instance handles
+// Telegram. Cloud Edith only serves WebSocket connections from the desktop app.
+// Enable with CLOUD_TELEGRAM_POLLING=true if running cloud-only (no local instance).
+if (process.env.CLOUD_TELEGRAM_POLLING === "true") {
+	poll().catch((err) => {
+		console.error("[edith-cloud] Poll loop crashed:", err);
+		process.exit(1);
+	});
+} else {
+	console.log("[edith-cloud] Telegram polling disabled (handled by local instance)");
+}
