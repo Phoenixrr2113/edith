@@ -35,6 +35,7 @@ import { assembleSystemPrompt } from "./context";
 import { logger } from "./logger";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { getActiveQuery, injectMessage, setActiveQuery, setActiveSessionId } from "./session";
+import { recordCost } from "./db";
 import {
 	activeProcesses,
 	clearSession,
@@ -506,6 +507,13 @@ export async function dispatchToClaude(
 
 		if (totalCost) {
 			logEvent("cost", { label, usd: totalCost });
+			recordCost({
+				label,
+				usd: totalCost,
+				turns,
+				duration_ms: durationMs,
+				session_id: newSessionId || sessionId,
+			});
 		}
 
 		// Reset circuit breaker on success
