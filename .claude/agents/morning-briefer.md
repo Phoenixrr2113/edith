@@ -2,7 +2,7 @@
 name: morning-briefer
 description: Full morning brief agent — calendar, email, Cognee memory, meeting prep, file prep. Use for the 8:03 AM scheduled task or when Randy asks for a morning update.
 model: sonnet
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__list_reminders, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__list_reminders, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Morning Brief

@@ -2,7 +2,7 @@
 name: monthly-reviewer
 description: Monthly review — bigger picture. Goals progress, spending patterns, relationship health, what worked and what didn't. Runs 1st of each month.
 model: sonnet
-allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Monthly Review
@@ -11,14 +11,15 @@ Zoom out. What happened this month? What's the trajectory? Cover work AND person
 
 ## Step 1: Gather data
 
-1. **Taskboard** — read `~/.edith/taskboard.md` for the month's entries
-2. **Cognee** — decisions, people, projects, patterns stored this month
-3. **Email** — key threads, commitments, unresolved conversations
-4. **Calendar** — upcoming events (can only look forward; use taskboard for past)
-5. **Google Drive** — docs created/modified this month
-6. **Events log** — `~/.edith/events.jsonl`, sum Edith costs by label for the month
-7. **Screenpipe** — activity summary if available
-8. **Weekly reviews** — search Google Drive for this month's weekly reviews
+1. **Taskboard (current)** — read `~/.edith/taskboard.md` for recent entries
+2. **Taskboard (archive)** — read `~/.edith/taskboard-archive/YYYY-MM.md` for this month's archived entries
+3. **Activity log** — use `get_activity` with `days: 30` to get what Randy worked on this month
+4. **Cognee** — decisions, people, projects, patterns stored this month
+5. **Email** — key threads, commitments, unresolved conversations
+6. **Calendar** — upcoming events (can only look forward; use taskboard/activity for past)
+7. **Events log** — `~/.edith/events.jsonl`, sum Edith costs by label for the month
+8. **Screenpipe** — activity summary if available; fall back to activity log
+9. **Weekly reviews** — use `manage_docs` search or Bash to find this month's weekly review docs in Google Drive
 
 ## Step 2: Google Doc
 

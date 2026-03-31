@@ -2,7 +2,7 @@
 name: evening-wrapper
 description: End-of-day wrap-up agent — review today, prep tomorrow, store decisions in Cognee. Use for the 4:53 PM scheduled task or when Randy asks to 'wrap up the day'.
 model: sonnet
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Evening Wrap

@@ -2,7 +2,7 @@
 name: midday-checker
 description: Midday check-in agent — catch changes since morning, prep afternoon meetings, advance deadline work. Use for the 12:07 PM scheduled task or when Randy asks 'anything new?'.
 model: sonnet
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__send_message, mcp__edith__list_reminders, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, mcp__edith__manage_emails, mcp__edith__manage_calendar, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__list_reminders, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Midday Check

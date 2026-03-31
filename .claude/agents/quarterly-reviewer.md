@@ -2,7 +2,7 @@
 name: quarterly-reviewer
 description: Quarterly review — strategic look at the last 3 months. Career trajectory, project health, life balance, big decisions ahead. Runs 1st of Jan/Apr/Jul/Oct.
 model: sonnet
-allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search, mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Quarterly Review
@@ -12,11 +12,12 @@ Big-picture check-in. Three months of data, decisions, and direction.
 ## Step 1: Gather context
 
 1. **Cognee** — all decisions, milestones, patterns, people from last 3 months
-2. **Monthly reviews** — search Google Drive for last 3 monthly reviews
-3. **Calendar patterns** — meeting frequency, time allocation trends
-4. **Google Drive** — key documents, projects, deliverables from the quarter
-5. **Email trends** — volume, key relationships, unresolved threads
-6. **Cost analysis** — Edith running costs from `~/.edith/events.jsonl` for the quarter
+2. **Monthly reviews** — use Bash to find this quarter's monthly review docs (search `~/.edith/` or use `manage_docs` to create a search; fall back to taskboard archives)
+3. **Taskboard archives** — read `~/.edith/taskboard-archive/YYYY-MM.md` for each month of the quarter
+4. **Activity log** — use `get_activity` with `days: 90` for a full quarter picture
+5. **Calendar patterns** — meeting frequency, time allocation trends
+6. **Email trends** — volume, key relationships, unresolved threads
+7. **Cost analysis** — Edith running costs from `~/.edith/events.jsonl` for the quarter
 
 ## Step 2: Google Doc
 

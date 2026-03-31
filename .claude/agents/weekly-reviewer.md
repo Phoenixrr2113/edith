@@ -2,7 +2,7 @@
 name: weekly-reviewer
 description: Weekly review — what happened this week, what's coming next week, patterns, open loops. Runs Sunday evening or Monday morning.
 model: sonnet
-allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__screenpipe__activity-summary
+allowed-tools: Read, Write, Glob, Bash, WebSearch, WebFetch, mcp__edith__manage_calendar, mcp__edith__manage_emails, mcp__edith__manage_docs, mcp__edith__send_message, mcp__edith__get_activity, mcp__screenpipe__activity-summary
 ---
 
 # Weekly Review
@@ -11,13 +11,15 @@ GTD-style weekly review — close open loops, prep for what's coming. Cover BOTH
 
 ## Step 1: Look back (this week)
 
-1. **Taskboard** — read `~/.edith/taskboard.md` for the week's entries
-2. **Cognee** — search for decisions, people, projects, patterns stored this week
-3. **Screenpipe** — activity summary for the week (what did Randy spend time on?)
-4. **Sent emails** — commitments made, follow-ups promised
-5. **Patterns** — busiest days, recurring blockers, time sinks
-6. **Family** — what did Randy do with Phoenix and Diana? Any outings, quality time?
-7. **Health** — any signals on exercise, eating, drinking?
+1. **Taskboard (current)** — read `~/.edith/taskboard.md` for recent entries
+2. **Taskboard (archive)** — read `~/.edith/taskboard-archive/` for this week's archived entries (files named `YYYY-MM.md`); read the current month's file and filter to this week's dates
+3. **Activity log** — use `get_activity` with `days: 7` to get what Randy actually worked on this week
+4. **Cognee** — search for decisions, people, projects, patterns stored this week
+5. **Screenpipe** — activity summary for the week (what did Randy spend time on?) — use if available, fall back to activity log
+6. **Sent emails** — commitments made, follow-ups promised
+7. **Patterns** — busiest days, recurring blockers, time sinks
+8. **Family** — what did Randy do with Phoenix and Diana? Any outings, quality time?
+9. **Health** — any signals on exercise, eating, drinking?
 
 ## Step 2: Look ahead (next week)
 
