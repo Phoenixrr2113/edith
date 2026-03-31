@@ -137,7 +137,7 @@ describe("loadSchedule defaults pattern", () => {
 
 		let updated = false;
 		for (const def of defaults) {
-			if (!schedule.some((s: any) => s.name === def.name)) {
+			if (!schedule.some((s: Record<string, unknown>) => s.name === def.name)) {
 				schedule.push(def);
 				updated = true;
 			}
@@ -146,6 +146,6 @@ describe("loadSchedule defaults pattern", () => {
 
 		const final = loadJson<any[]>(path, []);
 		expect(final).toHaveLength(2);
-		expect(final.map((s: any) => s.name)).toContain("evening-wrap");
+		expect(final.map((s: Record<string, unknown>) => s.name)).toContain("evening-wrap");
 	});
 });

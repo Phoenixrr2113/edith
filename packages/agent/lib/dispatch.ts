@@ -10,16 +10,16 @@
  *   - AbortController timeout to prevent hangs
  */
 
-import {
-	type McpServerConfig,
-	type Options,
-	type Query,
-	type SDKAssistantMessage,
-	type SDKCompactBoundaryMessage,
-	type SDKResultMessage,
-	type SDKTaskNotificationMessage,
-	type SDKTaskProgressMessage,
-	type SDKTaskStartedMessage,
+import type {
+	McpServerConfig,
+	Options,
+	Query,
+	SDKAssistantMessage,
+	SDKCompactBoundaryMessage,
+	SDKResultMessage,
+	SDKTaskNotificationMessage,
+	SDKTaskProgressMessage,
+	SDKTaskStartedMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 // Import query from instrument.ts — uses the Langfuse-patched version when available
 import { query } from "../instrument";
@@ -151,15 +151,30 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 	return sdkOptions;
 }
 
+export interface ToolCallRecord {
+	name: string;
+	input: string; // JSON preview, max 500 chars
+	durationMs?: number;
+}
+
 export interface StreamResult {
 	lastResult: string;
 	newSessionId: string;
 	totalCost: number;
 	turns: number;
 	needsRetry: boolean;
-	modelUsage: Record<string, { inputTokens: number; outputTokens: number }>;
+	modelUsage: Record<
+		string,
+		{
+			inputTokens: number;
+			outputTokens: number;
+			cacheReadInputTokens?: number;
+			cacheCreationInputTokens?: number;
+		}
+	>;
 	durationApiMs: number;
 	stopReason: string | null;
+	toolCalls: ToolCallRecord[];
 }
 
 /** Consumes the Agent SDK query stream, tracking turns, cost, and session. */
@@ -178,9 +193,18 @@ export async function processMessageStream(
 	let newSessionId = "";
 	let totalCost = 0;
 	let needsRetry = false;
-	let modelUsage: Record<string, { inputTokens: number; outputTokens: number }> = {};
+	let modelUsage: Record<
+		string,
+		{
+			inputTokens: number;
+			outputTokens: number;
+			cacheReadInputTokens?: number;
+			cacheCreationInputTokens?: number;
+		}
+	> = {};
 	let durationApiMs = 0;
 	let stopReason: string | null = null;
+	const toolCalls: ToolCallRecord[] = [];
 
 	/** Inject a reflection into the running session (non-blocking). */
 	const maybeInject = async (
@@ -281,12 +305,22 @@ export async function processMessageStream(
 				const hasToolUse = toolUseBlocks.length > 0;
 				if (hasToolUse) turns++;
 
+				// Record all tool calls for edithLog
+				if (hasToolUse) {
+					for (const block of toolUseBlocks) {
+						const toolName = block.name ?? "";
+						const toolInput = block.input ?? {};
+						const inputPreview = JSON.stringify(toolInput).slice(0, 500);
+						toolCalls.push({ name: toolName, input: inputPreview });
+					}
+				}
+
 				// --- Reflector: feed tool uses + check triggers ---
 				if (reflector && hasToolUse) {
 					for (const block of toolUseBlocks) {
 						const toolName = block.name ?? "";
 						const toolInput = block.input ?? {};
-						const inputPreview = JSON.stringify(toolInput).slice(0, 300);
+						const inputPreview = JSON.stringify(toolInput).slice(0, 500);
 
 						reflector.recordToolUse(toolName, inputPreview);
 
@@ -357,6 +391,7 @@ export async function processMessageStream(
 		modelUsage,
 		durationApiMs,
 		stopReason,
+		toolCalls,
 	};
 }
 
@@ -376,8 +411,10 @@ export async function dispatchToClaude(
 	}
 
 	if (busy) {
-		// Try streamInput injection if session is running — works for both messages and scheduled tasks
-		if (getActiveQuery()) {
+		// Only inject user messages into active sessions — never scheduled/background tasks.
+		// Scheduled tasks (skipIfBusy=true) either skip or retry next tick.
+		const allowInjection = !opts.skipIfBusy && getActiveQuery();
+		if (allowInjection) {
 			const injected = await injectMessage(prompt, opts.chatId);
 			if (injected) {
 				edithLog.info("message_injected", { label, prompt: prompt.slice(0, 200) });
@@ -462,6 +499,7 @@ export async function dispatchToClaude(
 			modelUsage,
 			durationApiMs,
 			stopReason,
+			toolCalls,
 		} = await processMessageStream(
 			queryHandle,
 			label,
@@ -502,6 +540,17 @@ export async function dispatchToClaude(
 			models: modelUsage,
 			inputTokens: Object.values(modelUsage).reduce((s, m) => s + m.inputTokens, 0),
 			outputTokens: Object.values(modelUsage).reduce((s, m) => s + m.outputTokens, 0),
+			cacheReadTokens: Object.values(modelUsage).reduce(
+				(s, m) => s + (m.cacheReadInputTokens ?? 0),
+				0
+			),
+			cacheWriteTokens: Object.values(modelUsage).reduce(
+				(s, m) => s + (m.cacheCreationInputTokens ?? 0),
+				0
+			),
+			toolCalls: toolCalls.map((t) => t.name),
+			toolCallCount: toolCalls.length,
+			toolCallDetails: toolCalls,
 			prompt: prompt.slice(0, 1000),
 			result: lastResult?.replace(/\n/g, " ").slice(0, 1000),
 			session: newSessionId?.slice(0, 8) ?? "ephemeral",
