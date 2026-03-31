@@ -1,3 +1,4 @@
+mod computer_use;
 mod screen;
 
 use tauri::{
@@ -19,6 +20,7 @@ pub fn run() {
             screen::capture_screen,
             screen::start_capture,
             screen::stop_capture,
+            computer_use::run_shell_command,
         ])
         .setup(|app| {
             // --- System tray with right-click menu ---

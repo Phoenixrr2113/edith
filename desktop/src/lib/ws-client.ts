@@ -28,7 +28,8 @@ export type WsMessageType =
 	| "input"
 	| "screen_context"
 	| "screen_query"
-	| "sync-request";
+	| "sync-request"
+	| "computer_use";
 
 // Cloud → Device
 
@@ -159,6 +160,13 @@ export interface WsSyncRequestMessage extends WsMessage {
 	type: "sync-request";
 }
 
+/** Cloud → Device: request the desktop to execute a computer-use action. */
+export interface WsComputerUseMessage extends WsMessage {
+	type: "computer_use";
+	/** Serialised ComputerAction — see computer-use.ts */
+	action: Record<string, unknown>;
+}
+
 // Heartbeat
 
 export interface WsPingMessage extends WsMessage {
@@ -184,7 +192,8 @@ export type AnyWsMessage =
 	| WsScreenQueryMessage
 	| WsSyncRequestMessage
 	| WsPingMessage
-	| WsPongMessage;
+	| WsPongMessage
+	| WsComputerUseMessage;
 
 // DeviceMessage = messages the device is allowed to send
 export type DeviceMessage =

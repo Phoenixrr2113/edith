@@ -51,6 +51,10 @@ export interface DesktopSettings {
 	geminiApiKey: string;
 	/** Whether Gemini-powered screen understanding is enabled */
 	geminiEnabled: boolean;
+	/** Whether Gemini Live real-time audio conversation is enabled */
+	geminiLiveEnabled: boolean;
+	/** Gemini Live model to use (default: gemini-2.0-flash-exp) */
+	geminiLiveModel: string;
 }
 
 const STORAGE_KEY = "edith-settings";
@@ -78,6 +82,8 @@ const DEFAULTS: DesktopSettings = {
 	captureRetentionHours: 2,
 	geminiApiKey: "",
 	geminiEnabled: false,
+	geminiLiveEnabled: false,
+	geminiLiveModel: "gemini-2.0-flash-exp",
 };
 
 // ── Load / save ───────────────────────────────────────────────────────────────
