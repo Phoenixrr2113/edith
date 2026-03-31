@@ -15,10 +15,11 @@ async function getCalendarEvents(): Promise<string> {
     if (!result.ok || !result.data) return "";
     if (typeof result.data === "string") return "";
 
-    const events = Array.isArray(result.data) ? result.data : [result.data];
+    type CalendarEvent = { start?: string; end?: string; summary?: string; title?: string; location?: string };
+    const events: CalendarEvent[] = Array.isArray(result.data) ? result.data as CalendarEvent[] : [result.data as CalendarEvent];
     if (events.length === 0) return "";
 
-    return events.map((e: any) => {
+    return events.map((e) => {
       const start = e.start ? new Date(e.start).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) : "all-day";
       const end = e.end ? new Date(e.end).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }) : "";
       const time = end ? `${start}–${end}` : start;
@@ -39,12 +40,15 @@ async function getRecentEmails(): Promise<string> {
     if (!result.ok || !result.data) return "";
     if (typeof result.data === "string") return "";
 
-    const emails = Array.isArray(result.data)
-      ? result.data
-      : result.data.emails ?? [result.data];
+    type EmailEntry = { from?: string; sender?: string; subject?: string; snippet?: string; date?: string };
+    type EmailResponse = { emails?: EmailEntry[] };
+    const emailData = result.data as EmailEntry[] | EmailResponse | EmailEntry;
+    const emails: EmailEntry[] = Array.isArray(emailData)
+      ? emailData
+      : (emailData as EmailResponse).emails ?? [emailData as EmailEntry];
     if (emails.length === 0) return "";
 
-    return emails.map((e: any) => {
+    return emails.map((e) => {
       const from = e.from ?? e.sender ?? "";
       const subject = e.subject ?? "";
       const snippet = e.snippet?.slice(0, 120) ?? "";

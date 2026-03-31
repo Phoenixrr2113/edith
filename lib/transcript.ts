@@ -23,17 +23,20 @@ export function startTranscript(wakeId: string): void {
   } catch {}
 }
 
+type ContentBlock = { type: string; name?: string; input?: unknown; text?: string };
+type SDKMessageLike = { type?: string; message?: { content?: ContentBlock[] | string }; subtype?: string; is_error?: boolean; num_turns?: number; total_cost_usd?: number; duration_ms?: number; result?: string; session_id?: string };
+
 /**
  * Append a message to the transcript.
  */
-export function appendTranscript(wakeId: string, message: any): void {
+export function appendTranscript(wakeId: string, message: SDKMessageLike): void {
   const path = join(TRANSCRIPTS_DIR, `${wakeId}.jsonl`);
   try {
     // Only log meaningful message types, skip streaming events to keep size reasonable
     const type = message?.type;
     if (type === "stream_event") return;
 
-    const entry: Record<string, any> = {
+    const entry: Record<string, unknown> = {
       ts: new Date().toISOString(),
       type,
     };
@@ -42,7 +45,7 @@ export function appendTranscript(wakeId: string, message: any): void {
       // Log tool calls and text blocks, but truncate content
       const content = message.message?.content;
       if (Array.isArray(content)) {
-        entry.blocks = content.map((block: any) => {
+        entry.blocks = content.map((block) => {
           if (block.type === "tool_use") {
             return { type: "tool_use", name: block.name, input_preview: (JSON.stringify(block.input) ?? "").slice(0, 200) };
           }
@@ -60,9 +63,10 @@ export function appendTranscript(wakeId: string, message: any): void {
       entry.duration_ms = message.duration_ms;
       if (message.result) entry.result_preview = (typeof message.result === "string" ? message.result : JSON.stringify(message.result)).slice(0, 300);
     } else if (type === "user") {
-      const content = typeof message.message?.content === "string"
-        ? message.message.content.slice(0, 300)
-        : JSON.stringify(message.message?.content).slice(0, 300);
+      const rawContent = message.message?.content;
+      const content = typeof rawContent === "string"
+        ? rawContent.slice(0, 300)
+        : JSON.stringify(rawContent).slice(0, 300);
       entry.content_preview = content;
     }
 

@@ -42,8 +42,8 @@ export function registerEmailTools(server: McpServer): void {
       const params = { hoursBack: hoursBack ?? 4, unreadOnly: unreadOnly ?? true, maxResults: maxResults ?? 10 };
       const result = await n8nPost("gmail", params);
       if (!result.ok) return textResponse(`Gmail error: ${result.error}`);
-      const data = result.data;
-      if (data?.emails?.length > params.maxResults) {
+      const data = result.data as { emails?: unknown[]; count?: number } | null | undefined;
+      if (data?.emails && data.emails.length > params.maxResults) {
         data.emails = data.emails.slice(0, params.maxResults);
         data.count = data.emails.length;
       }

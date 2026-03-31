@@ -60,7 +60,7 @@ export async function isAvailable(): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(TIMEOUT) });
     if (!res.ok) return false;
-    const data = await res.json() as any;
+    const data = await res.json() as { status?: string };
     return data.status === "healthy" || data.status === "degraded";
   } catch {
     return false;
@@ -161,7 +161,7 @@ async function search(params: {
   });
 
   if (!res.ok) return [];
-  const data = await res.json() as any;
+  const data = await res.json() as { data?: SearchItem[] };
   return data.data ?? [];
 }
 

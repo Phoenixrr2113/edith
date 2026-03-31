@@ -86,7 +86,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
       return null;
     }
 
-    const data = await res.json() as any;
+    const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
     const text = data.choices?.[0]?.message?.content?.trim();
     if (!text) return null;
 

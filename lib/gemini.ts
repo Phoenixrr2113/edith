@@ -29,7 +29,9 @@ export async function generateImages(prompt: string, numberOfImages: number = 1)
   const model = ai.getGenerativeModel({ model: "imagen-3.0-generate-001" });
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ["image"], candidateCount: numberOfImages } as any,
+    // `responseModalities` is not in the public SDK type for GenerationConfig but is required
+    // by Imagen models — cast to satisfy the type checker.
+    generationConfig: { responseModalities: ["image"], candidateCount: numberOfImages } as Record<string, unknown>,
   });
 
   const images: string[] = [];

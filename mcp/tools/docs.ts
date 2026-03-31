@@ -20,7 +20,7 @@ export function registerDocsTools(server: McpServer): void {
   }, async ({ title, content, folderId }) => {
     const result = await n8nPost("docs", { title, content, folderId });
     if (!result.ok) return textResponse(`Failed to create doc: ${result.error}`);
-    const data = result.data as any;
+    const data = result.data as { docId?: string; docUrl?: string; name?: string };
     return jsonResponse({ ok: true, docId: data.docId, docUrl: data.docUrl, name: data.name });
   });
 

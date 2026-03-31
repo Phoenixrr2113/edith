@@ -23,14 +23,14 @@ export interface SystemStatus {
   cognee: boolean;
   screenpipe: boolean;
   sessionId: string | null;
-  activeProcesses: any[];
-  schedule: any[];
-  scheduleState: Record<string, any>;
+  activeProcesses: Record<string, unknown>[];
+  schedule: Record<string, unknown>[];
+  scheduleState: Record<string, unknown>;
   proactive: {
-    interventions: any[];
+    interventions: Record<string, unknown>[];
     lastCheck: string | null;
   };
-  reminders: any[];
+  reminders: Record<string, unknown>[];
 }
 
 export interface EventStats {
@@ -45,7 +45,7 @@ export interface EventStats {
 
 // --- Internal helpers ---
 
-function readJsonFile(path: string): any {
+function readJsonFile(path: string): unknown {
   if (!existsSync(path)) return null;
   try { return JSON.parse(readFileSync(path, "utf-8")); } catch { return null; }
 }
@@ -58,13 +58,13 @@ function readTextFile(path: string): string {
 // --- Exported functions ---
 
 /** Read the last `limit` events from events.jsonl, most-recent first. */
-export function readEventsFile(limit: number = 100): any[] {
+export function readEventsFile(limit: number = 100): Record<string, unknown>[] {
   if (!existsSync(EVENTS_FILE)) return [];
   try {
     const lines = readFileSync(EVENTS_FILE, "utf-8").split("\n").filter(Boolean);
     return lines.slice(-limit).reverse().map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
+      try { return JSON.parse(l) as Record<string, unknown>; } catch { return null; }
+    }).filter((e): e is Record<string, unknown> => e !== null);
   } catch { return []; }
 }
 
@@ -99,8 +99,8 @@ export async function getSystemStatus(): Promise<SystemStatus> {
       try {
         await fetch(`${COGNEE_URL}/sse`, { signal: c.signal });
         return true;
-      } catch (e: any) {
-        return e?.name === "AbortError";
+      } catch (e: unknown) {
+        return (e as { name?: string })?.name === "AbortError";
       } finally {
         clearTimeout(timeoutId);
       }
@@ -116,23 +116,23 @@ export async function getSystemStatus(): Promise<SystemStatus> {
     cognee: cogneeOk,
     screenpipe: screenpipeOk,
     sessionId: readTextFile(SESSION_FILE).trim() || null,
-    activeProcesses: readJsonFile(join(STATE_DIR, "active-processes.json")) ?? [],
-    schedule: readJsonFile(join(STATE_DIR, "schedule.json")) ?? [],
-    scheduleState: readJsonFile(join(STATE_DIR, "schedule-state.json")) ?? {},
+    activeProcesses: readJsonFile(join(STATE_DIR, "active-processes.json")) as Record<string, unknown>[] ?? [],
+    schedule: readJsonFile(join(STATE_DIR, "schedule.json")) as Record<string, unknown>[] ?? [],
+    scheduleState: readJsonFile(join(STATE_DIR, "schedule-state.json")) as Record<string, unknown> ?? {},
     proactive: {
-      interventions: (proactiveState?.interventions ?? []).filter(
-        (i: any) => Date.now() - new Date(i.timestamp).getTime() < 24 * 60 * 60 * 1000
+      interventions: ((proactiveState as Record<string, unknown> | null)?.interventions as Record<string, unknown>[] ?? []).filter(
+        (i) => Date.now() - new Date((i as { timestamp: string }).timestamp).getTime() < 24 * 60 * 60 * 1000
       ),
-      lastCheck: proactiveState?.lastCheck ?? null,
+      lastCheck: (proactiveState as Record<string, unknown> | null)?.lastCheck as string | null ?? null,
     },
-    reminders: readJsonFile(REMINDERS_FILE) ?? [],
+    reminders: readJsonFile(REMINDERS_FILE) as Record<string, unknown>[] ?? [],
   };
 }
 
 /** Compute today's event statistics from a pre-loaded events array. */
-export function getEventStats(events: any[]): EventStats {
+export function getEventStats(events: Record<string, unknown>[]): EventStats {
   const now = Date.now();
-  const today = events.filter((e) => now - new Date(e.ts).getTime() < 24 * 60 * 60 * 1000);
+  const today = events.filter((e) => now - new Date(e.ts as string).getTime() < 24 * 60 * 60 * 1000);
   return {
     messagesReceived: today.filter((e) => e.type === "message_received").length,
     messagesSent: today.filter((e) => e.type === "message_sent").length,
@@ -142,9 +142,9 @@ export function getEventStats(events: any[]): EventStats {
     avgDispatchMs: (() => {
       const durations = today
         .filter((e) => e.type === "dispatch_end" && e.durationMs)
-        .map((e) => e.durationMs);
+        .map((e) => e.durationMs as number);
       return durations.length > 0
-        ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length)
+        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
         : 0;
     })(),
     costUsd: (() => {

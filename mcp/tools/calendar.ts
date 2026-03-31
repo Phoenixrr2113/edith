@@ -43,9 +43,9 @@ export function registerCalendarTools(server: McpServer): void {
         if (result.data === null) return jsonResponse({ events: [], message: "No upcoming events" });
         return textResponse(`Calendar error: ${result.error}`);
       }
-      const data = result.data;
+      const data = result.data as { events?: Array<{ start?: string; end?: string; summary?: string }>; count?: number } | null | undefined;
       if (data?.events) {
-        data.events = data.events.filter((e: any) => {
+        data.events = data.events.filter((e) => {
           if (!inclAllDay && !e.start?.includes("T")) return false;
           const eventStart = e.start;
           if (!eventStart) return true;

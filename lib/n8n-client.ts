@@ -7,7 +7,7 @@ import { fmtErr } from "./util";
 export async function n8nPost(
   endpoint: string,
   payload: Record<string, unknown>
-): Promise<{ ok: boolean; data?: any; error?: string; status?: number }> {
+): Promise<{ ok: boolean; data?: unknown; error?: string; status?: number }> {
   try {
     const res = await fetch(`${N8N_URL}/webhook/${endpoint}`, {
       method: "POST",

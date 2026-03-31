@@ -25,7 +25,7 @@ export async function sendTwilio(
     body: params.toString(),
   });
 
-  const data = (await res.json()) as any;
+  const data = (await res.json()) as { sid?: string; message?: string };
   return res.ok
     ? { ok: true, sid: data.sid }
     : { ok: false, error: data.message ?? `HTTP ${res.status}` };

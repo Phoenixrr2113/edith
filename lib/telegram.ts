@@ -7,7 +7,7 @@ import { TELEGRAM_BOT_TOKEN as BOT_TOKEN, INBOX_DIR } from "./config";
 
 const TG = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-export async function tgCall(method: string, body?: Record<string, any>): Promise<any> {
+export async function tgCall(method: string, body?: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${TG}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -55,7 +55,7 @@ export async function sendPhoto(chatId: number, photoData: string, caption?: str
 }
 
 export async function downloadFile(fileId: string, ext: string): Promise<string> {
-  const fileInfo = await tgCall("getFile", { file_id: fileId });
+  const fileInfo = await tgCall("getFile", { file_id: fileId }) as { file_path?: string };
   const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`;
   const res = await fetch(url);
   const buf = await res.arrayBuffer();

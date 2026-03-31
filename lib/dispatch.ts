@@ -9,7 +9,7 @@
  *   - Circuit breaker for repeated failures
  *   - AbortController timeout to prevent hangs
  */
-import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage, type SDKTaskStartedMessage, type SDKTaskProgressMessage, type SDKTaskNotificationMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage, type SDKTaskStartedMessage, type SDKTaskProgressMessage, type SDKTaskNotificationMessage, type McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
 import {
@@ -61,11 +61,26 @@ let pidCounter = 0;
 // --- Lightweight task set (uses shorter timeout) ---
 const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
 
+// --- Content block types matching BetaMessage.content shape ---
+interface ToolUseBlock {
+  type: "tool_use";
+  name: string;
+  input: Record<string, unknown>;
+}
+
+interface TextBlock {
+  type: "text";
+  text: string;
+}
+
+type ContentBlock = ToolUseBlock | TextBlock | { type: string };
+
 // --- MCP config ---
-function loadMcpConfig(): Record<string, any> {
+function loadMcpConfig(): Record<string, McpServerConfig> {
   try {
-    const config = loadJson<Record<string, any>>(`${PROJECT_ROOT}/.mcp.json`, {});
-    return config.mcpServers ?? {};
+    const config = loadJson<Record<string, unknown>>(`${PROJECT_ROOT}/.mcp.json`, {});
+    // JSON is loaded as unknown; cast to the SDK's expected shape
+    return (config.mcpServers as Record<string, McpServerConfig>) ?? {};
   } catch {
     return {};
   }
@@ -136,7 +151,7 @@ export async function processMessageStream(
   let needsRetry = false;
 
   /** Inject a reflection into the running session (non-blocking). */
-  const maybeInject = async (trigger: "periodic" | "compaction" | "guard", guardCtx?: { toolName: string; toolInput: any }) => {
+  const maybeInject = async (trigger: "periodic" | "compaction" | "guard", guardCtx?: { toolName: string; toolInput: Record<string, unknown> }) => {
     if (!reflector) return;
     try {
       const reflection = await reflector.buildReflection(trigger, guardCtx);
@@ -165,7 +180,7 @@ export async function processMessageStream(
       }
 
       // --- Reflector: detect compaction ---
-      if (message.type === "system" && "subtype" in message && (message as any).subtype === "compact_boundary") {
+      if (message.type === "system" && "subtype" in message && message.subtype === "compact_boundary") {
         const boundary = message as SDKCompactBoundaryMessage;
         const preTokens = boundary.compact_metadata.pre_tokens;
         const trigger = boundary.compact_metadata.trigger;
@@ -181,7 +196,7 @@ export async function processMessageStream(
 
       // --- Background agent task events ---
       if (message.type === "system" && "subtype" in message) {
-        const subtype = (message as any).subtype;
+        const subtype = message.subtype;
 
         if (subtype === "task_started") {
           const m = message as SDKTaskStartedMessage;
@@ -208,16 +223,16 @@ export async function processMessageStream(
       if (message.type === "assistant") {
         const assistantMsg = message as SDKAssistantMessage;
         const content = assistantMsg.message?.content;
-        const toolUseBlocks = content?.filter?.((block: any) => block.type === "tool_use") ?? [];
+        const blocks = (content as ContentBlock[] | undefined) ?? [];
+        const toolUseBlocks = blocks.filter((block): block is ToolUseBlock => block.type === "tool_use");
         const hasToolUse = toolUseBlocks.length > 0;
         if (hasToolUse) turns++;
 
         // --- Reflector: feed tool uses + check triggers ---
         if (reflector && hasToolUse) {
           for (const block of toolUseBlocks) {
-            const toolBlock = block as any;
-            const toolName = toolBlock.name ?? "";
-            const toolInput = toolBlock.input ?? {};
+            const toolName = block.name ?? "";
+            const toolInput = block.input ?? {};
             const inputPreview = JSON.stringify(toolInput).slice(0, 300);
 
             reflector.recordToolUse(toolName, inputPreview);
@@ -235,11 +250,9 @@ export async function processMessageStream(
         }
 
         // Extract text for logging + reflector
-        const textBlocks = content?.filter?.(
-          (block: any) => block.type === "text"
-        );
-        if (textBlocks?.length) {
-          lastResult = (textBlocks[textBlocks.length - 1] as any).text ?? "";
+        const textBlocks = blocks.filter((block): block is TextBlock => block.type === "text");
+        if (textBlocks.length) {
+          lastResult = textBlocks[textBlocks.length - 1].text ?? "";
           if (reflector) {
             reflector.recordText(lastResult);
           }
@@ -252,8 +265,8 @@ export async function processMessageStream(
         totalCost = resultMsg.total_cost_usd ?? 0;
         turns = resultMsg.num_turns ?? turns;
 
-        if ("result" in resultMsg && typeof (resultMsg as any).result === "string") {
-          lastResult = (resultMsg as any).result ?? lastResult;
+        if ("result" in resultMsg && typeof resultMsg.result === "string") {
+          lastResult = resultMsg.result ?? lastResult;
         }
 
         // Check for errors

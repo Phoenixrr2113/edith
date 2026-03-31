@@ -62,8 +62,8 @@ export function saveSchedule(entries: ScheduleEntry[]): void {
 }
 
 export function loadLocations(): LocationEntry[] {
-  const raw = loadJson<any>(LOCATIONS_FILE, { locations: [] });
-  return raw.locations ?? raw ?? [];
+  const raw = loadJson<{ locations?: LocationEntry[] } | LocationEntry[]>(LOCATIONS_FILE, { locations: [] });
+  return (raw as { locations?: LocationEntry[] }).locations ?? (raw as LocationEntry[]) ?? [];
 }
 
 export function saveLocations(locations: LocationEntry[]): void {

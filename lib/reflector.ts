@@ -140,14 +140,14 @@ export class ReflectorSession {
   }
 
   /** Check if an irreversible tool call should be guarded. */
-  shouldGuardTool(toolName: string, toolInput: any): boolean {
+  shouldGuardTool(toolName: string, toolInput: Record<string, unknown>): boolean {
     if (!this.config.enabled || this.config.mode === "eval-only") return false;
     if (!this.config.guardIrreversible) return false;
     if (!IRREVERSIBLE_TOOLS.has(toolName)) return false;
 
     // For email/calendar, only guard write actions
     if (toolName === "mcp__edith__manage_emails" || toolName === "mcp__edith__manage_calendar") {
-      const action = toolInput?.action ?? "get";
+      const action = String(toolInput?.action ?? "get");
       if (READ_ONLY_ACTIONS.has(action)) return false;
     }
 
@@ -159,7 +159,7 @@ export class ReflectorSession {
   // -------------------------------------------------------------------------
 
   /** Build a reflection prompt and return it, or null if nothing useful to say. */
-  async buildReflection(trigger: "periodic" | "compaction" | "guard", guardContext?: { toolName: string; toolInput: any }): Promise<string | null> {
+  async buildReflection(trigger: "periodic" | "compaction" | "guard", guardContext?: { toolName: string; toolInput: Record<string, unknown> }): Promise<string | null> {
     this.lastReflectionAt = this.toolCallCount;
 
     const compressedTranscript = this.compressTranscript();
@@ -293,7 +293,7 @@ export class ReflectorSession {
   private buildReflectorPrompt(
     trigger: "periodic" | "compaction" | "guard",
     compressedTranscript: string,
-    guardContext?: { toolName: string; toolInput: any },
+    guardContext?: { toolName: string; toolInput: Record<string, unknown> },
   ): string {
     const sections: string[] = [];
 
@@ -344,12 +344,12 @@ async function callReflectorModel(prompt: string): Promise<string> {
   let result = "";
   for await (const message of handle) {
     if (message.type === "assistant") {
-      const content = (message as any).message?.content;
-      const textBlock = content?.find?.((b: any) => b.type === "text");
+      const content = message.message?.content as Array<{ type: string; text?: string }> | undefined;
+      const textBlock = content?.find((b) => b.type === "text");
       if (textBlock?.text) result = textBlock.text;
     }
-    if (message.type === "result") {
-      const resultText = (message as any).result;
+    if (message.type === "result" && "result" in message) {
+      const resultText = message.result;
       if (typeof resultText === "string") result = resultText || result;
     }
   }
