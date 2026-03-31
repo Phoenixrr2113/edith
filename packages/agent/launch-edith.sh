@@ -148,7 +148,7 @@ LOG_FILE="$STATE_DIR/edith.log"
 EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
 
 start_edith() {
-  EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
+  EDITH_LOG_FILE="$LOG_FILE" bun --preload ./instrument.ts "$DIR/edith.ts" &
   EDITH_PID=$!
   echo "$EDITH_PID" > "$EDITH_PIDFILE"
   echo "[launch] Edith started (PID $EDITH_PID)"
@@ -186,7 +186,7 @@ if command -v fswatch >/dev/null 2>&1; then
       fi
 
       sleep 1
-      EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
+      EDITH_LOG_FILE="$LOG_FILE" bun --preload ./instrument.ts "$DIR/edith.ts" &
       echo "$!" > "$EDITH_PIDFILE"
       echo "[launch] Edith restarted (PID $!)"
     done
