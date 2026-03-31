@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { n8nPost } from "../../lib/n8n-client";
+import { getEvents, createEvent, updateEvent, deleteEvent } from "../../lib/gcal";
 import { logEvent } from "../../lib/state";
 
 export function registerCalendarTools(server: McpServer): void {
@@ -78,74 +78,79 @@ export function registerCalendarTools(server: McpServer): void {
 				const behind = hoursBehind ?? 0;
 				const inclAllDay = includeAllDay ?? true;
 				const now = Date.now();
-				const timeMin = new Date(now - behind * 3600000).toISOString();
-				const timeMax = new Date(now + ahead * 3600000).toISOString();
-				const result = await n8nPost("calendar", { timeMin, timeMax, includeAllDay: inclAllDay });
-				if (!result.ok) {
-					if (result.data === null)
-						return jsonResponse({ events: [], message: "No upcoming events" });
-					return textResponse(`Calendar error: ${result.error}`);
-				}
-				const data = result.data as
-					| { events?: Array<{ start?: string; end?: string; summary?: string }>; count?: number }
-					| null
-					| undefined;
-				if (data?.events) {
-					data.events = data.events.filter((e) => {
-						if (!inclAllDay && !e.start?.includes("T")) return false;
-						const eventStart = e.start;
-						if (!eventStart) return true;
-						return eventStart >= timeMin && eventStart <= timeMax;
+				const timeMin = new Date(now - behind * 3600_000).toISOString();
+				const timeMax = new Date(now + ahead * 3600_000).toISOString();
+
+				try {
+					const events = await getEvents({
+						calendarId: calendar,
+						timeMin,
+						timeMax,
+						includeAllDay: inclAllDay,
 					});
-					data.count = data.events.length;
+					return jsonResponse({ events, count: events.length });
+				} catch (err) {
+					return textResponse(`Calendar error: ${err instanceof Error ? err.message : String(err)}`);
 				}
-				return jsonResponse(data);
 			}
 
 			// Create
 			if (action === "create") {
 				if (!summary) return textResponse("create requires a summary (event title)");
 				if (!start) return textResponse("create requires a start time");
-				const result = await n8nPost("calendar", {
-					action: "create",
-					summary,
-					start,
-					end,
-					location,
-					description,
-					allDay,
-					calendar,
-				});
-				if (!result.ok) return textResponse(`Calendar create error: ${result.error}`);
-				logEvent("calendar_created", { summary, start });
-				return jsonResponse(result.data ?? { ok: true, summary, start });
+				try {
+					const event = await createEvent({
+						calendarId: calendar,
+						summary,
+						start,
+						end,
+						description,
+						location,
+						allDay,
+					});
+					logEvent("calendar_created", { summary, start });
+					return jsonResponse(event);
+				} catch (err) {
+					return textResponse(
+						`Calendar create error: ${err instanceof Error ? err.message : String(err)}`
+					);
+				}
 			}
 
 			// Update
 			if (action === "update") {
 				if (!eventId) return textResponse("update requires an eventId");
-				const result = await n8nPost("calendar", {
-					action: "update",
-					eventId,
-					summary,
-					start,
-					end,
-					location,
-					description,
-					calendar,
-				});
-				if (!result.ok) return textResponse(`Calendar update error: ${result.error}`);
-				logEvent("calendar_updated", { eventId, summary });
-				return jsonResponse(result.data ?? { ok: true, eventId });
+				try {
+					const event = await updateEvent({
+						calendarId: calendar,
+						eventId,
+						summary,
+						start,
+						end,
+						description,
+						location,
+					});
+					logEvent("calendar_updated", { eventId, summary });
+					return jsonResponse(event);
+				} catch (err) {
+					return textResponse(
+						`Calendar update error: ${err instanceof Error ? err.message : String(err)}`
+					);
+				}
 			}
 
 			// Delete
 			if (action === "delete") {
 				if (!eventId) return textResponse("delete requires an eventId");
-				const result = await n8nPost("calendar", { action: "delete", eventId, calendar });
-				if (!result.ok) return textResponse(`Calendar delete error: ${result.error}`);
-				logEvent("calendar_deleted", { eventId });
-				return textResponse(`Deleted event: ${eventId}`);
+				try {
+					await deleteEvent({ calendarId: calendar, eventId });
+					logEvent("calendar_deleted", { eventId });
+					return textResponse(`Deleted event: ${eventId}`);
+				} catch (err) {
+					return textResponse(
+						`Calendar delete error: ${err instanceof Error ? err.message : String(err)}`
+					);
+				}
 			}
 
 			return textResponse(`Unknown action: ${action}`);
