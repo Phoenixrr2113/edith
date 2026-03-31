@@ -72,7 +72,7 @@ function loadMcpConfig(): Record<string, any> {
 }
 
 /** Builds the Agent SDK Options object from dispatch config. */
-function buildSdkOptions(
+export function buildSdkOptions(
   opts: DispatchOptions,
   abortController: AbortController,
 ): Options {
@@ -111,7 +111,7 @@ function buildSdkOptions(
   return sdkOptions;
 }
 
-interface StreamResult {
+export interface StreamResult {
   lastResult: string;
   newSessionId: string;
   totalCost: number;
@@ -120,7 +120,7 @@ interface StreamResult {
 }
 
 /** Consumes the Agent SDK query stream, tracking turns, cost, and session. */
-async function processMessageStream(
+export async function processMessageStream(
   queryHandle: Query,
   label: string,
   wakeId: string,
