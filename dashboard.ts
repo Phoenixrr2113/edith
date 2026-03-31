@@ -14,8 +14,9 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, join } from "node:path";
-import { N8N_URL, STATE_DIR } from "./lib/config";
+import { STATE_DIR } from "./lib/config";
 import { getEventStats, getSystemStatus, readEventsFile } from "./lib/dashboard-data";
+import { getEvents } from "./lib/gcal";
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
 const TRIGGERS_DIR = join(STATE_DIR, "triggers");
@@ -232,21 +233,8 @@ const routes: Record<string, RouteHandler> = {
 		// Calendar events for the next 12 hours
 		let calendarEvents: any[] = [];
 		try {
-			const res = await fetch(`${N8N_URL}/webhook/calendar`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ hoursAhead: 12, includeAllDay: true }),
-				signal: AbortSignal.timeout(5000),
-			});
-			if (res.ok) {
-				const body = await res.text();
-				if (!body.includes("No item to return")) {
-					try {
-						const data = JSON.parse(body);
-						calendarEvents = Array.isArray(data) ? data : (data.events ?? [data]);
-					} catch {}
-				}
-			}
+			const timeMax = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+			calendarEvents = await getEvents({ timeMax, includeAllDay: true });
 		} catch {}
 
 		// Unfired reminders

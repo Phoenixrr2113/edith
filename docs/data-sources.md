@@ -4,21 +4,21 @@ What Edith can access, how far back, and what's missing.
 
 ## Working Sources
 
-### Gmail (n8n workflow)
-- **Endpoint:** `POST /webhook/gmail`
+### Gmail (direct REST API via lib/gmail.ts)
+- **Auth:** OAuth2 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)
 - **Time range:** Relative only — `hoursBack: 1-48` from now
 - **Max results:** 20 per call
 - **Filters:** `unreadOnly` toggle, inbox label
-- **Can do:** Get recent emails, archive, trash, mark read, add/remove labels, batch operations
+- **Can do:** Get recent emails, archive, trash, mark read, add/remove labels, batch operations, send email
 - **Cannot do:** Search by date range, search by sender/subject/content, get sent mail explicitly, paginate beyond 20
 - **Workaround for reviews:** Daily briefs scan email every morning and write summaries to taskboard. Taskboard entries become the "email diary" for weekly/monthly reviews.
 
-### Google Calendar (n8n workflow)
-- **Endpoint:** `POST /webhook/calendar`
+### Google Calendar (direct REST API via lib/gcal.ts)
+- **Auth:** OAuth2 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)
 - **Time range:** Forward only — `hoursAhead: 1-168` (max 7 days)
 - **Can do:** Get upcoming events, create/update/delete events, include all-day events
 - **Cannot do:** Query past events, search by date range, query by attendee/title
-- **Gap for reviews:** Monthly/quarterly reviews can't inventory past meetings. Need either a `hoursBehind` parameter added to the n8n workflow, or rely on daily brief taskboard entries as the historical record.
+- **Gap for reviews:** Monthly/quarterly reviews can't inventory past meetings. Workaround: rely on daily brief taskboard entries as the historical record.
 
 ### Cognee (MCP stdio)
 - **Transport:** MCP stdio (local, no Docker)
@@ -40,7 +40,11 @@ What Edith can access, how far back, and what's missing.
 - **Can do:** Search files by name/content/date, read file contents (Docs, Sheets, etc.)
 - **Cannot do:** Create files, write/update files, share files
 - **How far back:** Entire Drive history
-- **Gap:** Cannot create Google Docs for review output. Need n8n workflow.
+
+### Google Docs (direct API via lib/gdocs.ts)
+- **Auth:** OAuth2 (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)
+- **Can do:** Create Google Docs with content, set folder location
+- **Returns:** `{ docId, docUrl }`
 
 ### Events Log (`~/.edith/events.jsonl`)
 - **Content:** Every dispatch, cost, error, schedule fire, location update — timestamped JSONL
@@ -69,34 +73,27 @@ What Edith can access, how far back, and what's missing.
 
 ## Infrastructure Gaps (blocking better reviews)
 
-### 1. Google Docs Creation (Working via n8n)
-**Status:** Resolved — `manage_docs` MCP tool now exists and creates Google Docs via n8n.
-**Implementation:** n8n workflow at `POST /webhook/docs` creates a Google Doc and returns a shareable URL.
-**Required fields:** `title`, `content` (markdown), `folderId` (optional)
-**Returns:** `{ docId, docUrl }`
-**Priority:** ~~HIGH — blocks all review improvements~~ Complete
-
-### 2. Historical Calendar
+### 1. Historical Calendar
 **Problem:** Can only look forward (next 7 days), not back.
-**Solution:** Add `hoursBehind` parameter to calendar n8n workflow, or add a separate `GET /webhook/calendar-history` endpoint.
+**Solution:** Add `hoursBehind` parameter to `lib/gcal.getEvents`.
 **Needed for:** Monthly reviews (inventory past meetings), quarterly reviews (meeting patterns)
 **Priority:** MEDIUM — workaround exists (daily briefs capture calendar to taskboard)
 
-### 3. Gmail Date Range Search
+### 2. Gmail Date Range Search
 **Problem:** Can only query relative time (`hoursBack: 1-48`), not absolute date ranges.
-**Solution:** Add `after`/`before` date parameters to Gmail n8n workflow.
+**Solution:** Add `after`/`before` date parameters to `lib/gmail.getEmails`.
 **Needed for:** Monthly reviews (email volume analysis, key threads)
 **Priority:** LOW — daily brief taskboard entries serve as email diary
 
-### 4. Taskboard History
+### 3. Taskboard History
 **Problem:** Taskboard rotates every 24 hours. Weekly/monthly reviews can't read old entries.
 **Solution options:**
 - Archive taskboard entries to a monthly file before rotation
 - Write daily summaries to Cognee (once working)
-- Write daily summaries to a Google Doc (once creation workflow exists)
+- Write daily summaries to a Google Doc
 **Priority:** MEDIUM — without this, reviews rely only on what's still in the taskboard
 
-### 5. Screenpipe Historical Queries
+### 4. Screenpipe Historical Queries
 **Problem:** Can only see current session activity, not past days.
 **Solution:** None available from Screenpipe. Would need to cache daily summaries.
 **Workaround:** Daily proactive-check captures Screenpipe snapshots to taskboard (when it works).

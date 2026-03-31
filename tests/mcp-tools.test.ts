@@ -2,7 +2,7 @@
  * Tests for MCP tool round-trips — exercises the same storage functions
  * that mcp/server.ts tool handlers use: locations, reminders, schedule, proactive.
  *
- * Also tests notification channel routing and n8n POST format.
+ * Also tests notification channel routing.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -321,10 +321,9 @@ describe("Notification channel routing", () => {
 		expect(routing.prefix).toBeUndefined();
 	});
 
-	test("email channel routes to n8n", () => {
+	test("email channel routes to gmail", () => {
 		const routing = getNotificationRoute("email");
-		expect(routing.method).toBe("n8n");
-		expect(routing.endpoint).toBe("notify");
+		expect(routing.method).toBe("gmail");
 	});
 
 	test("desktop channel routes to local notification", () => {
@@ -352,11 +351,11 @@ function getNotificationRoute(channel: string): {
 		case "sms":
 			return { method: "twilio" };
 		case "email":
-			return { method: "n8n", endpoint: "notify" };
+			return { method: "gmail" };
 		case "slack":
-			return { method: "n8n", endpoint: "notify" };
+			return { method: "unsupported" };
 		case "discord":
-			return { method: "n8n", endpoint: "notify" };
+			return { method: "unsupported" };
 		case "desktop":
 			return { method: "desktop" };
 		case "dialog":

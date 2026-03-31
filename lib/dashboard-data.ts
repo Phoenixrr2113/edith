@@ -4,7 +4,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EVENTS_FILE, N8N_URL, PID_FILE, REMINDERS_FILE, SESSION_FILE, STATE_DIR } from "./config";
+import { EVENTS_FILE, PID_FILE, REMINDERS_FILE, SESSION_FILE, STATE_DIR } from "./config";
 
 const COGNEE_URL = process.env.COGNEE_URL ?? "http://localhost:8001";
 
@@ -12,7 +12,6 @@ const COGNEE_URL = process.env.COGNEE_URL ?? "http://localhost:8001";
 
 export interface SystemStatus {
 	edith: boolean;
-	n8n: boolean;
 	cognee: boolean;
 	screenpipe: boolean;
 	sessionId: string | null;
@@ -106,8 +105,7 @@ export function isEdithAlive(): boolean {
 
 /** Return current system status: service health, active processes, schedule, proactive state. */
 export async function getSystemStatus(): Promise<SystemStatus> {
-	const [n8nOk, cogneeOk, screenpipeOk] = await Promise.all([
-		checkHealth(`${N8N_URL}/healthz`),
+	const [cogneeOk, screenpipeOk] = await Promise.all([
 		(async () => {
 			const c = new AbortController();
 			const timeoutId = setTimeout(() => c.abort(), 2000);
@@ -127,7 +125,6 @@ export async function getSystemStatus(): Promise<SystemStatus> {
 
 	return {
 		edith: isEdithAlive(),
-		n8n: n8nOk,
 		cognee: cogneeOk,
 		screenpipe: screenpipeOk,
 		sessionId: readTextFile(SESSION_FILE).trim() || null,

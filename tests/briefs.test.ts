@@ -5,7 +5,7 @@
  * - Pure/sync functions (buildMessageBrief, buildLocationBrief, buildScheduledBrief,
  *   detectTriggers, BRIEF_TYPE_MAP): tested directly — no mocks needed.
  * - Async builders (buildFullBrief, buildMiddayBrief, buildEveningBrief):
- *   use mock.module for taskboard (avoids ~/.edith I/O) and prewake (avoids n8n calls).
+ *   use mock.module for taskboard (avoids ~/.edith I/O) and prewake (avoids external API calls).
  *   screenpipe.isAvailable() returns false in CI/test env — no mock needed there.
  * - buildProactiveBrief: mock.module canIntervene to return allowed:false.
  * - buildBrief routing: tested against the same mocks, one assertion per type.

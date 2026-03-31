@@ -29,7 +29,7 @@ fi
 command -v terminal-notifier >/dev/null 2>&1 || echo "[launch] NOTE: terminal-notifier not installed — desktop notifications disabled"
 command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed — auto-restart on file changes disabled"
 
-# --- Start Docker services (Langfuse + Cognee + n8n) ---
+# --- Start Docker services (Langfuse + Cognee) ---
 if command -v docker >/dev/null 2>&1; then
   echo "[launch] Starting Docker services..."
   docker compose -f "$DIR/docker-compose.yml" up -d 2>/dev/null
@@ -72,60 +72,8 @@ if lsof -i ":$DASHBOARD_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- Check if n8n port is already in use ---
-N8N_PORT="${N8N_PORT:-5679}"
-N8N_SKIP=false
-if lsof -i ":$N8N_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  # Check if it's already an n8n process we can reuse
-  EXISTING_PID=$(lsof -i ":$N8N_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1)
-  if ps -p "$EXISTING_PID" -o command= 2>/dev/null | grep -qi "n8n"; then
-    echo "[launch] n8n already running (PID $EXISTING_PID), reusing"
-    N8N_SKIP=true
-  else
-    echo "[launch] ERROR: Port $N8N_PORT is already in use by another process (PID $EXISTING_PID)"
-    echo "         Run: lsof -i :$N8N_PORT  to see what's using it"
-    exit 1
-  fi
-fi
-
 # --- Pre-flight ---
 mkdir -p "$STATE_DIR" "$DIR/logs"
-
-# --- Backup n8n credentials (OAuth tokens etc) ---
-N8N_DB="$DIR/n8n/data/database.sqlite"
-N8N_BACKUP_DIR="$STATE_DIR/backups"
-mkdir -p "$N8N_BACKUP_DIR"
-if [ -f "$N8N_DB" ]; then
-  cp "$N8N_DB" "$N8N_BACKUP_DIR/n8n-database-$(date +%Y%m%d).sqlite"
-  # Keep only last 7 backups
-  ls -t "$N8N_BACKUP_DIR"/n8n-database-*.sqlite 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null
-  echo "[launch] n8n database backed up to $N8N_BACKUP_DIR"
-fi
-
-# --- Symlink n8n data dir (n8n reads from ~/.n8n by default) ---
-if [ ! -L "$HOME/.n8n" ] && [ ! -d "$HOME/.n8n" ]; then
-  ln -s "$DIR/n8n/data" "$HOME/.n8n"
-  echo "[launch] Symlinked ~/.n8n -> n8n/data"
-elif [ -L "$HOME/.n8n" ]; then
-  echo "[launch] ~/.n8n symlink already exists"
-else
-  echo "[launch] WARNING: ~/.n8n exists as a directory, not a symlink. n8n may use wrong data."
-fi
-
-# --- Start n8n as child process ---
-echo "[launch] Starting n8n..."
-N8N_PORT=5679 GENERIC_TIMEZONE="${TZ:-America/New_York}" npx n8n start > "$STATE_DIR/n8n.log" 2>&1 &
-N8N_PID=$!
-echo "[launch] n8n started (PID $N8N_PID)"
-
-# Wait for n8n to be healthy
-N8N_OK="down"
-for i in {1..30}; do
-  curl -s -o /dev/null --max-time 2 "http://localhost:$N8N_PORT/healthz" 2>/dev/null && N8N_OK="up" && break
-  sleep 2
-done
-echo "[launch] n8n: $N8N_OK"
-[ "$N8N_OK" = "down" ] && echo "[launch] WARNING: n8n not healthy — calendar/email may not work"
 
 # Cognee starts automatically via MCP stdio when Agent SDK launches — no separate process needed
 
@@ -179,7 +127,6 @@ cleanup() {
     rm -f "$EDITH_PIDFILE"
   fi
   kill $DASHBOARD_PID 2>/dev/null
-  [ -n "$N8N_PID" ] && kill $N8N_PID 2>/dev/null
   [ -n "$TAIL_PID" ] && kill $TAIL_PID 2>/dev/null
   [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"

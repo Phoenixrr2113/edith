@@ -29,9 +29,6 @@ export const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
 export const TWILIO_WA_FROM = process.env.TWILIO_WHATSAPP_FROM ?? "";
 export const TWILIO_SMS_FROM = process.env.TWILIO_SMS_FROM ?? "";
 
-// --- n8n ---
-export const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
-
 // --- Google ---
 export const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "";
 // Gmail OAuth — used by lib/google-auth.ts and lib/gmail.ts

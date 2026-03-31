@@ -100,8 +100,8 @@ else
   fail "Full dispatch failed: $DISPATCH_RESULT"
 fi
 
-# --- Test 6: Google Calendar via n8n ---
-echo "Test 6: manage_calendar tool (via n8n)"
+# --- Test 6: Google Calendar ---
+echo "Test 6: manage_calendar tool"
 CAL_RESULT=$(claude -p "Use the manage_calendar tool with action get and hoursAhead 12. Report what you get back — events or empty." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if echo "$CAL_RESULT" | grep -qi "event\|calendar\|no.*event\|empty\|clear\|nothing\|item"; then
@@ -112,8 +112,8 @@ fi
 
 echo ""
 
-# --- Test 7: Gmail via n8n ---
-echo "Test 7: manage_emails tool (via n8n)"
+# --- Test 7: Gmail ---
+echo "Test 7: manage_emails tool"
 GMAIL_RESULT=$(claude -p "Use the manage_emails tool with action get, hoursBack 24 and maxResults 3. Report how many emails you got back." --permission-mode bypassPermissions --mcp-config .mcp.json --output-format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('result','')[:300])" 2>/dev/null)
 
 if echo "$GMAIL_RESULT" | grep -qi "email\|message\|found\|result\|unread"; then

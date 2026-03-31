@@ -66,7 +66,6 @@ TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
 OPENROUTER_API_KEY=$OPENROUTER_API_KEY
 COGNEE_URL=http://localhost:8001
-N8N_URL=http://localhost:5679
 GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY
 GROQ_API_KEY=$GROQ_API_KEY
 TELEGRAM_SMS_BOT_ID=$TELEGRAM_SMS_BOT_ID
@@ -85,9 +84,9 @@ echo "  ok .env written (permissions: 600)"
 
 # --- Start Docker services ---
 echo ""
-echo "Starting Docker services (Cognee + n8n)..."
+echo "Starting Docker services (Cognee)..."
 docker compose up -d
-echo "  ok Cognee at http://localhost:8001, n8n at http://localhost:5679"
+echo "  ok Cognee at http://localhost:8001"
 
 # --- Install MCP server deps ---
 echo ""
@@ -119,6 +118,5 @@ echo "Edith is ready!"
 echo ""
 echo "  Run:        ./launch-edith.sh"
 echo "  Dashboard:  http://localhost:3456"
-echo "  n8n:        http://localhost:5679"
 echo "  Test:       bash test-e2e.sh"
 echo "  Logs:       tail -f logs/edith.log"
