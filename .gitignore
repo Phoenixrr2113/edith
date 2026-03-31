@@ -7,3 +7,9 @@ locations.json
 reminders.json
 cognee-repo/
 client_secret_504531571067-2kr67jrrjiamghl2mvovhg1q2u1ch9fn.apps.googleusercontent.com.json
+
+# Desktop (Tauri)
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

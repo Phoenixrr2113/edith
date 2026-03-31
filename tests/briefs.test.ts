@@ -75,8 +75,8 @@ describe("BRIEF_TYPE_MAP", () => {
 		expect(BRIEF_TYPE_MAP["proactive-check"]).toBe("proactive");
 	});
 
-	test("has exactly 9 entries", () => {
-		expect(Object.keys(BRIEF_TYPE_MAP)).toHaveLength(9);
+	test("has exactly 10 entries", () => {
+		expect(Object.keys(BRIEF_TYPE_MAP)).toHaveLength(10);
 	});
 
 	test("all values are valid BriefTypes", () => {
@@ -89,6 +89,7 @@ describe("BRIEF_TYPE_MAP", () => {
 			"weekly",
 			"monthly",
 			"quarterly",
+			"email",
 			"message",
 			"location",
 			"scheduled",
