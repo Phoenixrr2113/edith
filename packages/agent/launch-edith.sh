@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launch Edith — starts Docker services, dashboard, and the main orchestrator (LOCAL only)
+# Launch Edith — starts services, dashboard, and the main orchestrator (LOCAL only)
 # For cloud/Railway deployment use edith-cloud.ts via Dockerfile instead.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$DIR/../.." && pwd)"
@@ -23,6 +23,31 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.bun/bin:$PATH"
 STATE_DIR="$HOME/.edith"
 mkdir -p "$STATE_DIR"
 
+# =============================================================================
+# LAYER 1: Atomic lock — prevent duplicate launches
+# mkdir is atomic on POSIX; only one caller succeeds.
+# =============================================================================
+LOCK_DIR="$STATE_DIR/edith-launch.lock"
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  LOCK_PID=$(cat "$LOCK_DIR/pid" 2>/dev/null)
+  if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+    echo "[launch] Already running (PID $LOCK_PID) — exiting cleanly"
+    exit 0  # exit 0 so launchd KeepAlive(SuccessfulExit:false) does NOT restart
+  else
+    echo "[launch] Stale lock found (PID $LOCK_PID not running) — removing"
+    rm -rf "$LOCK_DIR"
+    mkdir "$LOCK_DIR" 2>/dev/null || { echo "[launch] Lock race — exiting"; exit 0; }
+  fi
+fi
+echo $$ > "$LOCK_DIR/pid"
+
+# Clean up lock on ANY exit
+release_lock() {
+  rm -rf "$LOCK_DIR"
+}
+trap release_lock EXIT
+
 # --- Check required tools ---
 MISSING=""
 command -v bun >/dev/null 2>&1 || MISSING="$MISSING bun"
@@ -36,13 +61,12 @@ fi
 command -v terminal-notifier >/dev/null 2>&1 || echo "[launch] NOTE: terminal-notifier not installed — desktop notifications disabled"
 command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed — auto-restart on file changes disabled"
 
-# --- Start Docker services (Langfuse + Cognee) ---
+# --- Start Docker services (Cognee) ---
 if command -v docker >/dev/null 2>&1; then
   echo "[launch] Starting Docker services..."
   docker compose -f "$REPO_ROOT/docker-compose.yml" up -d 2>/dev/null
-  docker compose -f "$REPO_ROOT/docker-compose.langfuse.yml" up -d 2>/dev/null
 else
-  echo "[launch] NOTE: Docker not available — Langfuse tracing and Cognee disabled"
+  echo "[launch] NOTE: Docker not available — Cognee disabled"
 fi
 
 # --- Check required env vars ---
@@ -55,15 +79,13 @@ if [ -z "$TELEGRAM_CHAT_ID" ]; then
   exit 1
 fi
 
-# --- Check for already-running Edith ---
+# --- Check for already-running Edith (PID file fallback) ---
 PID_FILE="$STATE_DIR/edith.pid"
 if [ -f "$PID_FILE" ]; then
   OLD_PID=$(cat "$PID_FILE")
   if kill -0 "$OLD_PID" 2>/dev/null; then
     echo "[launch] Edith is already running (PID $OLD_PID)"
-    echo "         Dashboard: http://localhost:${DASHBOARD_PORT:-3456}"
-    echo "         To stop: kill $OLD_PID"
-    exit 1
+    exit 0
   else
     echo "[launch] Stale PID file found (PID $OLD_PID not running), cleaning up"
     rm -f "$PID_FILE"
@@ -81,8 +103,6 @@ fi
 
 # --- Pre-flight ---
 mkdir -p "$STATE_DIR" "$REPO_ROOT/logs"
-
-# Cognee starts automatically via MCP stdio when Agent SDK launches — no separate process needed
 
 # --- Start Screenpipe if not running ---
 if command -v screenpipe >/dev/null 2>&1; then
@@ -107,13 +127,25 @@ bun "$DIR/dashboard.ts" &
 DASHBOARD_PID=$!
 echo "[launch] Dashboard started (PID $DASHBOARD_PID) at http://localhost:$DASHBOARD_PORT"
 
-# --- Start Edith with auto-restart on file changes ---
+# --- Cleanup on exit ---
+cleanup() {
+  echo "[launch] Shutting down..."
+  # Kill Edith process group
+  if [ -f "$STATE_DIR/edith-launch.pid" ]; then
+    kill "$(cat "$STATE_DIR/edith-launch.pid")" 2>/dev/null
+    rm -f "$STATE_DIR/edith-launch.pid"
+  fi
+  kill $DASHBOARD_PID 2>/dev/null
+  [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
+  rm -f "$PID_FILE"
+  exit 0
+}
+trap 'cleanup; release_lock' SIGINT SIGTERM
+
+# --- Start Edith (foreground-style with fswatch support) ---
 echo "[launch] Starting Edith..."
-
-# Use a PID file for cross-process communication (fswatch runs in subshell)
-EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
-
 LOG_FILE="$STATE_DIR/edith.log"
+EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
 
 start_edith() {
   EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
@@ -125,25 +157,7 @@ start_edith() {
 
 start_edith
 
-# --- Cleanup on exit ---
-cleanup() {
-  echo "[launch] Shutting down..."
-  # Read current PID from file (may have changed via file watcher restart)
-  if [ -f "$EDITH_PIDFILE" ]; then
-    kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
-    rm -f "$EDITH_PIDFILE"
-  fi
-  kill $DASHBOARD_PID 2>/dev/null
-  [ -n "$TAIL_PID" ] && kill $TAIL_PID 2>/dev/null
-  [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
-  rm -f "$PID_FILE"
-  exit 0
-}
-trap cleanup SIGINT SIGTERM EXIT
-
 # --- File watcher: restart Edith on .ts/md changes ---
-# Uses a 5-second debounce via a lockfile to prevent rapid-fire restarts.
-# Waits for old process to fully exit before starting new one.
 if command -v fswatch >/dev/null 2>&1; then
   RESTART_LOCK="$STATE_DIR/restart.lock"
   (
@@ -164,12 +178,10 @@ if command -v fswatch >/dev/null 2>&1; then
       if [ -f "$EDITH_PIDFILE" ]; then
         OLD_PID=$(cat "$EDITH_PIDFILE")
         kill "$OLD_PID" 2>/dev/null
-        # Wait up to 10 seconds for clean shutdown
         for i in $(seq 1 20); do
           kill -0 "$OLD_PID" 2>/dev/null || break
           sleep 0.5
         done
-        # Force kill if still alive
         kill -9 "$OLD_PID" 2>/dev/null
       fi
 
@@ -181,24 +193,21 @@ if command -v fswatch >/dev/null 2>&1; then
   ) &
   WATCHER_PID=$!
   echo "[launch] File watcher active (fswatch PID $WATCHER_PID)"
-else
-  echo "[launch] fswatch not found — auto-restart disabled. Install: brew install fswatch"
 fi
 
-# Keep shell alive — poll PID file since fswatch restarts spawn in a subshell
-# (wait only works on direct children, not subshell children)
+# Wait for the main Edith process. If it exits cleanly (0), we exit cleanly too
+# (launchd won't restart on exit 0). If it crashes, we exit non-zero (launchd restarts).
 while true; do
   if [ -f "$EDITH_PIDFILE" ]; then
     CURRENT_PID=$(cat "$EDITH_PIDFILE" 2>/dev/null)
     if [ -n "$CURRENT_PID" ] && ! kill -0 "$CURRENT_PID" 2>/dev/null; then
-      # Check exit code — if clean (0), respect manual stop; if crash, let launchd handle it
       wait "$CURRENT_PID" 2>/dev/null
       EXIT_CODE=$?
       if [ "$EXIT_CODE" -eq 0 ]; then
         echo "[launch] Edith stopped cleanly (exit 0) — staying stopped"
         cleanup
       else
-        echo "[launch] Edith process $CURRENT_PID exited with code $EXIT_CODE"
+        echo "[launch] Edith crashed (exit $EXIT_CODE) — letting launchd restart"
         break
       fi
     fi
