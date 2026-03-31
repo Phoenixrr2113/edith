@@ -135,13 +135,38 @@ cleanup() {
 trap cleanup SIGINT SIGTERM EXIT
 
 # --- File watcher: restart Edith on .ts/md changes ---
+# Uses a 5-second debounce via a lockfile to prevent rapid-fire restarts.
+# Waits for old process to fully exit before starting new one.
 if command -v fswatch >/dev/null 2>&1; then
+  RESTART_LOCK="$STATE_DIR/restart.lock"
   (
-    fswatch -o -e "node_modules" -e ".git" -e "logs" -i "\\.ts$" -i "\\.md$" \
+    fswatch -o -l 3 -e "node_modules" -e ".git" -e "logs" -e ".env" -i "\\.ts$" -i "\\.md$" \
       "$DIR/edith.ts" "$DIR/lib/" "$DIR/mcp/" "$DIR/prompts/" | while read -r; do
+      # Debounce: skip if a restart happened in the last 5 seconds
+      if [ -f "$RESTART_LOCK" ]; then
+        LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$RESTART_LOCK" 2>/dev/null || echo 0) ))
+        if [ "$LOCK_AGE" -lt 5 ]; then
+          continue
+        fi
+      fi
+      touch "$RESTART_LOCK"
+
       echo "[launch] File change detected, restarting Edith..."
-      [ -f "$EDITH_PIDFILE" ] && kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
-      sleep 2
+
+      # Kill old process and WAIT for it to fully exit
+      if [ -f "$EDITH_PIDFILE" ]; then
+        OLD_PID=$(cat "$EDITH_PIDFILE")
+        kill "$OLD_PID" 2>/dev/null
+        # Wait up to 10 seconds for clean shutdown
+        for i in $(seq 1 20); do
+          kill -0 "$OLD_PID" 2>/dev/null || break
+          sleep 0.5
+        done
+        # Force kill if still alive
+        kill -9 "$OLD_PID" 2>/dev/null
+      fi
+
+      sleep 1
       EDITH_LOG_FILE="$LOG_FILE" bun --preload ./instrument.ts "$DIR/edith.ts" &
       echo "$!" > "$EDITH_PIDFILE"
       echo "[launch] Edith restarted (PID $!)"
