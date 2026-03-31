@@ -25,6 +25,7 @@ export type BriefType =
 	| "weekly"
 	| "monthly"
 	| "quarterly"
+	| "email"
 	| "message"
 	| "location"
 	| "scheduled"
@@ -39,6 +40,7 @@ export const BRIEF_TYPE_MAP: Record<string, BriefType> = {
 	"weekly-review": "weekly",
 	"monthly-review": "monthly",
 	"quarterly-review": "quarterly",
+	"email-triage": "email",
 	"check-reminders": "scheduled",
 	"proactive-check": "proactive",
 };
@@ -59,9 +61,10 @@ export const SKILL_ROUTING: Record<BriefType, SkillRoute> = {
 	weekly: { agent: "analyst", model: "sonnet", skill: "weekly-review" },
 	monthly: { agent: "analyst", model: "sonnet", skill: "monthly-review" },
 	quarterly: { agent: "analyst", model: "opus", skill: "quarterly-review" },
+	email: { agent: "communicator", model: "sonnet", skill: "email-triage" },
 	message: { agent: "communicator", model: "sonnet", skill: null },
 	location: { agent: "communicator", model: "sonnet", skill: null },
-	scheduled: { agent: "monitor", model: "haiku", skill: "reminder-check" },
+	scheduled: { agent: "monitor", model: "haiku", skill: "check-reminders" },
 	proactive: { agent: "monitor", model: "haiku", skill: "proactive-check" },
 };
 
@@ -93,6 +96,11 @@ export async function buildBrief(type: BriefType, extra?: Record<string, string>
 				extra?.lat ?? "",
 				extra?.lon ?? "",
 				extra?.chatId ?? String(CHAT_ID)
+			);
+		case "email":
+			return buildScheduledBrief(
+				extra?.prompt ?? "Run email-triage skill.",
+				extra?.taskName ?? "email-triage"
 			);
 		case "scheduled":
 			return buildScheduledBrief(extra?.prompt ?? "", extra?.taskName ?? "");
