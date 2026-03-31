@@ -71,7 +71,8 @@ TWILIO_SMS_FROM=$TWILIO_SMS_FROM
 RANDY_WHATSAPP=$RANDY_WHATSAPP
 RANDY_PHONE=$RANDY_PHONE
 EOF
-echo "  ok .env written"
+chmod 600 .env
+echo "  ok .env written (permissions: 600)"
 
 # --- Start Docker services ---
 echo ""
