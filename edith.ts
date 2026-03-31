@@ -27,10 +27,10 @@ console.error = (...args: any[]) => { _origErr(...args); writeLog("error", args)
 console.warn = (...args: any[]) => { _origWarn(...args); writeLog("warn", args); };
 import {
   TELEGRAM_BOT_TOKEN as BOT_TOKEN, CHAT_ID, SMS_BOT_ID, INBOX_DIR, PID_FILE, STATE_DIR,
-  BACKOFF_SCHEDULE, INBOX_MAX_AGE_MS,
+  BACKOFF_SCHEDULE, INBOX_MAX_AGE_MS, POLL_INTERVAL_MS, SCHEDULE_CHECK_MS,
 } from "./lib/config";
 import {
-  ALLOWED_CHATS, SCHEDULE_CHECK_MS, POLL_INTERVAL_MS,
+  ALLOWED_CHATS,
   offset, saveOffset, sessionId, clearSession, logEvent, rotateEvents,
   loadDeadLetters, clearDeadLetters, saveDeadLetter,
 } from "./lib/state";

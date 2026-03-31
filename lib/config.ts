@@ -46,3 +46,21 @@ export const BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000
 export const REFLECTOR_ENABLED = process.env.REFLECTOR_ENABLED !== "false"; // on by default
 export const REFLECTOR_TOOL_CALL_FREQUENCY = Number(process.env.REFLECTOR_FREQUENCY ?? "4");
 export const REFLECTOR_EVAL_ONLY_RATIO = Number(process.env.REFLECTOR_EVAL_ONLY_RATIO ?? "0.3"); // 30% sessions get eval-only (no injections)
+
+// --- Dispatch / circuit breaker ---
+export const MAX_CONSECUTIVE_FAILURES = 5;
+export const CIRCUIT_BREAKER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+export const QUERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max per dispatch
+export const LIGHTWEIGHT_TIMEOUT_MS = 90 * 1000; // 90 seconds for lightweight tasks
+export const INTER_DISPATCH_DELAY_MS = 3_000;
+
+// --- Proactive limits ---
+export const PROACTIVE_MAX_PER_HOUR = 2;
+export const PROACTIVE_COOLDOWN_MINUTES = 60;
+export const PROACTIVE_QUIET_START = 22;
+export const PROACTIVE_QUIET_END = 8;
+
+// --- State / polling ---
+export const POLL_INTERVAL_MS = 3_000;
+export const SCHEDULE_CHECK_MS = 60_000;
+export const EVENTS_MAX_AGE_MS = 48 * 60 * 60 * 1000;

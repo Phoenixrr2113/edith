@@ -3,7 +3,10 @@
  * Prevents notification fatigue while allowing Edith to act without being asked.
  */
 import { join } from "path";
-import { STATE_DIR } from "./config";
+import {
+  STATE_DIR, PROACTIVE_MAX_PER_HOUR, PROACTIVE_COOLDOWN_MINUTES,
+  PROACTIVE_QUIET_START, PROACTIVE_QUIET_END,
+} from "./config";
 import { loadJson, saveJson } from "./storage";
 
 const PROACTIVE_STATE_FILE = join(STATE_DIR, "proactive-state.json");
@@ -28,10 +31,10 @@ interface ProactiveConfig {
 }
 
 const DEFAULT_CONFIG: ProactiveConfig = {
-  maxPerHour: 2,
-  cooldownMinutes: 60,
-  quietHoursStart: 22,
-  quietHoursEnd: 8,
+  maxPerHour: PROACTIVE_MAX_PER_HOUR,
+  cooldownMinutes: PROACTIVE_COOLDOWN_MINUTES,
+  quietHoursStart: PROACTIVE_QUIET_START,
+  quietHoursEnd: PROACTIVE_QUIET_END,
 };
 
 function loadState(): ProactiveState {

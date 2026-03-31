@@ -12,7 +12,10 @@
 import { query, type Options, type Query, type SDKResultMessage, type SDKAssistantMessage, type SDKCompactBoundaryMessage, type SDKTaskStartedMessage, type SDKTaskProgressMessage, type SDKTaskNotificationMessage } from "@anthropic-ai/claude-agent-sdk";
 import { assembleSystemPrompt } from "./context";
 import { setActiveQuery, getActiveQuery, setActiveSessionId, injectMessage } from "./session";
-import { CHAT_ID } from "./config";
+import {
+  CHAT_ID, MAX_CONSECUTIVE_FAILURES, CIRCUIT_BREAKER_COOLDOWN_MS,
+  QUERY_TIMEOUT_MS, LIGHTWEIGHT_TIMEOUT_MS, INTER_DISPATCH_DELAY_MS,
+} from "./config";
 import {
   sessionId, saveSession, clearSession,
   logEvent, activeProcesses, writeActiveProcesses,
@@ -50,20 +53,13 @@ export interface DispatchOptions {
 
 // --- Circuit breaker ---
 let consecutiveFailures = 0;
-const MAX_CONSECUTIVE_FAILURES = 5;
-const CIRCUIT_BREAKER_COOLDOWN = 10 * 60 * 1000; // 10 minutes
 let circuitBreakerUntil = 0;
 
 // --- Unique ID counter ---
 let pidCounter = 0;
 
-// --- Query timeout ---
-const QUERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max per dispatch
-const LIGHTWEIGHT_TIMEOUT_MS = 90 * 1000; // 90 seconds for lightweight tasks
+// --- Lightweight task set (uses shorter timeout) ---
 const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
-
-// --- Inter-dispatch cooldown (allow MCP servers to shut down) ---
-const INTER_DISPATCH_DELAY_MS = 3_000;
 
 // --- MCP config ---
 function loadMcpConfig(): Record<string, any> {
@@ -431,10 +427,10 @@ export async function dispatchToClaude(prompt: string, opts: DispatchOptions = {
     // Circuit breaker
     consecutiveFailures++;
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      circuitBreakerUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN;
+      circuitBreakerUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS;
       console.error(`[edith] ⚠️ Circuit breaker activated (${consecutiveFailures} failures). Cooling down for 10 minutes.`);
-      logger.error(`[dispatch:circuit-breaker]`, { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN });
-      logEvent("circuit_breaker", { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN });
+      logger.error(`[dispatch:circuit-breaker]`, { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN_MS });
+      logEvent("circuit_breaker", { failures: consecutiveFailures, cooldownMs: CIRCUIT_BREAKER_COOLDOWN_MS });
     }
 
     setActiveQuery(null);

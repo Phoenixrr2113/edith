@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 
-import { CHAT_ID, STATE_DIR, EVENTS_FILE, SESSION_FILE, DEAD_LETTER_FILE, INBOX_DIR } from "./config";
+import { CHAT_ID, STATE_DIR, EVENTS_FILE, SESSION_FILE, DEAD_LETTER_FILE, INBOX_DIR, EVENTS_MAX_AGE_MS } from "./config";
 import { saveJson } from "./storage";
 
 const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
@@ -18,10 +18,6 @@ export const PROJECT_ROOT = join(import.meta.dir, "..");
 export const PROMPTS_DIR = join(PROJECT_ROOT, "prompts");
 export const SYSTEM_PROMPT_FILE = join(PROMPTS_DIR, "system.md");
 export const MCP_CONFIG = join(PROJECT_ROOT, ".mcp.json");
-
-export const POLL_INTERVAL_MS = 3_000;
-export const SCHEDULE_CHECK_MS = 60_000;
-export const EVENTS_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 // --- Init ---
 mkdirSync(INBOX_DIR, { recursive: true });
