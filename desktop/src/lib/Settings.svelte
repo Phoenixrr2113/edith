@@ -2,6 +2,8 @@
 	import { settingsStore } from './settings.js';
 	import { setTheme, type ThemeMode } from './theme.js';
 	import OllamaStatus from './OllamaStatus.svelte';
+	import CacheStatus from './CacheStatus.svelte';
+	import { localCache, type CacheKey } from './local-cache.js';
 
 	interface Props {
 		open: boolean;
@@ -65,6 +67,21 @@
 	$effect(() => {
 		ollamaUrlDraft = settingsStore.value.ollamaUrl;
 	});
+
+	// Used to force CacheStatus to re-render after clear
+	let cacheRevision = $state(0);
+
+	function handleClearCaches() {
+		localCache.clear();
+		cacheRevision += 1;
+	}
+
+	function handleCacheRefresh(_key: CacheKey) {
+		// Refresh is fulfilled externally by requesting a sync from the server.
+		// For now, just delete the stale entry so UI reflects "Not cached".
+		localCache.delete(_key);
+		cacheRevision += 1;
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -190,6 +207,24 @@
 					/>
 				</label>
 				<OllamaStatus />
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Cache -->
+			<section class="section">
+				<div class="section-label">Offline Cache</div>
+				{#key cacheRevision}
+					<CacheStatus onRefresh={handleCacheRefresh} />
+				{/key}
+				<button
+					class="clear-cache-btn"
+					type="button"
+					onclick={handleClearCaches}
+					style="margin-top: 12px;"
+				>
+					Clear all caches
+				</button>
 			</section>
 
 		</div>
@@ -451,5 +486,23 @@
 
 	.text-input::placeholder {
 		color: var(--text-muted);
+	}
+
+	.clear-cache-btn {
+		width: 100%;
+		background: var(--btn-bg);
+		border: 1px solid var(--input-border);
+		color: var(--text-secondary);
+		border-radius: 8px;
+		padding: 7px 12px;
+		font-size: 12px;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+		text-align: center;
+	}
+
+	.clear-cache-btn:hover {
+		background: var(--btn-bg-hover);
+		color: var(--text-color);
 	}
 </style>

@@ -11,6 +11,11 @@
 	import { initTheme } from './lib/theme.js';
 	import AudioPlayer from './lib/AudioPlayer.svelte';
 	import { playAudio, stopAudio } from './lib/audio.js';
+	import TaskQueueStatus from './lib/TaskQueueStatus.svelte';
+	import { taskQueue } from './lib/task-queue.js';
+	import type { QueuedTask } from './lib/task-queue.js';
+	import { SyncManager, type SyncStatus as SyncStatusType } from './lib/sync.js';
+	import SyncStatus from './lib/SyncStatus.svelte';
 
 	const MAX_BUBBLES = 3;
 
@@ -64,10 +69,25 @@
 	const wsClient = new EdithWsClient();
 	const unsubs: Array<() => void> = [];
 
+	// Sync manager
+	const syncManager = new SyncManager(wsClient);
+	let syncStatus = $state<SyncStatusType>(syncManager.status);
+	let lastSyncAt = $state<number | null>(syncManager.lastSyncAt);
+
 	onMount(() => {
 		// Initialize theme system (applies data-theme, starts system listener)
 		const cleanupTheme = initTheme();
 		unsubs.push(cleanupTheme);
+
+		// Start sync manager and subscribe to state changes
+		syncManager.start();
+		unsubs.push(
+			syncManager.on('stateChange', (state) => {
+				syncStatus = state.status;
+				lastSyncAt = state.lastSyncAt;
+			})
+		);
+		unsubs.push(() => syncManager.stop());
 
 		// Start Ollama polling + subscribe to mode changes
 		connectionModeManager.start();
@@ -97,6 +117,24 @@
 				connectionModeManager.onCloudConnected();
 				connMode = connectionModeManager.mode;
 				manualOverride = connectionModeManager.manualOverride;
+
+				// Flush any tasks queued while offline
+				if (taskQueue.size > 0) {
+					agentTyping = true;
+					taskQueue.flush(async (task: QueuedTask) => {
+						wsClient.send({
+							type: 'input',
+							text: typeof task.payload === 'string'
+								? task.payload
+								: JSON.stringify(task.payload),
+							source: 'keyboard',
+							deviceId: 'desktop',
+							ts: task.timestamp,
+						});
+					}).finally(() => {
+						agentTyping = false;
+					});
+				}
 			})
 		);
 		unsubs.push(
@@ -200,6 +238,16 @@
 		<button class="test-btn" onclick={toggleTestTyping} type="button">
 			{agentTyping ? 'Stop' : 'Typing…'}
 		</button>
+		<TaskQueueStatus
+			queue={taskQueue}
+			visible={connMode === 'offline' || connMode === 'local'}
+			onClear={() => taskQueue.clear()}
+		/>
+		<SyncStatus
+			status={syncStatus}
+			{lastSyncAt}
+			onSyncNow={() => syncManager.requestSync()}
+		/>
 		<ConnectionStatus
 			mode={connMode}
 			{ollamaAvailable}
