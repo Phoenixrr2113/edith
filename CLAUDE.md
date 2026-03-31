@@ -13,10 +13,10 @@ The Cognee MCP server is unreliable. Use the direct script instead via Bash:
 
 ```bash
 # Search
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "your query"
+bash /Users/randywilson/Desktop/edith-v3/packages/agent/mcp/cognee-direct.sh search "your query"
 
 # Save
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "text to store"
+bash /Users/randywilson/Desktop/edith-v3/packages/agent/mcp/cognee-direct.sh save "text to store"
 ```
 
 Do NOT use `mcp__cognee__search` or `mcp__cognee__cognify` — they may silently fail.

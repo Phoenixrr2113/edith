@@ -3,6 +3,7 @@
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$DIR/../.." && pwd)"
 PLIST_SRC="$DIR/com.edith.agent.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.edith.agent.plist"
 STATE_DIR="$HOME/.edith"
@@ -21,7 +22,7 @@ if launchctl print "gui/$(id -u)/com.edith.agent" &>/dev/null; then
 fi
 
 # Install plist with path substitution for portability
-sed -e "s|/Users/randywilson/Desktop/edith-v3|$DIR|g" \
+sed -e "s|/Users/randywilson/Desktop/edith-v3|$REPO_ROOT|g" \
     -e "s|/Users/randywilson|$HOME|g" \
     "$PLIST_SRC" > "$PLIST_DST"
 echo "Installed plist to $PLIST_DST"

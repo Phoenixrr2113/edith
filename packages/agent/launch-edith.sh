@@ -1,12 +1,19 @@
 #!/bin/bash
-# Launch Edith — starts Docker services, dashboard, and the main orchestrator
+# Launch Edith — starts Docker services, dashboard, and the main orchestrator (LOCAL only)
+# For cloud/Railway deployment use edith-cloud.ts via Dockerfile instead.
 DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$DIR/../.." && pwd)"
 cd "$DIR"
 
-# Source environment
-if [ -f "$DIR/.env" ]; then
+if [ -n "$RAILWAY_ENVIRONMENT" ] || [ "$CLOUD_MODE" = "true" ]; then
+  echo "[launch] ERROR: This script is for local use only. Cloud uses edith-cloud.ts."
+  exit 1
+fi
+
+# Source environment from repo root
+if [ -f "$REPO_ROOT/.env" ]; then
   set -a
-  source "$DIR/.env"
+  source "$REPO_ROOT/.env"
   set +a
 fi
 
@@ -32,8 +39,8 @@ command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed
 # --- Start Docker services (Langfuse + Cognee) ---
 if command -v docker >/dev/null 2>&1; then
   echo "[launch] Starting Docker services..."
-  docker compose -f "$DIR/docker-compose.yml" up -d 2>/dev/null
-  docker compose -f "$DIR/docker-compose.langfuse.yml" up -d 2>/dev/null
+  docker compose -f "$REPO_ROOT/docker-compose.yml" up -d 2>/dev/null
+  docker compose -f "$REPO_ROOT/docker-compose.langfuse.yml" up -d 2>/dev/null
 else
   echo "[launch] NOTE: Docker not available — Langfuse tracing and Cognee disabled"
 fi
@@ -73,7 +80,7 @@ if lsof -i ":$DASHBOARD_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 # --- Pre-flight ---
-mkdir -p "$STATE_DIR" "$DIR/logs"
+mkdir -p "$STATE_DIR" "$REPO_ROOT/logs"
 
 # Cognee starts automatically via MCP stdio when Agent SDK launches — no separate process needed
 

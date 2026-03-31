@@ -1,12 +1,14 @@
 {
-	"name": "edith-desktop",
+	"name": "@edith/desktop",
 	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview",
-		"tauri": "tauri"
+		"tauri": "tauri",
+		"lint": "tsc --noEmit",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2",

@@ -19,13 +19,13 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Lint
-        run: bunx biome check . --reporter=github
+        run: bunx turbo run lint
 
       - name: Type check
-        run: bun run tsc --noEmit
+        run: bunx turbo run typecheck
 
       - name: Tests
         run: |
-          bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage
-          bun test tests/handlers.test.ts
-          bun test tests/dispatch-integration.test.ts
+          bun test packages/agent/tests/scheduler.test.ts packages/agent/tests/geo.test.ts packages/agent/tests/mcp-tools.test.ts packages/agent/tests/taskboard.test.ts packages/agent/tests/screenpipe.test.ts packages/agent/tests/dispatch.test.ts packages/agent/tests/briefs.test.ts --coverage
+          bun test packages/agent/tests/handlers.test.ts
+          bun test packages/agent/tests/dispatch-integration.test.ts

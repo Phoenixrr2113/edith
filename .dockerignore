@@ -1,0 +1,43 @@
+# Desktop app source (Tauri / Svelte) — not needed in cloud
+# Keep packages/desktop/package.json for workspace integrity
+packages/desktop/src/
+packages/desktop/src-tauri/
+packages/desktop/dist/
+packages/desktop/node_modules/
+packages/desktop/scripts/
+
+# Local state directories
+node_modules/
+packages/agent/node_modules/
+.git/
+packages/agent/logs/
+cognee-repo/
+n8n/
+
+# Secrets and local config
+.env
+packages/agent/.env
+.env.*
+*.local
+
+# Build artifacts
+dist/
+packages/agent/dist/
+
+# macOS noise
+.DS_Store
+
+# OAuth credential files
+packages/agent/client_secret_*.json
+
+# Test files
+packages/agent/tests/
+packages/agent/test-e2e.sh
+
+# Docs (not needed at runtime)
+docs/
+packages/agent/dashboard.html
+architecture.html
+
+# Bun cache
+.bun/

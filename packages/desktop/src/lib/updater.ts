@@ -89,6 +89,10 @@ export async function installUpdate(): Promise<void> {
 	}
 
 	const pending = _pendingUpdate;
+	if (!pending) {
+		console.warn("[updater] installUpdate: no pending update available after recheck");
+		return;
+	}
 	try {
 		await pending.downloadAndInstall();
 		await relaunch();

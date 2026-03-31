@@ -11,11 +11,11 @@
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
-      <string>/Users/randywilson/Desktop/edith-v3/launch-edith.sh</string>
+      <string>/Users/randywilson/Desktop/edith-v3/packages/agent/launch-edith.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/randywilson/Desktop/edith-v3</string>
+    <string>/Users/randywilson/Desktop/edith-v3/packages/agent</string>
 
     <key>RunAtLoad</key>
     <true/>
