@@ -5,7 +5,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sendMessage, sendPhoto, tgCall } from "../lib/telegram";
 import { logEvent } from "../lib/state";
 import { fmtErr } from "../lib/util";
@@ -16,6 +15,7 @@ import { sendTwilio } from "../lib/twilio";
 import { n8nPost } from "../lib/n8n-client";
 import { showNotification, showDialog } from "../lib/notify";
 import { getInterventionHistory, recordIntervention, canIntervene } from "../lib/proactive";
+import { generateImages } from "../lib/gemini";
 import { readActivity, getRecentActivity, getActivityFile } from "../lib/activity";
 import type { ScheduleEntry, LocationEntry, Reminder } from "./types";
 
@@ -455,18 +455,8 @@ server.registerTool("generate_image", {
     numberOfImages: z.number().min(1).max(4).default(1).describe("Number of images (default: 1)"),
   },
 }, async ({ prompt, numberOfImages }) => {
-  if (!GOOGLE_API_KEY) return textResponse("GOOGLE_GENERATIVE_AI_API_KEY not set in .env");
   try {
-    const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "imagen-3.0-generate-001" });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ["image"], candidateCount: numberOfImages } as any,
-    });
-    const images: string[] = [];
-    for (const c of result.response.candidates || [])
-      for (const p of c.content.parts)
-        if (p.inlineData?.data) images.push(`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`);
+    const images = await generateImages(prompt, numberOfImages);
     if (images.length === 0) return textResponse("No images generated. Check prompt or API quota.");
     return jsonResponse({ success: true, count: images.length, images, prompt });
   } catch (err) {

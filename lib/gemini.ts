@@ -19,6 +19,27 @@ function getClient(): GoogleGenerativeAI | null {
 }
 
 /**
+ * Generate images using Google's Imagen model.
+ * Returns base64 data URLs ready for Telegram photo sending.
+ */
+export async function generateImages(prompt: string, numberOfImages: number = 1): Promise<string[]> {
+  const ai = getClient();
+  if (!ai) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY not set in .env");
+
+  const model = ai.getGenerativeModel({ model: "imagen-3.0-generate-001" });
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ["image"], candidateCount: numberOfImages } as any,
+  });
+
+  const images: string[] = [];
+  for (const c of result.response.candidates || [])
+    for (const p of c.content.parts)
+      if (p.inlineData?.data) images.push(`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`);
+  return images;
+}
+
+/**
  * Summarize screenpipe context using Gemini Flash-Lite.
  * Returns a concise summary for Claude to reason about.
  * Falls back to raw formatted context if Gemini is unavailable.
