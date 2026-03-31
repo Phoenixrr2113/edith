@@ -44,10 +44,9 @@ import { buildBrief } from "./lib/briefs";
 import { fmtErr } from "./lib/util";
 import { handleLocation, handleVoice, handlePhoto, handleText } from "./lib/handlers";
 import { schedulerTick, type TickState } from "./lib/tick";
+import { SIGNAL_FRESH } from "./lib/ipc";
 import { pingHeartbeat } from "./lib/logger";
 
-// --- Signal files ---
-const SIGNAL_FRESH = join(STATE_DIR, ".signal-fresh");
 let paused = false;
 
 if (!BOT_TOKEN) {
@@ -74,7 +73,7 @@ async function poll(): Promise<void> {
         offset: currentOffset,
         timeout: 30,
         allowed_updates: ["message", "edited_message"],
-      });
+      }) as Array<Record<string, any>>;
 
       for (const update of updates) {
         currentOffset = update.update_id + 1;
