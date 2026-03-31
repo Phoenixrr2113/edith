@@ -54,6 +54,12 @@ read -p "  Your WhatsApp number (e.g. whatsapp:+19416627510): " RANDY_WHATSAPP
 read -p "  Your phone number (e.g. +19416627510): " RANDY_PHONE
 read -p "  Sentry DSN (for crash tracking, get from sentry.io): " SENTRY_DSN
 
+# --- Generate DEVICE_SECRET ---
+DEVICE_SECRET=$(node -e "require('crypto').randomBytes(48).toString('hex').then?.(console.log) ?? console.log(require('crypto').randomBytes(48).toString('hex'))" 2>/dev/null || \
+  bun -e "import {randomBytes} from 'node:crypto'; console.log(randomBytes(48).toString('hex'))" 2>/dev/null || \
+  openssl rand -hex 48)
+echo "  ok DEVICE_SECRET generated (48 random bytes)"
+
 # --- Write .env ---
 cat > .env <<EOF
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -72,6 +78,7 @@ TWILIO_SMS_FROM=$TWILIO_SMS_FROM
 RANDY_WHATSAPP=$RANDY_WHATSAPP
 RANDY_PHONE=$RANDY_PHONE
 SENTRY_DSN=$SENTRY_DSN
+DEVICE_SECRET=$DEVICE_SECRET
 EOF
 chmod 600 .env
 echo "  ok .env written (permissions: 600)"

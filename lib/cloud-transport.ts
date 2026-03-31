@@ -10,6 +10,8 @@
  *
  * Mount inside edith.ts via Bun.serve() websocket handler.
  */
+import { extractBearerToken, verifyDeviceToken } from "./auth.js";
+import { DEVICE_SECRET } from "./config.js";
 
 // ── Message Types ─────────────────────────────────────────────────────────────
 
@@ -210,6 +212,45 @@ export function makeWsMessage<T extends AnyWsMessage>(
  * once Bun types are available in this project.
  */
 const connectedDevices = new Map<string, unknown>();
+
+/**
+ * Authenticate a WebSocket upgrade request.
+ *
+ * Called before Bun upgrades the HTTP request to WebSocket.
+ * Returns the authenticated deviceId on success, or null on failure.
+ *
+ * Usage in edith.ts Bun.serve() fetch handler:
+ *
+ *   if (req.url.endsWith("/ws")) {
+ *     const deviceId = await authenticateUpgrade(req);
+ *     if (!deviceId) return new Response("Unauthorized", { status: 401 });
+ *     server.upgrade(req, { data: { deviceId, connectedAt: Date.now(), lastPingAt: Date.now() } });
+ *     return undefined;
+ *   }
+ *
+ * @param req - The incoming HTTP upgrade Request
+ * @returns   deviceId string if auth passes, null otherwise
+ */
+export async function authenticateUpgrade(req: Request): Promise<string | null> {
+	const authHeader = req.headers.get("authorization");
+	const token = extractBearerToken(authHeader);
+	if (!token) {
+		console.warn("[cloud-transport] WebSocket upgrade rejected: missing Authorization header");
+		return null;
+	}
+
+	const result = await verifyDeviceToken(token, DEVICE_SECRET);
+	if (!result.valid) {
+		console.warn(`[cloud-transport] WebSocket upgrade rejected: token ${result.reason}`);
+		return null;
+	}
+
+	if (result.needsRefresh) {
+		console.log(`[cloud-transport] Device ${result.payload.deviceId}: token expiring soon, client should refresh`);
+	}
+
+	return result.payload.deviceId;
+}
 
 export interface WsClientData {
 	deviceId: string;
