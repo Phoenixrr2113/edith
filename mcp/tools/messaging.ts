@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { CHAT_ID, TWILIO_SMS_FROM, TWILIO_WA_FROM } from "../../lib/config";
+import { sendEmail } from "../../lib/gmail";
 import { textResponse } from "../../lib/mcp-helpers";
 import { n8nPost } from "../../lib/n8n-client";
 import { showDialog, showNotification } from "../../lib/notify";
@@ -163,18 +164,29 @@ export function registerMessagingTools(server: McpServer): void {
 				return textResponse(`SMS failed: ${result.error}`);
 			}
 
-			// Email — route through working Gmail workflow
+			// Email — direct Gmail API, fallback to n8n if not configured
 			if (channel === "email") {
 				if (!recipient) return textResponse("Email requires a recipient");
-				const result = await n8nPost("gmail", {
-					action: "send",
-					to: recipient,
-					subject: subject || "Message from Edith",
-					message: text,
-				});
-				if (!result.ok) return textResponse(`Email failed: ${result.error}`);
-				log();
-				return textResponse(`Email sent to ${recipient}`);
+				try {
+					await sendEmail(recipient, subject || "Message from Edith", text);
+					log();
+					return textResponse(`Email sent to ${recipient}`);
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (msg.includes("Google OAuth not configured") || msg.includes("token refresh failed")) {
+						// Fall back to n8n
+						const result = await n8nPost("gmail", {
+							action: "send",
+							to: recipient,
+							subject: subject || "Message from Edith",
+							message: text,
+						});
+						if (!result.ok) return textResponse(`Email failed: ${result.error}`);
+						log();
+						return textResponse(`Email sent to ${recipient}`);
+					}
+					return textResponse(`Email failed: ${msg}`);
+				}
 			}
 
 			// Slack, Discord — route through n8n notify workflow (when configured)

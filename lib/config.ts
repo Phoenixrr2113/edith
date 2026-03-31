@@ -34,6 +34,11 @@ export const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
 
 // --- Google ---
 export const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "";
+// Gmail OAuth — used by lib/google-auth.ts and lib/gmail.ts
+export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
+export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
+export const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN ?? "";
+export const GOOGLE_ACCESS_TOKEN = process.env.GOOGLE_ACCESS_TOKEN ?? "";
 
 // --- OpenRouter ---
 export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
