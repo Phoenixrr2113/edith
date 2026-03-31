@@ -307,6 +307,12 @@ process.on("unhandledRejection", (reason: unknown) => {
 // Start
 // ============================================================
 console.log("[edith] Edith is starting up...");
+console.log("[edith] Services:");
+console.log(`[edith]   Langfuse:    ${process.env.LANGFUSE_BASE_URL ?? "http://localhost:3000"}`);
+console.log(`[edith]   Sentry:      ${process.env.SENTRY_DSN ? "✅ connected" : "⚠️  no DSN"}`);
+console.log(
+	`[edith]   BetterStack: ${process.env.BETTERSTACK_HEARTBEAT_URL ? "✅ heartbeat" : "⚠️  no URL"}`
+);
 rotateEvents();
 
 // Seed Google OAuth tokens from env vars into SQLite
