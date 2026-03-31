@@ -9,7 +9,7 @@ COPY packages/agent/package.json ./packages/agent/
 # desktop package.json needed for workspace integrity (source excluded via .dockerignore)
 COPY packages/desktop/package.json ./packages/desktop/
 
-RUN bun install --production --ignore-scripts
+RUN bun install --ignore-scripts
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM oven/bun:1 AS runtime
