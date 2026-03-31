@@ -3,28 +3,19 @@
  * This gives Edith context without needing tool calls, saving turns and time.
  * Used only for boot/morning briefs as a head start before Claude is live.
  */
-import { n8nPost } from "./n8n-client";
+import { searchEmails } from "./gmail";
+import { getEvents } from "./gcal";
 import { fmtErr } from "./util";
 
 /**
- * Fetch today's calendar events via n8n.
+ * Fetch today's calendar events via Google Calendar API.
  */
 async function getCalendarEvents(): Promise<string> {
 	try {
-		const result = await n8nPost("calendar", { hoursAhead: 16, includeAllDay: true });
-		if (!result.ok || !result.data) return "";
-		if (typeof result.data === "string") return "";
-
-		type CalendarEvent = {
-			start?: string;
-			end?: string;
-			summary?: string;
-			title?: string;
-			location?: string;
-		};
-		const events: CalendarEvent[] = Array.isArray(result.data)
-			? (result.data as CalendarEvent[])
-			: [result.data as CalendarEvent];
+		const now = Date.now();
+		const timeMin = new Date(now).toISOString();
+		const timeMax = new Date(now + 16 * 3600_000).toISOString();
+		const events = await getEvents({ timeMin, timeMax, includeAllDay: true });
 		if (events.length === 0) return "";
 
 		return events
@@ -44,7 +35,7 @@ async function getCalendarEvents(): Promise<string> {
 						})
 					: "";
 				const time = end ? `${start}–${end}` : start;
-				return `- ${time}: ${e.summary ?? e.title ?? "Untitled"}${e.location ? ` (${e.location})` : ""}`;
+				return `- ${time}: ${e.summary}${e.location ? ` (${e.location})` : ""}`;
 			})
 			.join("\n");
 	} catch (err) {
@@ -54,33 +45,15 @@ async function getCalendarEvents(): Promise<string> {
 }
 
 /**
- * Fetch recent emails via n8n (lightweight preview — full scan done by Claude via Gmail MCP).
+ * Fetch recent emails via Gmail API (lightweight preview — full scan done by Claude via Gmail MCP).
  */
 async function getRecentEmails(): Promise<string> {
 	try {
-		const result = await n8nPost("gmail", { hoursBack: 12, unreadOnly: false, maxResults: 20 });
-		if (!result.ok || !result.data) return "";
-		if (typeof result.data === "string") return "";
+		const result = await searchEmails({ hoursBack: 12, unreadOnly: false, maxResults: 20 });
+		if (result.emails.length === 0) return "";
 
-		type EmailEntry = {
-			from?: string;
-			sender?: string;
-			subject?: string;
-			snippet?: string;
-			date?: string;
-		};
-		type EmailResponse = { emails?: EmailEntry[] };
-		const emailData = result.data as EmailEntry[] | EmailResponse | EmailEntry;
-		const emails: EmailEntry[] = Array.isArray(emailData)
-			? emailData
-			: ((emailData as EmailResponse).emails ?? [emailData as EmailEntry]);
-		if (emails.length === 0) return "";
-
-		return emails
+		return result.emails
 			.map((e) => {
-				const from = e.from ?? e.sender ?? "";
-				const subject = e.subject ?? "";
-				const snippet = e.snippet?.slice(0, 120) ?? "";
 				const date = e.date
 					? new Date(e.date).toLocaleString("en-US", {
 							timeZone: "America/New_York",
@@ -90,10 +63,7 @@ async function getRecentEmails(): Promise<string> {
 							minute: "2-digit",
 						})
 					: "";
-				if (from || subject) {
-					return `- ${date} | ${from} | ${subject}`;
-				}
-				return `- ${snippet}`;
+				return `- ${date} | ${e.from} | ${e.subject}`;
 			})
 			.join("\n");
 	} catch (err) {

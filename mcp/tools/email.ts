@@ -2,28 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
 import { batchManage, manageEmail, searchEmails } from "../../lib/gmail";
-import { n8nPost } from "../../lib/n8n-client";
 import { logEvent } from "../../lib/state";
-
-// ── Helper: run Gmail directly, fall back to n8n on auth/config errors ────────
-
-async function withGmailFallback<T>(
-	gmailFn: () => Promise<T>,
-	n8nFn: () => Promise<{ ok: boolean; data?: unknown; error?: string }>
-): Promise<{ ok: boolean; data?: T | unknown; error?: string }> {
-	try {
-		const data = await gmailFn();
-		return { ok: true, data };
-	} catch (err) {
-		const msg = err instanceof Error ? err.message : String(err);
-		// If Google auth isn't configured, silently fall back to n8n
-		if (msg.includes("Google OAuth not configured") || msg.includes("token refresh failed")) {
-			return n8nFn();
-		}
-		// Real Gmail API error — surface it
-		return { ok: false, error: msg };
-	}
-}
 
 // ============================================================
 // Email — manage_emails (get + manage + batch, one tool)
@@ -70,32 +49,31 @@ export function registerEmailTools(server: McpServer): void {
 		async ({ action, hoursBack, unreadOnly, maxResults, query, messageId, label, operations }) => {
 			// ── Batch mode ──────────────────────────────────────────────────────────
 			if (operations && operations.length > 0) {
-				const result = await withGmailFallback(
-					() => batchManage(operations as Array<{ messageId: string; action: "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel"; label?: string }>),
-					() => n8nPost("gmail", { action: "batch", operations })
-				);
-				if (!result.ok) return textResponse(`Batch email error: ${result.error}`);
-				logEvent("email_managed_batch", {
-					count: operations.length,
-					actions: [...new Set(operations.map((o) => o.action))].join(","),
-				});
-				return jsonResponse(result.data ?? { success: true, count: operations.length });
+				try {
+					const data = await batchManage(operations as Array<{ messageId: string; action: "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel"; label?: string }>);
+					logEvent("email_managed_batch", {
+						count: operations.length,
+						actions: [...new Set(operations.map((o) => o.action))].join(","),
+					});
+					return jsonResponse(data ?? { success: true, count: operations.length });
+				} catch (err) {
+					return textResponse(`Batch email error: ${err instanceof Error ? err.message : String(err)}`);
+				}
 			}
 
 			// ── Get mode ────────────────────────────────────────────────────────────
 			if (action === "get") {
-				const params = {
-					hoursBack: hoursBack ?? 4,
-					unreadOnly: unreadOnly ?? true,
-					maxResults: maxResults ?? 10,
-					query,
-				};
-				const result = await withGmailFallback(
-					() => searchEmails(params),
-					() => n8nPost("gmail", { hoursBack: params.hoursBack, unreadOnly: params.unreadOnly, maxResults: params.maxResults })
-				);
-				if (!result.ok) return textResponse(`Gmail error: ${result.error}`);
-				return jsonResponse(result.data);
+				try {
+					const data = await searchEmails({
+						hoursBack: hoursBack ?? 4,
+						unreadOnly: unreadOnly ?? true,
+						maxResults: maxResults ?? 10,
+						query,
+					});
+					return jsonResponse(data);
+				} catch (err) {
+					return textResponse(`Gmail error: ${err instanceof Error ? err.message : String(err)}`);
+				}
 			}
 
 			// ── Single manage ───────────────────────────────────────────────────────
@@ -103,13 +81,13 @@ export function registerEmailTools(server: McpServer): void {
 			if ((action === "addLabel" || action === "removeLabel") && !label) {
 				return textResponse(`${action} requires a label name`);
 			}
-			const result = await withGmailFallback(
-				() => manageEmail(messageId, action as "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel", label),
-				() => n8nPost("gmail", { messageId, action, label })
-			);
-			if (!result.ok) return textResponse(`Email manage error: ${result.error}`);
-			logEvent("email_managed", { messageId, action, label });
-			return textResponse(`Done: ${action} on ${messageId}`);
+			try {
+				await manageEmail(messageId, action as "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel", label);
+				logEvent("email_managed", { messageId, action, label });
+				return textResponse(`Done: ${action} on ${messageId}`);
+			} catch (err) {
+				return textResponse(`Email manage error: ${err instanceof Error ? err.message : String(err)}`);
+			}
 		}
 	);
 }

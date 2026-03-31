@@ -3,7 +3,6 @@ import { z } from "zod";
 import { CHAT_ID, TWILIO_SMS_FROM, TWILIO_WA_FROM } from "../../lib/config";
 import { sendEmail } from "../../lib/gmail";
 import { textResponse } from "../../lib/mcp-helpers";
-import { n8nPost } from "../../lib/n8n-client";
 import { showDialog, showNotification } from "../../lib/notify";
 import { logEvent } from "../../lib/state";
 import { sendMessage, sendPhoto, tgCall } from "../../lib/telegram";
@@ -164,7 +163,7 @@ export function registerMessagingTools(server: McpServer): void {
 				return textResponse(`SMS failed: ${result.error}`);
 			}
 
-			// Email — direct Gmail API, fallback to n8n if not configured
+			// Email — direct Gmail API
 			if (channel === "email") {
 				if (!recipient) return textResponse("Email requires a recipient");
 				try {
@@ -172,29 +171,13 @@ export function registerMessagingTools(server: McpServer): void {
 					log();
 					return textResponse(`Email sent to ${recipient}`);
 				} catch (err) {
-					const msg = err instanceof Error ? err.message : String(err);
-					if (msg.includes("Google OAuth not configured") || msg.includes("token refresh failed")) {
-						// Fall back to n8n
-						const result = await n8nPost("gmail", {
-							action: "send",
-							to: recipient,
-							subject: subject || "Message from Edith",
-							message: text,
-						});
-						if (!result.ok) return textResponse(`Email failed: ${result.error}`);
-						log();
-						return textResponse(`Email sent to ${recipient}`);
-					}
-					return textResponse(`Email failed: ${msg}`);
+					return textResponse(`Email failed: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
 
-			// Slack, Discord — route through n8n notify workflow (when configured)
+			// Slack, Discord — not yet supported without n8n
 			if (!recipient) return textResponse(`${channel} requires a recipient`);
-			const result = await n8nPost("notify", { channel, recipient, text, subject });
-			if (!result.ok) return textResponse(`Notification failed: ${result.error}`);
-			log();
-			return textResponse(`Sent via ${channel}`);
+			return textResponse(`${channel} notifications are not configured. Set up Slack/Discord webhooks to enable this channel.`);
 		}
 	);
 }
