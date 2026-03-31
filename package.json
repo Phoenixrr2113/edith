@@ -26,6 +26,7 @@
 		"@google/generative-ai": "^0.24.1",
 		"@langfuse/otel": "^5.0.1",
 		"@logtail/node": "^0.5.8",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@opentelemetry/sdk-node": "^0.214.0",
 		"@sentry/bun": "^10.46.0",
 		"googleapis": "^171.4.0"
