@@ -7,7 +7,7 @@ import { dispatchToClaude } from "./dispatch";
 import { buildBrief, BRIEF_TYPE_MAP } from "./briefs";
 import { isUserIdle } from "./screenpipe";
 
-interface ScheduleState {
+export interface ScheduleState {
   lastFired: Record<string, string>;
 }
 
@@ -28,7 +28,7 @@ function isQuietHours(hour: number, quietStart?: number, quietEnd?: number): boo
   return hour >= quietStart && hour < quietEnd;
 }
 
-function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number; quietStart?: number; quietEnd?: number; daysOfWeek?: number[]; dayOfMonth?: number; months?: number[] }, now: Date, state: ScheduleState): boolean {
+export function shouldFire(entry: { name: string; hour?: number; minute?: number; intervalMinutes?: number; quietStart?: number; quietEnd?: number; daysOfWeek?: number[]; dayOfMonth?: number; months?: number[] }, now: Date, state: ScheduleState): boolean {
   const dow = now.getDay(); // 0=Sun, 6=Sat
   const dom = now.getDate();
   const month = now.getMonth() + 1; // 1-12
