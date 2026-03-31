@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { settingsStore } from './settings.js';
 	import { setTheme, type ThemeMode } from './theme.js';
+	import OllamaStatus from './OllamaStatus.svelte';
 
 	interface Props {
 		open: boolean;
@@ -12,6 +13,7 @@
 	// Local draft — committed on blur; $effects keep drafts in sync with store
 	let wsUrlDraft = $state(settingsStore.value.wsUrl);
 	let wsTokenDraft = $state(settingsStore.value.wsToken);
+	let ollamaUrlDraft = $state(settingsStore.value.ollamaUrl);
 
 	function handleThemeChange(mode: ThemeMode) {
 		settingsStore.update('theme', mode);
@@ -39,6 +41,12 @@
 		settingsStore.update('wsToken', wsTokenDraft);
 	}
 
+	function handleOllamaUrlBlur() {
+		if (ollamaUrlDraft.trim()) {
+			settingsStore.update('ollamaUrl', ollamaUrlDraft.trim());
+		}
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && open) onClose();
 	}
@@ -53,6 +61,9 @@
 	});
 	$effect(() => {
 		wsTokenDraft = settingsStore.value.wsToken;
+	});
+	$effect(() => {
+		ollamaUrlDraft = settingsStore.value.ollamaUrl;
 	});
 </script>
 
@@ -160,6 +171,25 @@
 						aria-label="WebSocket auth token"
 					/>
 				</label>
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Ollama (local LLM) -->
+			<section class="section">
+				<div class="section-label">Local AI (Ollama)</div>
+				<label class="field-col" style="margin-bottom: 10px;">
+					<span class="field-label">Ollama URL</span>
+					<input
+						type="text"
+						class="text-input"
+						bind:value={ollamaUrlDraft}
+						onblur={handleOllamaUrlBlur}
+						placeholder="http://localhost:11434"
+						aria-label="Ollama base URL"
+					/>
+				</label>
+				<OllamaStatus />
 			</section>
 
 		</div>

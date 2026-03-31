@@ -3,10 +3,14 @@
 	import SpeechBubble, { type BubbleType } from './lib/SpeechBubble.svelte';
 	import WorkerProgress from './lib/WorkerProgress.svelte';
 	import Settings from './lib/Settings.svelte';
-	import { EdithWsClient, type ConnectionState } from './lib/ws-client.js';
+	import { EdithWsClient, type ConnectionState, type WsAudioMessage } from './lib/ws-client.js';
+	import { connectionModeManager, type ConnectionMode } from './lib/connection-state.js';
+	import ConnectionStatus from './lib/ConnectionStatus.svelte';
 	import { addWorker, updateWorker, removeWorker } from './lib/stores.js';
 	import { settingsStore } from './lib/settings.js';
 	import { initTheme } from './lib/theme.js';
+	import AudioPlayer from './lib/AudioPlayer.svelte';
+	import { playAudio, stopAudio } from './lib/audio.js';
 
 	const MAX_BUBBLES = 3;
 
@@ -23,22 +27,14 @@
 	/** True while the agent is in 'thinking' or 'working' state */
 	let agentTyping = $state(false);
 	let settingsOpen = $state(false);
+	/** True while TTS audio is playing */
+	let audioPlaying = $state(false);
 
-	const STATUS_LABEL: Record<ConnectionState, string> = {
-		disconnected: 'Disconnected',
-		connecting: 'Connecting…',
-		authenticating: 'Authenticating…',
-		connected: 'Connected',
-		reconnecting: 'Reconnecting…',
-	};
-
-	const STATUS_COLOR: Record<ConnectionState, string> = {
-		disconnected: 'var(--dot-disconnected, #666)',
-		connecting: 'var(--dot-connecting, #f0a500)',
-		authenticating: 'var(--dot-connecting, #f0a500)',
-		connected: 'var(--dot-connected, #4caf50)',
-		reconnecting: 'var(--dot-connecting, #f0a500)',
-	};
+	// Connection mode state (cloud / local / offline)
+	let connMode = $state<ConnectionMode>(connectionModeManager.mode);
+	let ollamaAvailable = $state(connectionModeManager.ollamaAvailable);
+	let cloudConnected = $state(connectionModeManager.cloudConnected);
+	let manualOverride = $state<ConnectionMode | null>(connectionModeManager.manualOverride);
 
 	const MOCK_MESSAGES: Array<{ text: string; type: BubbleType }> = [
 		{ text: 'You have a meeting with **Chris** in 15 minutes.', type: 'message' },
@@ -73,9 +69,42 @@
 		const cleanupTheme = initTheme();
 		unsubs.push(cleanupTheme);
 
+		// Start Ollama polling + subscribe to mode changes
+		connectionModeManager.start();
+		unsubs.push(
+			connectionModeManager.on('modeChange', (mode) => {
+				connMode = mode;
+				manualOverride = connectionModeManager.manualOverride;
+			})
+		);
+		unsubs.push(
+			connectionModeManager.on('ollamaChange', (available) => {
+				ollamaAvailable = available;
+			})
+		);
+		unsubs.push(() => connectionModeManager.stop());
+
 		unsubs.push(
 			wsClient.on('stateChange', (state) => {
 				connectionState = state;
+			})
+		);
+
+		// Wire WS cloud connect/disconnect → ConnectionModeManager
+		unsubs.push(
+			wsClient.on('cloudConnected', () => {
+				cloudConnected = true;
+				connectionModeManager.onCloudConnected();
+				connMode = connectionModeManager.mode;
+				manualOverride = connectionModeManager.manualOverride;
+			})
+		);
+		unsubs.push(
+			wsClient.on('cloudDisconnected', () => {
+				cloudConnected = false;
+				connectionModeManager.onCloudDisconnected();
+				connMode = connectionModeManager.mode;
+				manualOverride = connectionModeManager.manualOverride;
 			})
 		);
 
@@ -106,6 +135,19 @@
 						updateWorker(taskId, { status: 'failed' });
 						setTimeout(() => removeWorker(taskId), 3000);
 					}
+				} else if (msg.type === 'audio') {
+					// Only play if notification sounds are enabled
+					if (settingsStore.value.notificationSounds) {
+						const audioMsg = msg as WsAudioMessage;
+						audioPlaying = true;
+						playAudio(audioMsg.data, audioMsg.mimeType ?? 'audio/mpeg')
+							.catch((err) => {
+								console.error('[App] Audio playback error:', err);
+							})
+							.finally(() => {
+								audioPlaying = false;
+							});
+					}
 				}
 			})
 		);
@@ -122,6 +164,7 @@
 	onDestroy(() => {
 		for (const unsub of unsubs) unsub();
 		wsClient.disconnect();
+		stopAudio();
 	});
 </script>
 
@@ -145,6 +188,11 @@
 
 	<WorkerProgress />
 
+	<AudioPlayer
+		playing={audioPlaying}
+		onStop={() => { audioPlaying = false; }}
+	/>
+
 	<div class="controls">
 		<button class="test-btn" onclick={addTestMessage} type="button">
 			+ Message
@@ -152,10 +200,15 @@
 		<button class="test-btn" onclick={toggleTestTyping} type="button">
 			{agentTyping ? 'Stop' : 'Typing…'}
 		</button>
-		<div class="status">
-			<span class="dot" style="background: {STATUS_COLOR[connectionState]};"></span>
-			<span class="status-label">{STATUS_LABEL[connectionState]}</span>
-		</div>
+		<ConnectionStatus
+			mode={connMode}
+			{ollamaAvailable}
+			{cloudConnected}
+			{manualOverride}
+			onForceCloud={() => { connectionModeManager.forceMode('cloud'); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
+			onForceLocal={() => { connectionModeManager.forceMode('local'); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
+			onForceAuto={() => { connectionModeManager.forceMode(null); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
+		/>
 		<button
 			class="gear-btn"
 			onclick={() => (settingsOpen = !settingsOpen)}
@@ -221,24 +274,6 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-	}
-
-	.status {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-	}
-
-	.dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.status-label {
-		font-size: 11px;
-		color: var(--text-muted);
 	}
 
 	.gear-btn {

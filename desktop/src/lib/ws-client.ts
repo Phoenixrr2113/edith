@@ -24,6 +24,7 @@ export type WsMessageType =
 	| "progress"
 	| "sync"
 	| "error"
+	| "audio"
 	| "input"
 	| "screen_context"
 	| "sync-request";
@@ -101,6 +102,15 @@ export interface WsErrorMessage extends WsMessage {
 	fatal?: boolean;
 }
 
+/** Cloud → Device: base64-encoded TTS audio payload */
+export interface WsAudioMessage extends WsMessage {
+	type: "audio";
+	/** Base64-encoded audio data */
+	data: string;
+	/** MIME type of the audio (e.g. "audio/mpeg", "audio/wav") */
+	mimeType?: string;
+}
+
 export type WsErrorCode =
 	| "AUTH_FAILED"
 	| "AUTH_EXPIRED"
@@ -147,6 +157,7 @@ export type AnyWsMessage =
 	| WsProgressMessage
 	| WsSyncMessage
 	| WsErrorMessage
+	| WsAudioMessage
 	| WsInputMessage
 	| WsScreenContextMessage
 	| WsSyncRequestMessage
@@ -191,6 +202,16 @@ export interface EdithWsClientEvents {
 	disconnected: { code: number; reason: string };
 	/** Server error message received */
 	error: WsErrorMessage;
+	/**
+	 * Emitted when the cloud WebSocket transitions into a fully connected state.
+	 * Consumers (e.g. ConnectionModeManager) should use this to mark cloud as up.
+	 */
+	cloudConnected: undefined;
+	/**
+	 * Emitted when the cloud WebSocket transitions out of a connected state
+	 * (close, error, or pong timeout). Consumers should fall back to local/offline.
+	 */
+	cloudDisconnected: { code: number; reason: string };
 }
 
 type EventHandler<K extends keyof EdithWsClientEvents> = (payload: EdithWsClientEvents[K]) => void;
@@ -368,6 +389,7 @@ export class EdithWsClient {
 		this.reconnectAttempt = 0;
 		this._setConnectionState("connected");
 		this._emit("connected", msg);
+		this._emit("cloudConnected", undefined);
 		this._startHeartbeat();
 		this._flushOfflineQueue();
 	}
@@ -392,7 +414,9 @@ export class EdithWsClient {
 	private _handleClose(event: CloseEvent): void {
 		this._clearTimers();
 		this.ws = null;
-		this._emit("disconnected", { code: event.code, reason: event.reason });
+		const closePayload = { code: event.code, reason: event.reason };
+		this._emit("disconnected", closePayload);
+		this._emit("cloudDisconnected", closePayload);
 
 		const code = event.code;
 

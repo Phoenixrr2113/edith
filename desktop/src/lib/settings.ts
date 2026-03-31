@@ -17,6 +17,8 @@ export interface DesktopSettings {
 	notificationSounds: boolean;
 	/** How long (ms) before a speech bubble auto-fades */
 	autoFadeMs: number;
+	/** Ollama base URL for local LLM fallback */
+	ollamaUrl: string;
 }
 
 const STORAGE_KEY = "edith-settings";
@@ -27,6 +29,7 @@ const DEFAULTS: DesktopSettings = {
 	wsToken: import.meta.env?.VITE_WS_TOKEN ?? "",
 	notificationSounds: true,
 	autoFadeMs: 5000,
+	ollamaUrl: "http://localhost:11434",
 };
 
 // ── Load / save ───────────────────────────────────────────────────────────────
