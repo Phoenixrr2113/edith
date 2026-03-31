@@ -360,7 +360,8 @@ server.registerTool("manage_calendar", {
     action: z.enum(["get", "create", "update", "delete"]).default("get")
       .describe("What to do. Default: 'get' to fetch events."),
     // Get params
-    hoursAhead: z.number().min(1).max(168).optional().describe("(get) Hours ahead to look. Default: 24"),
+    hoursAhead: z.number().min(0).max(168).optional().describe("(get) Hours ahead to look. Default: 24. Set to 0 when using hoursBehind only."),
+    hoursBehind: z.number().min(0).max(168).optional().describe("(get) Hours behind (in the past) to look. When specified, returns events from (now - hoursBehind) to now (or to now + hoursAhead if both specified). Default: 0 (no past events)."),
     includeAllDay: z.boolean().optional().describe("(get) Include all-day events. Default: true"),
     // Create/update params
     summary: z.string().optional().describe("(create/update) Event title"),
@@ -373,22 +374,27 @@ server.registerTool("manage_calendar", {
     eventId: z.string().optional().describe("(update/delete) Calendar event ID from a previous get"),
     calendar: z.string().optional().describe("Calendar ID. Default: randyrowanwilson@gmail.com"),
   },
-}, async ({ action, hoursAhead, includeAllDay, summary, start, end, location, description, allDay, eventId, calendar }) => {
+}, async ({ action, hoursAhead, hoursBehind, includeAllDay, summary, start, end, location, description, allDay, eventId, calendar }) => {
   // Get mode
   if (action === "get") {
-    const hours = hoursAhead ?? 24;
+    const ahead = hoursAhead ?? (hoursBehind != null ? 0 : 24);
+    const behind = hoursBehind ?? 0;
     const inclAllDay = includeAllDay ?? true;
-    const result = await n8nPost("calendar", { hoursAhead: hours, includeAllDay: inclAllDay });
+    const now = Date.now();
+    const timeMin = new Date(now - behind * 3600000).toISOString();
+    const timeMax = new Date(now + ahead * 3600000).toISOString();
+    const result = await n8nPost("calendar", { timeMin, timeMax, includeAllDay: inclAllDay });
     if (!result.ok) {
       if (result.data === null) return jsonResponse({ events: [], message: "No upcoming events" });
       return textResponse(`Calendar error: ${result.error}`);
     }
     const data = result.data;
     if (data?.events) {
-      const cutoff = new Date(Date.now() + hours * 3600000).toISOString();
       data.events = data.events.filter((e: any) => {
         if (!inclAllDay && !e.start?.includes("T")) return false;
-        return !e.start || e.start <= cutoff;
+        const eventStart = e.start;
+        if (!eventStart) return true;
+        return eventStart >= timeMin && eventStart <= timeMax;
       });
       data.count = data.events.length;
     }

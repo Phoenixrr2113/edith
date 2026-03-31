@@ -33,9 +33,9 @@
             "mode": "list",
             "cachedResultName": "randyrowanwilson@gmail.com"
           },
-          "limit": 10,
-          "timeMin": "={{ $now.toISO() }}",
-          "timeMax": "={{ $now.plus({ hours: 24 }).toISO() }}",
+          "limit": 50,
+          "timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
+          "timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
           "options": {}
         },
         "type": "n8n-nodes-base.googleCalendar",
@@ -62,9 +62,9 @@
             "mode": "list",
             "cachedResultName": "driftking718@yahoo.com"
           },
-          "limit": 10,
-          "timeMin": "={{ $now.toISO() }}",
-          "timeMax": "={{ $now.plus({ hours: 24 }).toISO() }}",
+          "limit": 50,
+          "timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
+          "timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
           "options": {}
         },
         "type": "n8n-nodes-base.googleCalendar",
