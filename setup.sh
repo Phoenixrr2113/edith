@@ -52,6 +52,7 @@ read -p "  Twilio WhatsApp From (e.g. whatsapp:+14155238886): " TWILIO_WHATSAPP_
 read -p "  Twilio SMS From (phone number): " TWILIO_SMS_FROM
 read -p "  Your WhatsApp number (e.g. whatsapp:+19416627510): " RANDY_WHATSAPP
 read -p "  Your phone number (e.g. +19416627510): " RANDY_PHONE
+read -p "  Sentry DSN (for crash tracking, get from sentry.io): " SENTRY_DSN
 
 # --- Write .env ---
 cat > .env <<EOF
@@ -70,6 +71,7 @@ TWILIO_WHATSAPP_FROM=$TWILIO_WHATSAPP_FROM
 TWILIO_SMS_FROM=$TWILIO_SMS_FROM
 RANDY_WHATSAPP=$RANDY_WHATSAPP
 RANDY_PHONE=$RANDY_PHONE
+SENTRY_DSN=$SENTRY_DSN
 EOF
 chmod 600 .env
 echo "  ok .env written (permissions: 600)"

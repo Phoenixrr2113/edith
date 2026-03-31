@@ -282,6 +282,30 @@ process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
 // ============================================================
+// Global error handlers — capture to Sentry before crashing
+// ============================================================
+import * as Sentry from "@sentry/node";
+
+process.on("uncaughtException", (err: Error) => {
+	console.error("[edith] Uncaught exception:", err);
+	if (process.env.SENTRY_DSN) {
+		Sentry.captureException(err);
+	}
+	gracefulShutdown();
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+	console.error("[edith] Unhandled promise rejection:", reason);
+	if (process.env.SENTRY_DSN) {
+		if (reason instanceof Error) {
+			Sentry.captureException(reason);
+		} else {
+			Sentry.captureMessage(`Unhandled rejection: ${String(reason)}`, { level: "error" });
+		}
+	}
+});
+
+// ============================================================
 // Start
 // ============================================================
 console.log("[edith] Edith is starting up...");

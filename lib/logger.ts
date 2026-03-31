@@ -5,6 +5,7 @@
  * Heartbeat pings sent via pingHeartbeat() from the scheduler tick.
  */
 import { Logtail } from "@logtail/node";
+import * as Sentry from "@sentry/node";
 
 const token = process.env.BETTERSTACK_SOURCE_TOKEN;
 const heartbeatUrl = process.env.BETTERSTACK_HEARTBEAT_URL;
@@ -23,6 +24,18 @@ export const logger = {
 	error(message: string, context?: Record<string, unknown>) {
 		if (logtail) logtail.error(message, context);
 		console.error(message, context ? JSON.stringify(context) : "");
+		// Capture to Sentry if DSN is configured
+		if (process.env.SENTRY_DSN) {
+			// If context contains an actual Error, send it with full stack trace
+			const err = context
+				? Object.values(context).find((v) => v instanceof Error)
+				: undefined;
+			if (err instanceof Error) {
+				Sentry.captureException(err, { extra: { message, ...context } });
+			} else {
+				Sentry.captureMessage(message, { level: "error", extra: context });
+			}
+		}
 	},
 	flush() {
 		return logtail?.flush();
