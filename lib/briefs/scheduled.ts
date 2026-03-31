@@ -104,6 +104,98 @@ export async function buildEveningBrief(): Promise<string> {
 	return sections.join("\n");
 }
 
+export async function buildWeekendBrief(): Promise<string> {
+	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+	const taskboard = getRecentTaskboardEntries();
+
+	const sections: string[] = [`Weekend brief. Current time: ${time}`];
+
+	if (taskboard.trim()) {
+		sections.push(`\n## Prior Taskboard\n${taskboard}`);
+	}
+
+	sections.push(
+		`\nRun the weekend-brief skill. Gather context: search Cognee for Phoenix interests and family plans, check calendar (manage_calendar action=get, hoursAhead=48, includeAllDay=true), check reminders.`,
+		`Research weekend activities for the family in Bradenton/Sarasota FL: Macaroni Kid, Facebook local groups, Visit Sarasota/Bradenton event calendars. Search for Phoenix interests: parkour, ninja warrior, STEM, outdoor, beach.`,
+		`Check weather for today and tomorrow. Beach conditions: Anna Maria Island, Siesta Key, Lido Beach.`,
+		`Create a Google Doc (manage_docs) with full weekend guide. Title: "Weekend Guide — [Dates]"`,
+		`Send Randy a Telegram summary with weather, best Phoenix activity, Diana+Phoenix idea, beach conditions, one event. Chat ID: ${CHAT_ID}.`,
+		`Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — weekend-brief`
+	);
+
+	return sections.join("\n");
+}
+
+export async function buildWeeklyReviewBrief(): Promise<string> {
+	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+	const taskboard = readTaskboard();
+	const todayActivity = readActivity();
+
+	const sections: string[] = [`Weekly review. Current time: ${time}`];
+
+	if (taskboard.trim()) {
+		sections.push(`\n## Current Taskboard\n${taskboard}`);
+	}
+	if (todayActivity.trim()) {
+		sections.push(`\n## Recent Activity\n${todayActivity}`);
+	}
+
+	sections.push(
+		`\nRun the weekly-review skill. Gather data: read taskboard archive at ~/.edith/taskboard-archive/, use get_activity with days=7, search Cognee for this week's decisions and people.`,
+		`Look back at this week: what shipped, key meetings, family time with Phoenix/Diana, health signals, patterns.`,
+		`Look ahead at next week: calendar (manage_calendar action=get, hoursAhead=168, includeAllDay=true), deadlines, meeting prep needed.`,
+		`Create a Google Doc (manage_docs) titled "Week of [DATE] — Weekly Review" with full review.`,
+		`Send Randy a Telegram summary (scorecard, win, gap, next week, open loop + Doc link). Chat ID: ${CHAT_ID}.`,
+		`Store decisions and patterns in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — weekly-review`
+	);
+
+	return sections.join("\n");
+}
+
+export async function buildMonthlyReviewBrief(): Promise<string> {
+	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+	const taskboard = readTaskboard();
+
+	const sections: string[] = [`Monthly review. Current time: ${time}`];
+
+	if (taskboard.trim()) {
+		sections.push(`\n## Current Taskboard\n${taskboard}`);
+	}
+
+	sections.push(
+		`\nRun the monthly-review skill. Gather data: read taskboard archive at ~/.edith/taskboard-archive/YYYY-MM.md for this month, use get_activity with days=30, search Cognee for this month's decisions and patterns.`,
+		`Pull cost data from ~/.edith/events.jsonl — sum Edith costs by label for the month.`,
+		`Look at the life scorecard: Work, Family (Phoenix, Diana+Phoenix), Health/Fitness, Finances, Learning, Fun, Mental Health. Use ⬆️➡️⬇️ trend arrows.`,
+		`Create a Google Doc (manage_docs) titled "Monthly Review — [MONTH YEAR]" with full review.`,
+		`Send Randy a Telegram summary (scorecard on one line, win, gap, month focus, Phoenix note + Doc link). Chat ID: ${CHAT_ID}.`,
+		`Store monthly summary and updated goals in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — monthly-review`
+	);
+
+	return sections.join("\n");
+}
+
+export async function buildQuarterlyReviewBrief(): Promise<string> {
+	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+	const taskboard = readTaskboard();
+
+	const sections: string[] = [`Quarterly review. Current time: ${time}`];
+
+	if (taskboard.trim()) {
+		sections.push(`\n## Current Taskboard\n${taskboard}`);
+	}
+
+	sections.push(
+		`\nRun the quarterly-review skill. Gather data: search Cognee for decisions, milestones, patterns from the last 3 months, read taskboard archives for each month of the quarter, use get_activity with days=90.`,
+		`This is a strategic review. Cover: Career & Projects, Family & Relationships, Health & Wellbeing, Finances, Edith Effectiveness.`,
+		`Look at quarterly theme, 3 wins, 3 misses, lessons, what would you do differently.`,
+		`Create a Google Doc (manage_docs) titled "Q[N] [YEAR] — Quarterly Review" with full strategic review.`,
+		`Send Randy a Telegram summary (theme, win, miss, Q[N+1] focus, Phoenix trend + Doc link). Chat ID: ${CHAT_ID}.`,
+		`Store quarterly milestone and updated trajectory in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — quarterly-review`
+	);
+
+	return sections.join("\n");
+}
+
 export function buildScheduledBrief(prompt: string, taskName: string): string {
 	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 	return `Run this task: ${prompt}\n\nCurrent time: ${time}.\n\nIf you have findings worth recording, write them to the taskboard at ${TASKBOARD_FILE}. Use this format:\n## ${new Date().toISOString()} — ${taskName}\n<your findings here>\n\nIf something needs Randy's attention, also use send_message (chat_id: ${CHAT_ID}).\nIf nothing is actionable and nothing to report, do NOT write to the taskboard and do NOT message. Silent exit.`;
