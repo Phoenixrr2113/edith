@@ -309,6 +309,15 @@ process.on("unhandledRejection", (reason: unknown) => {
 console.log("[edith] Edith is starting up...");
 rotateEvents();
 
+// Seed Google OAuth tokens from env vars into SQLite
+import { seedTokensFromEnv } from "./lib/google-auth";
+
+try {
+	seedTokensFromEnv();
+} catch (err) {
+	console.warn("[edith] Failed to seed OAuth tokens:", err);
+}
+
 // Clean up old inbox files (older than 7 days)
 try {
 	const now = Date.now();

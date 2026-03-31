@@ -35,6 +35,17 @@ export const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "";
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
 export const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN ?? "";
+export const GOOGLE_REFRESH_TOKEN_2 = process.env.GOOGLE_REFRESH_TOKEN_2 ?? "";
+
+/** Google account identifiers — provider keys used in oauth_tokens table */
+export const GOOGLE_ACCOUNTS = [
+	{ provider: "google", label: "phoenixrr2113@gmail.com", refreshTokenEnv: "GOOGLE_REFRESH_TOKEN" },
+	{
+		provider: "google-2",
+		label: "randyrowanwilson@gmail.com",
+		refreshTokenEnv: "GOOGLE_REFRESH_TOKEN_2",
+	},
+] as const;
 export const GOOGLE_ACCESS_TOKEN = process.env.GOOGLE_ACCESS_TOKEN ?? "";
 
 // --- OpenRouter ---

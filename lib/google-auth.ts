@@ -82,19 +82,21 @@ export function storeTokens(
 	);
 }
 
-// ── In-memory cache ───────────────────────────────────────────────────────────
+// ── In-memory cache (per-provider) ───────────────────────────────────────────
 
 interface TokenCache {
 	accessToken: string;
 	expiresAt: number; // unix ms
 }
 
-let _cache: TokenCache | null = null;
+const _cacheMap = new Map<string, TokenCache>();
 
 // ── Core API ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns a valid Google OAuth2 access token.
+ * Returns a valid Google OAuth2 access token for the given provider.
+ *
+ * @param provider — "google" (default/primary) or "google-2" (secondary account)
  *
  * Priority:
  *   1. In-memory cache (valid and not expiring soon)
@@ -103,27 +105,29 @@ let _cache: TokenCache | null = null;
  *
  * Throws if no tokens are available. Run the OAuth consent flow first.
  */
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken(provider = PROVIDER): Promise<string> {
 	const now = Date.now();
 
 	// 1. Memory cache
-	if (_cache && _cache.expiresAt - EXPIRY_BUFFER_MS > now) {
-		return _cache.accessToken;
+	const cached = _cacheMap.get(provider);
+	if (cached && cached.expiresAt - EXPIRY_BUFFER_MS > now) {
+		return cached.accessToken;
 	}
 
-	// 2. Static env-var fallback (tests / pre-setup)
-	const staticToken = process.env.GOOGLE_ACCESS_TOKEN ?? "";
-	if (staticToken && !process.env.GOOGLE_CLIENT_ID) {
-		_cache = { accessToken: staticToken, expiresAt: now + 55 * 60 * 1000 };
-		return staticToken;
+	// 2. Static env-var fallback (tests / pre-setup) — only for primary
+	if (provider === PROVIDER) {
+		const staticToken = process.env.GOOGLE_ACCESS_TOKEN ?? "";
+		if (staticToken && !process.env.GOOGLE_CLIENT_ID) {
+			_cacheMap.set(provider, { accessToken: staticToken, expiresAt: now + 55 * 60 * 1000 });
+			return staticToken;
+		}
 	}
 
 	// 3. Load from SQLite
-	const row = loadTokens(PROVIDER);
+	const row = loadTokens(provider);
 	if (!row) {
 		throw new Error(
-			"No Google OAuth tokens in DB. Run the OAuth consent flow first:\n" +
-				"  bun run setup:oauth  (or see setup.sh)"
+			`No Google OAuth tokens in DB for provider "${provider}". Run the OAuth consent flow first.`
 		);
 	}
 
@@ -131,7 +135,7 @@ export async function getAccessToken(): Promise<string> {
 	const needsRefresh = now + EXPIRY_BUFFER_MS >= expiresAtMs;
 
 	if (!needsRefresh) {
-		_cache = { accessToken: row.access_token, expiresAt: expiresAtMs };
+		_cacheMap.set(provider, { accessToken: row.access_token, expiresAt: expiresAtMs });
 		return row.access_token;
 	}
 
@@ -160,7 +164,7 @@ export async function getAccessToken(): Promise<string> {
 
 	if (!res.ok) {
 		const body = await res.text();
-		throw new Error(`Google token refresh failed (${res.status}): ${body}`);
+		throw new Error(`Google token refresh failed for ${provider} (${res.status}): ${body}`);
 	}
 
 	const json = (await res.json()) as {
@@ -177,19 +181,44 @@ export async function getAccessToken(): Promise<string> {
 	const newExpiresAt = new Date(now + json.expires_in * 1000).toISOString();
 
 	// Persist refreshed tokens — use new refresh_token if Google rotated it
-	storeTokens(PROVIDER, {
+	storeTokens(provider, {
 		access_token: json.access_token,
 		refresh_token: json.refresh_token ?? row.refresh_token,
 		expires_at: newExpiresAt,
 	});
 
-	_cache = { accessToken: json.access_token, expiresAt: now + json.expires_in * 1000 };
+	_cacheMap.set(provider, {
+		accessToken: json.access_token,
+		expiresAt: now + json.expires_in * 1000,
+	});
 	return json.access_token;
+}
+
+/**
+ * Seed OAuth tokens from env vars into SQLite (idempotent).
+ * Call at startup so both accounts are available immediately.
+ */
+export function seedTokensFromEnv(): void {
+	const accounts = [
+		{ provider: "google", envKey: "GOOGLE_REFRESH_TOKEN" },
+		{ provider: "google-2", envKey: "GOOGLE_REFRESH_TOKEN_2" },
+	];
+	for (const { provider, envKey } of accounts) {
+		const refreshToken = process.env[envKey] ?? "";
+		if (!refreshToken) continue;
+		const existing = loadTokens(provider);
+		if (existing) continue; // already seeded
+		storeTokens(provider, {
+			access_token: "",
+			refresh_token: refreshToken,
+			expires_at: new Date(0).toISOString(), // force refresh on first use
+		});
+	}
 }
 
 /** Clear the in-memory token cache (useful in tests or after auth errors). */
 export function clearTokenCache(): void {
-	_cache = null;
+	_cacheMap.clear();
 }
 
 // ── Initial setup helpers ─────────────────────────────────────────────────────

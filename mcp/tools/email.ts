@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { batchManage, manageEmail, searchEmails } from "../../lib/gmail";
+import { batchManage, manageEmail, searchAllAccounts } from "../../lib/gmail";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
 import { logEvent } from "../../lib/state";
 
@@ -75,7 +75,7 @@ export function registerEmailTools(server: McpServer): void {
 			// ── Get mode ────────────────────────────────────────────────────────────
 			if (action === "get") {
 				try {
-					const data = await searchEmails({
+					const data = await searchAllAccounts({
 						hoursBack: hoursBack ?? 4,
 						unreadOnly: unreadOnly ?? true,
 						maxResults: maxResults ?? 10,

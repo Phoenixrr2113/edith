@@ -8,6 +8,7 @@
  *       (GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN)
  */
 
+import { GOOGLE_ACCOUNTS } from "./config";
 import { getAccessToken } from "./google-auth";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -19,6 +20,8 @@ export interface EmailMessage {
 	date: string;
 	snippet: string;
 	unread: boolean;
+	/** Which Google account this email belongs to */
+	account?: string;
 }
 
 export interface EmailList {
@@ -30,8 +33,12 @@ export interface EmailList {
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-async function gmailFetch(path: string, options: RequestInit = {}): Promise<Response> {
-	const token = await getAccessToken();
+async function gmailFetch(
+	path: string,
+	options: RequestInit = {},
+	provider = "google"
+): Promise<Response> {
+	const token = await getAccessToken(provider);
 	const url = `${GMAIL_API}${path}`;
 	const res = await fetch(url, {
 		...options,
@@ -48,9 +55,15 @@ function headerValue(headers: Array<{ name: string; value: string }>, name: stri
 	return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 }
 
-async function fetchMessage(id: string): Promise<EmailMessage> {
+async function fetchMessage(
+	id: string,
+	provider = "google",
+	accountLabel?: string
+): Promise<EmailMessage> {
 	const res = await gmailFetch(
-		`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`
+		`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+		{},
+		provider
 	);
 	if (!res.ok) {
 		throw new Error(`Gmail messages.get failed (${res.status}): ${await res.text()}`);
@@ -69,6 +82,7 @@ async function fetchMessage(id: string): Promise<EmailMessage> {
 		date: headerValue(headers, "Date"),
 		snippet: msg.snippet ?? "",
 		unread: (msg.labelIds ?? []).includes("UNREAD"),
+		account: accountLabel,
 	};
 }
 
@@ -83,16 +97,21 @@ export interface SearchEmailsOptions {
 	unreadOnly?: boolean;
 	/** Raw Gmail query string (overrides hoursBack/unreadOnly if provided) */
 	query?: string;
+	/** Provider key — "google" (default) or "google-2" for secondary account */
+	provider?: string;
 }
 
 /**
- * List recent emails matching the given filters.
+ * List recent emails matching the given filters for a single account.
  * Fetches full headers for each matching message.
  */
 export async function searchEmails(options: SearchEmailsOptions = {}): Promise<EmailList> {
 	const maxResults = Math.min(options.maxResults ?? 10, 50);
 	const hoursBack = options.hoursBack ?? 4;
 	const unreadOnly = options.unreadOnly ?? true;
+	const provider = options.provider ?? "google";
+
+	const accountLabel = GOOGLE_ACCOUNTS.find((a) => a.provider === provider)?.label ?? provider;
 
 	let q = options.query ?? "";
 	if (!q) {
@@ -106,9 +125,11 @@ export async function searchEmails(options: SearchEmailsOptions = {}): Promise<E
 		maxResults: String(maxResults),
 	});
 
-	const res = await gmailFetch(`/messages?${params.toString()}`);
+	const res = await gmailFetch(`/messages?${params.toString()}`, {}, provider);
 	if (!res.ok) {
-		throw new Error(`Gmail messages.list failed (${res.status}): ${await res.text()}`);
+		throw new Error(
+			`Gmail messages.list failed for ${accountLabel} (${res.status}): ${await res.text()}`
+		);
 	}
 
 	const data = (await res.json()) as {
@@ -117,20 +138,51 @@ export async function searchEmails(options: SearchEmailsOptions = {}): Promise<E
 	};
 	const messageRefs = data.messages ?? [];
 
-	// Fetch headers for each message in parallel (capped at maxResults)
-	const emails = await Promise.all(messageRefs.slice(0, maxResults).map((m) => fetchMessage(m.id)));
+	const emails = await Promise.all(
+		messageRefs.slice(0, maxResults).map((m) => fetchMessage(m.id, provider, accountLabel))
+	);
 
 	return { emails, count: emails.length };
 }
 
 /**
+ * Search emails across ALL configured Google accounts.
+ * Results are merged and sorted by date (newest first).
+ */
+export async function searchAllAccounts(
+	options: Omit<SearchEmailsOptions, "provider"> = {}
+): Promise<EmailList> {
+	const activeAccounts = GOOGLE_ACCOUNTS.filter((a) => process.env[a.refreshTokenEnv]);
+
+	const results = await Promise.allSettled(
+		activeAccounts.map((a) => searchEmails({ ...options, provider: a.provider }))
+	);
+
+	const allEmails: EmailMessage[] = [];
+	for (const result of results) {
+		if (result.status === "fulfilled") {
+			allEmails.push(...result.value.emails);
+		}
+	}
+
+	// Sort by date descending
+	allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+	return { emails: allEmails, count: allEmails.length };
+}
+
+/**
  * Archive an email (removes INBOX label).
  */
-export async function archiveEmail(messageId: string): Promise<void> {
-	const res = await gmailFetch(`/messages/${messageId}/modify`, {
-		method: "POST",
-		body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
-	});
+export async function archiveEmail(messageId: string, provider = "google"): Promise<void> {
+	const res = await gmailFetch(
+		`/messages/${messageId}/modify`,
+		{
+			method: "POST",
+			body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
+		},
+		provider
+	);
 	if (!res.ok) {
 		throw new Error(`Gmail archive failed (${res.status}): ${await res.text()}`);
 	}
@@ -139,8 +191,8 @@ export async function archiveEmail(messageId: string): Promise<void> {
 /**
  * Move an email to Trash.
  */
-export async function trashEmail(messageId: string): Promise<void> {
-	const res = await gmailFetch(`/messages/${messageId}/trash`, { method: "POST" });
+export async function trashEmail(messageId: string, provider = "google"): Promise<void> {
+	const res = await gmailFetch(`/messages/${messageId}/trash`, { method: "POST" }, provider);
 	if (!res.ok) {
 		throw new Error(`Gmail trash failed (${res.status}): ${await res.text()}`);
 	}
@@ -149,11 +201,15 @@ export async function trashEmail(messageId: string): Promise<void> {
 /**
  * Mark an email as read (removes UNREAD label).
  */
-export async function markAsRead(messageId: string): Promise<void> {
-	const res = await gmailFetch(`/messages/${messageId}/modify`, {
-		method: "POST",
-		body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
-	});
+export async function markAsRead(messageId: string, provider = "google"): Promise<void> {
+	const res = await gmailFetch(
+		`/messages/${messageId}/modify`,
+		{
+			method: "POST",
+			body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+		},
+		provider
+	);
 	if (!res.ok) {
 		throw new Error(`Gmail markAsRead failed (${res.status}): ${await res.text()}`);
 	}
@@ -161,14 +217,21 @@ export async function markAsRead(messageId: string): Promise<void> {
 
 /**
  * Add a label to an email. Label must already exist in Gmail.
- * Accepts either a label ID (e.g. "Label_123") or a display name (e.g. "Work").
  */
-export async function addLabel(messageId: string, label: string): Promise<void> {
-	const labelId = await resolveLabelId(label);
-	const res = await gmailFetch(`/messages/${messageId}/modify`, {
-		method: "POST",
-		body: JSON.stringify({ addLabelIds: [labelId] }),
-	});
+export async function addLabel(
+	messageId: string,
+	label: string,
+	provider = "google"
+): Promise<void> {
+	const labelId = await resolveLabelId(label, provider);
+	const res = await gmailFetch(
+		`/messages/${messageId}/modify`,
+		{
+			method: "POST",
+			body: JSON.stringify({ addLabelIds: [labelId] }),
+		},
+		provider
+	);
 	if (!res.ok) {
 		throw new Error(`Gmail addLabel failed (${res.status}): ${await res.text()}`);
 	}
@@ -177,34 +240,43 @@ export async function addLabel(messageId: string, label: string): Promise<void> 
 /**
  * Remove a label from an email.
  */
-export async function removeLabel(messageId: string, label: string): Promise<void> {
-	const labelId = await resolveLabelId(label);
-	const res = await gmailFetch(`/messages/${messageId}/modify`, {
-		method: "POST",
-		body: JSON.stringify({ removeLabelIds: [labelId] }),
-	});
+export async function removeLabel(
+	messageId: string,
+	label: string,
+	provider = "google"
+): Promise<void> {
+	const labelId = await resolveLabelId(label, provider);
+	const res = await gmailFetch(
+		`/messages/${messageId}/modify`,
+		{
+			method: "POST",
+			body: JSON.stringify({ removeLabelIds: [labelId] }),
+		},
+		provider
+	);
 	if (!res.ok) {
 		throw new Error(`Gmail removeLabel failed (${res.status}): ${await res.text()}`);
 	}
 }
 
-// Label name → ID resolution (cached per process)
-let _labelCache: Map<string, string> | null = null;
+// Label name → ID resolution (cached per provider)
+const _labelCaches = new Map<string, Map<string, string>>();
 
-async function resolveLabelId(nameOrId: string): Promise<string> {
-	// If it looks like an ID (starts with "Label_" or all caps system label), use as-is
+async function resolveLabelId(nameOrId: string, provider = "google"): Promise<string> {
 	if (/^Label_\d+$/.test(nameOrId) || nameOrId === nameOrId.toUpperCase()) {
 		return nameOrId;
 	}
 
-	if (!_labelCache) {
-		const res = await gmailFetch("/labels");
+	let cache = _labelCaches.get(provider);
+	if (!cache) {
+		const res = await gmailFetch("/labels", {}, provider);
 		if (!res.ok) throw new Error(`Gmail labels.list failed (${res.status}): ${await res.text()}`);
 		const data = (await res.json()) as { labels: Array<{ id: string; name: string }> };
-		_labelCache = new Map(data.labels.map((l) => [l.name.toLowerCase(), l.id]));
+		cache = new Map(data.labels.map((l) => [l.name.toLowerCase(), l.id]));
+		_labelCaches.set(provider, cache);
 	}
 
-	const id = _labelCache.get(nameOrId.toLowerCase());
+	const id = cache.get(nameOrId.toLowerCase());
 	if (!id) throw new Error(`Gmail label not found: "${nameOrId}"`);
 	return id;
 }
@@ -241,25 +313,27 @@ export async function batchManage(
 
 /**
  * Perform a single action on one email.
+ * @param provider — which Google account owns this email ("google" or "google-2")
  */
 export async function manageEmail(
 	messageId: string,
 	action: "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel",
-	label?: string
+	label?: string,
+	provider = "google"
 ): Promise<void> {
 	switch (action) {
 		case "archive":
-			return archiveEmail(messageId);
+			return archiveEmail(messageId, provider);
 		case "trash":
-			return trashEmail(messageId);
+			return trashEmail(messageId, provider);
 		case "markAsRead":
-			return markAsRead(messageId);
+			return markAsRead(messageId, provider);
 		case "addLabel":
 			if (!label) throw new Error("addLabel requires a label name");
-			return addLabel(messageId, label);
+			return addLabel(messageId, label, provider);
 		case "removeLabel":
 			if (!label) throw new Error("removeLabel requires a label name");
-			return removeLabel(messageId, label);
+			return removeLabel(messageId, label, provider);
 		default: {
 			const _exhaustive: never = action;
 			throw new Error(`Unknown action: ${_exhaustive}`);
