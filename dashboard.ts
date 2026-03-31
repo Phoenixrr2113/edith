@@ -4,14 +4,12 @@
  */
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, openSync, readSync, closeSync } from "fs";
 import { join, basename } from "path";
-import { homedir } from "os";
+import { STATE_DIR, N8N_URL } from "./lib/config";
+import { readEventsFile, checkHealth, isEdithAlive, getSystemStatus, getEventStats } from "./lib/dashboard-data";
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
-const STATE_DIR = join(process.env.HOME ?? homedir(), ".edith");
 const TRIGGERS_DIR = join(STATE_DIR, "triggers");
 const TRANSCRIPTS_DIR = join(STATE_DIR, "transcripts");
-const N8N_URL = process.env.N8N_URL ?? "http://localhost:5679";
-const COGNEE_URL = process.env.COGNEE_URL ?? "http://localhost:8001";
 
 // Ensure triggers dir exists
 if (!existsSync(TRIGGERS_DIR)) mkdirSync(TRIGGERS_DIR, { recursive: true });
@@ -26,96 +24,6 @@ function readJsonFile(path: string): any {
 function readTextFile(path: string): string {
   if (!existsSync(path)) return "";
   try { return readFileSync(path, "utf-8"); } catch { return ""; }
-}
-
-function readEventsFile(limit: number = 100): any[] {
-  const path = join(STATE_DIR, "events.jsonl");
-  if (!existsSync(path)) return [];
-  try {
-    const lines = readFileSync(path, "utf-8").split("\n").filter(Boolean);
-    return lines.slice(-limit).reverse().map((l) => {
-      try { return JSON.parse(l); } catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-
-async function checkHealth(url: string, timeout = 3000): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    return res.ok;
-  } catch { return false; }
-}
-
-function isEdithAlive(): boolean {
-  const pidFile = join(STATE_DIR, "edith.pid");
-  if (!existsSync(pidFile)) return false;
-  try {
-    const pid = Number(readFileSync(pidFile, "utf-8").trim());
-    process.kill(pid, 0);
-    return true;
-  } catch { return false; }
-}
-
-async function getStatus() {
-  const [n8nOk, cogneeOk, screenpipeOk] = await Promise.all([
-    checkHealth(`${N8N_URL}/healthz`),
-    (async () => {
-      const c = new AbortController();
-      const timeoutId = setTimeout(() => c.abort(), 2000);
-      try {
-        await fetch(`${COGNEE_URL}/sse`, { signal: c.signal });
-        return true;
-      } catch (e: any) {
-        return e?.name === "AbortError";
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    })(),
-    checkHealth("http://localhost:3030/health"),
-  ]);
-
-  const proactiveState = readJsonFile(join(STATE_DIR, "proactive-state.json"));
-
-  return {
-    edith: isEdithAlive(),
-    n8n: n8nOk,
-    cognee: cogneeOk,
-    screenpipe: screenpipeOk,
-    sessionId: readTextFile(join(STATE_DIR, "session-id")).trim() || null,
-    activeProcesses: readJsonFile(join(STATE_DIR, "active-processes.json")) ?? [],
-    schedule: readJsonFile(join(STATE_DIR, "schedule.json")) ?? [],
-    scheduleState: readJsonFile(join(STATE_DIR, "schedule-state.json")) ?? {},
-    proactive: {
-      interventions: (proactiveState?.interventions ?? []).filter(
-        (i: any) => Date.now() - new Date(i.timestamp).getTime() < 24 * 60 * 60 * 1000
-      ),
-      lastCheck: proactiveState?.lastCheck ?? null,
-    },
-    reminders: readJsonFile(join(STATE_DIR, "reminders.json")) ?? [],
-  };
-}
-
-function getStats(events: any[]) {
-  const now = Date.now();
-  const today = events.filter((e) => now - new Date(e.ts).getTime() < 24 * 60 * 60 * 1000);
-  return {
-    messagesReceived: today.filter((e) => e.type === "message_received").length,
-    messagesSent: today.filter((e) => e.type === "message_sent").length,
-    dispatches: today.filter((e) => e.type === "dispatch_end").length,
-    errors: today.filter((e) => e.type === "dispatch_error").length,
-    tasksFired: today.filter((e) => e.type === "schedule_fire").length,
-    avgDispatchMs: (() => {
-      const durations = today.filter((e) => e.type === "dispatch_end" && e.durationMs).map((e) => e.durationMs);
-      return durations.length > 0 ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length) : 0;
-    })(),
-    costUsd: (() => {
-      const costs = today.filter((e) => e.type === "cost" && e.usd).map((e) => e.usd as number);
-      return costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : 0;
-    })(),
-  };
 }
 
 function listTranscripts(limit = 20): { name: string; size: number; modified: string }[] {
@@ -186,12 +94,12 @@ const routes: Record<string, RouteHandler> = {
   "/": () => new Response(DASHBOARD_HTML, { headers: { "Content-Type": "text/html" } }),
   "/index.html": () => new Response(DASHBOARD_HTML, { headers: { "Content-Type": "text/html" } }),
 
-  "/api/status": async () => Response.json(await getStatus()),
+  "/api/status": async () => Response.json(await getSystemStatus()),
 
   "/api/events": (_req, url) => {
     const limit = Number(url.searchParams.get("limit") ?? 100);
     const events = readEventsFile(limit);
-    return Response.json({ events, stats: getStats(events) });
+    return Response.json({ events, stats: getEventStats(events) });
   },
 
   "/api/taskboard": () =>
