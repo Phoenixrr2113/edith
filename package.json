@@ -27,7 +27,7 @@
 		"@langfuse/otel": "^5.0.1",
 		"@logtail/node": "^0.5.8",
 		"@opentelemetry/sdk-node": "^0.214.0",
-		"@sentry/node": "^10.46.0",
+		"@sentry/bun": "^10.46.0",
 		"googleapis": "^171.4.0"
 	}
 }

@@ -109,7 +109,7 @@ EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
 LOG_FILE="$STATE_DIR/edith.log"
 
 start_edith() {
-  EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
+  EDITH_LOG_FILE="$LOG_FILE" bun --preload ./instrument.ts "$DIR/edith.ts" &
   EDITH_PID=$!
   echo "$EDITH_PID" > "$EDITH_PIDFILE"
   echo "[launch] Edith started (PID $EDITH_PID)"
@@ -142,7 +142,7 @@ if command -v fswatch >/dev/null 2>&1; then
       echo "[launch] File change detected, restarting Edith..."
       [ -f "$EDITH_PIDFILE" ] && kill "$(cat "$EDITH_PIDFILE")" 2>/dev/null
       sleep 2
-      EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
+      EDITH_LOG_FILE="$LOG_FILE" bun --preload ./instrument.ts "$DIR/edith.ts" &
       echo "$!" > "$EDITH_PIDFILE"
       echo "[launch] Edith restarted (PID $!)"
     done
@@ -159,8 +159,16 @@ while true; do
   if [ -f "$EDITH_PIDFILE" ]; then
     CURRENT_PID=$(cat "$EDITH_PIDFILE" 2>/dev/null)
     if [ -n "$CURRENT_PID" ] && ! kill -0 "$CURRENT_PID" 2>/dev/null; then
-      echo "[launch] Edith process $CURRENT_PID exited unexpectedly"
-      break
+      # Check exit code — if clean (0), respect manual stop; if crash, let launchd handle it
+      wait "$CURRENT_PID" 2>/dev/null
+      EXIT_CODE=$?
+      if [ "$EXIT_CODE" -eq 0 ]; then
+        echo "[launch] Edith stopped cleanly (exit 0) — staying stopped"
+        cleanup
+      else
+        echo "[launch] Edith process $CURRENT_PID exited with code $EXIT_CODE"
+        break
+      fi
     fi
   fi
   sleep 5
