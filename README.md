@@ -2,7 +2,7 @@
 
 A proactive, always-on AI personal assistant. Cortana's brain, Bonzi's charm.
 
-Edith runs as a Bun daemon on macOS, dispatching to Claude via the Agent SDK. She communicates via Telegram, stores state in SQLite, manages Google services via direct REST APIs, and runs scheduled background agents on a timer.
+Edith runs as a Bun daemon on macOS, dispatching to Claude via the Agent SDK. She communicates via Telegram, stores state in SQLite, manages Google services via direct REST APIs, and runs scheduled background agents on a timer. A Tauri v2 desktop companion provides a local presence with voice I/O.
 
 ## Architecture (v4 — Orchestrator + Skill Routing)
 
@@ -11,7 +11,8 @@ edith.ts (Bun daemon)
   ├── Telegram polling  → dispatch to persistent Claude session
   ├── Scheduler         → fires skills on cron (morning-brief, midday-check, etc.)
   ├── Geofencing        → location-based reminders via OwnTracks pings
-  └── Proactive engine  → screen context triggers with cooldown gates
+  ├── Proactive engine  → screen context triggers with cooldown gates
+  └── WebSocket server  → desktop app connection (JWT auth)
 
 Claude session (orchestrator):
   Light tasks  → handles directly (reminders, lookups, quick questions)
@@ -22,6 +23,18 @@ Claude session (orchestrator):
     ├── researcher    (web + codebase research — sonnet)
     ├── analyst       (weekly/monthly/quarterly reviews — sonnet/opus)
     └── monitor       (reminder checks, proactive checks — haiku)
+
+Desktop app (desktop/ — Tauri v2 + Svelte 5):
+  ├── Frameless window + system tray
+  ├── Speech bubbles (cloud-pushed messages)
+  ├── Worker progress indicator
+  ├── Settings panel + dark/light theme
+  ├── Audio playback, TTS (Cartesia), STT (Groq Whisper)
+  └── WebSocket client → cloud backend
+        ├── Cloud-to-local fallback
+        ├── Offline task queue
+        ├── Local cache + state sync
+        └── Ollama detection for local LLM
 
 MCP tools (mcp/server.ts → mcp/tools/*.ts):
   8 domain modules: messaging, schedule, location, email,
@@ -41,6 +54,7 @@ State (SQLite — ~/.edith/edith.db):
 External services:
   Cognee (port 8001) — knowledge graph + semantic memory
   Groq Whisper       — voice transcription (direct API)
+  Cartesia           — text-to-speech (direct API)
   Google Imagen      — image generation (direct API)
 ```
 
@@ -61,6 +75,7 @@ External services:
 | `.claude/agents/*.md` | 4 general agent definitions + project-auditor |
 | `.claude/skills/*.md` | Skill definitions (morning-brief, check-reminders, etc.) |
 | `.claude/rules/*.md` | Behavioral rules (communication, priorities, autonomy, memory) |
+| `desktop/` | Tauri v2 + Svelte 5 desktop app |
 | `ARCHITECTURE-V4.md` | Full architecture doc, decision log, future plans |
 
 ## Services
@@ -81,6 +96,7 @@ External services:
 - **Docker** (for Langfuse + Cognee)
 - **Telegram Bot** (via [@BotFather](https://t.me/BotFather))
 - **Google OAuth credentials** (for Gmail, Calendar, Docs, Drive)
+- **Rust + Tauri CLI** (for desktop app)
 
 ## Setup
 
@@ -101,6 +117,8 @@ External services:
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
 | `GOOGLE_REFRESH_TOKEN` | Yes | Google OAuth refresh token |
+| `CARTESIA_API_KEY` | No | Text-to-speech (desktop app) |
+| `GROQ_API_KEY` | No | Speech-to-text via Whisper (desktop app) |
 | `SENTRY_DSN` | No | Sentry error tracking DSN |
 | `DEVICE_SECRET` | No | JWT secret for device auth (auto-generated) |
 
@@ -110,10 +128,18 @@ External services:
 2. Messages dispatch to a persistent Claude session via Agent SDK
 3. Claude decides: handle directly (light) or spawn background agent (heavy)
 4. Skill routing maps brief types to the right agent + model
-5. Results flow back to Randy via Telegram
-6. **Cognee** stores long-term knowledge; agents query it for context
-7. **SQLite** persists all state (schedule, reminders, sessions, locations)
-8. **Google APIs** called directly via OAuth2 (no middleware)
+5. Results flow back to Randy via Telegram (and desktop speech bubbles)
+6. **Desktop app** connects via WebSocket — receives pushed messages, plays TTS, accepts voice input
+7. **Cognee** stores long-term knowledge; agents query it for context
+8. **SQLite** persists all state (schedule, reminders, sessions, locations)
+9. **Google APIs** called directly via OAuth2 (no middleware)
+
+## Desktop Dev
+
+```bash
+cd desktop && bun run tauri dev    # hot-reload desktop app
+cd desktop && bun run tauri build  # production build
+```
 
 ## Notification Channels
 
@@ -122,7 +148,8 @@ External services:
 | Telegram | Bot API | Working |
 | WhatsApp | Twilio sandbox | Working (rejoin every 72h) |
 | SMS | Twilio A2P | Pending registration |
-| Desktop | macOS toast | Working |
+| Desktop | Tauri speech bubble | Working |
+| macOS toast | macOS notification | Working |
 | Dialog | macOS modal | Working |
 
 ## Testing
