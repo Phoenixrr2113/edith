@@ -16,6 +16,7 @@ import {
 import { basename, join } from "node:path";
 import { STATE_DIR } from "./lib/config";
 import { getEventStats, getSystemStatus, readEventsFile } from "./lib/dashboard-data";
+import { edithLog } from "./lib/edith-logger";
 import { getEvents } from "./lib/gcal";
 
 const PORT = Number(process.env.DASHBOARD_PORT ?? 3456);
@@ -27,6 +28,7 @@ if (!existsSync(TRIGGERS_DIR)) mkdirSync(TRIGGERS_DIR, { recursive: true });
 
 const DASHBOARD_HTML = readFileSync(join(import.meta.dir, "dashboard.html"), "utf-8");
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON.parse returns unknown shape
 function readJsonFile(path: string): any {
 	if (!existsSync(path)) return null;
 	try {
@@ -62,6 +64,7 @@ function listTranscripts(limit = 20): { name: string; size: number; modified: st
 	}
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: transcript entries are untyped JSON
 function readTranscript(name: string): any[] {
 	const safeName = basename(name);
 	const fp = join(TRANSCRIPTS_DIR, safeName);
@@ -231,6 +234,7 @@ const routes: Record<string, RouteHandler> = {
 
 	"/api/upcoming": async () => {
 		// Calendar events for the next 12 hours
+		// biome-ignore lint/suspicious/noExplicitAny: calendar event shape varies
 		let calendarEvents: any[] = [];
 		try {
 			const timeMax = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
@@ -239,6 +243,7 @@ const routes: Record<string, RouteHandler> = {
 
 		// Unfired reminders
 		const reminders = (readJsonFile(join(STATE_DIR, "reminders.json")) ?? []).filter(
+			// biome-ignore lint/suspicious/noExplicitAny: reminder shape from JSON
 			(r: any) => !r.fired
 		);
 
@@ -290,4 +295,4 @@ const _server = Bun.serve({
 	},
 });
 
-console.log(`[dashboard] Edith Dashboard running at http://localhost:${PORT}`);
+edithLog.info("dashboard_started", { port: PORT, url: `http://localhost:${PORT}` });

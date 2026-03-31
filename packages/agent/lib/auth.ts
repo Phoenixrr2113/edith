@@ -39,6 +39,8 @@ export type VerifyResult =
 	| { valid: true; payload: DeviceTokenPayload; needsRefresh: boolean }
 	| { valid: false; reason: "invalid" | "expired" | "malformed" };
 
+import { edithLog } from "./edith-logger";
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TOKEN_LIFETIME_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -122,7 +124,7 @@ export async function generateDeviceToken(deviceId: string, secret: string): Pro
  */
 export async function verifyDeviceToken(token: string, secret: string): Promise<VerifyResult> {
 	if (!secret) {
-		console.error("[auth] DEVICE_SECRET is not set — rejecting all tokens");
+		edithLog.error("auth_device_secret_missing", { message: "rejecting all tokens" });
 		return { valid: false, reason: "invalid" };
 	}
 
@@ -141,7 +143,7 @@ export async function verifyDeviceToken(token: string, secret: string): Promise<
 		const valid = await crypto.subtle.verify(
 			"HMAC",
 			key,
-			expectedSig,
+			expectedSig.buffer as ArrayBuffer,
 			new TextEncoder().encode(signingInput)
 		);
 

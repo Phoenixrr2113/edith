@@ -2,20 +2,19 @@
  * Caffeinate — prevent macOS sleep while Edith is running.
  */
 import { spawn } from "node:child_process";
+import { edithLog } from "./edith-logger";
 
 let caffeinateProc: ReturnType<typeof spawn> | null = null;
 
 export function startCaffeinate(): void {
 	try {
 		caffeinateProc = spawn("caffeinate", ["-dis", "-w", String(process.pid)], { stdio: "ignore" });
-		console.log(
-			`[edith] caffeinate started (pid ${caffeinateProc.pid}) — preventing display, idle, and system sleep`
-		);
+		edithLog.info("caffeinate_started", { pid: caffeinateProc.pid });
 		caffeinateProc.on("error", () => {
-			console.warn("[edith] caffeinate not available — system may sleep");
+			edithLog.warn("caffeinate_unavailable", { message: "system may sleep" });
 		});
 	} catch {
-		console.warn("[edith] caffeinate not available — system may sleep");
+		edithLog.warn("caffeinate_unavailable", { message: "system may sleep" });
 	}
 }
 
@@ -23,6 +22,6 @@ export function stopCaffeinate(): void {
 	if (caffeinateProc) {
 		caffeinateProc.kill();
 		caffeinateProc = null;
-		console.log("[edith] caffeinate stopped");
+		edithLog.info("caffeinate_stopped", {});
 	}
 }

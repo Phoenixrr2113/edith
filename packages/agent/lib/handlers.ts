@@ -5,6 +5,7 @@
 import { buildBrief } from "./briefs";
 import { CHAT_ID } from "./config";
 import { dispatchToClaude, dispatchToConversation } from "./dispatch";
+import { edithLog } from "./edith-logger";
 import {
 	checkLocationReminders,
 	checkLocationTransitions,
@@ -52,7 +53,7 @@ export async function handleLocation(chatId: number, lat: number, lon: number): 
 			});
 			await dispatchToClaude(brief, { label: "location", briefType: "location" });
 		} else {
-			console.log(`[edith] location-transition skipped: ${gate.reason}`);
+			edithLog.info("location_transition_skipped", { reason: gate.reason });
 		}
 	}
 }
@@ -72,7 +73,7 @@ export async function handleVoice(
 		logEvent("voice_transcribed", { path: localPath, text: (transcription ?? "").slice(0, 200) });
 		await dispatchToConversation(chatId, messageId, content);
 	} catch (err) {
-		console.error("[edith] Voice note processing failed:", fmtErr(err));
+		edithLog.error("voice_processing_failed", { message: fmtErr(err) });
 		await dispatchToConversation(
 			chatId,
 			messageId,
@@ -96,7 +97,7 @@ export async function handlePhoto(
 			`[Photo from Randy]${caption ? ` Caption: ${caption}.` : ""} Image saved at: ${localPath}.`
 		);
 	} catch (err) {
-		console.error("[edith] Photo processing failed:", fmtErr(err));
+		edithLog.error("photo_processing_failed", { message: fmtErr(err) });
 		await dispatchToConversation(
 			chatId,
 			messageId,

@@ -3,6 +3,7 @@
  * Screenpipe runs on localhost:3030 and captures everything on screen + microphone.
  */
 
+import { edithLog } from "./edith-logger";
 import { fmtErr } from "./util";
 
 const BASE_URL = process.env.SCREENPIPE_URL ?? "http://localhost:3030";
@@ -101,7 +102,7 @@ export async function getContext(minutes: number = 15): Promise<ScreenContext> {
 			empty: false,
 		};
 	} catch (err) {
-		console.warn("[screenpipe] getContext failed:", fmtErr(err));
+		edithLog.warn("screenpipe_get_context_failed", { message: fmtErr(err) });
 		return { timeRange, apps: [], audioTranscripts: [], continuousActivityMinutes: 0, empty: true };
 	}
 }

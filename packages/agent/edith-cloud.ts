@@ -14,7 +14,6 @@
  * Detect: RAILWAY_ENVIRONMENT env var (set automatically by Railway)
  *         or CLOUD_MODE=true for local testing
  */
-import "./lib/telemetry";
 import {
 	appendFileSync,
 	chmodSync,
@@ -76,9 +75,9 @@ import {
 	SMS_BOT_ID,
 } from "./lib/config";
 import { dispatchQueue, dispatchToClaude, dispatchToConversation } from "./lib/dispatch";
+import { edithLog, pingHeartbeat, rotateEvents } from "./lib/edith-logger";
 import { handleLocation, handlePhoto, handleText, handleVoice } from "./lib/handlers";
 import { SIGNAL_FRESH } from "./lib/ipc";
-import { pingHeartbeat } from "./lib/logger";
 import { runScheduler } from "./lib/scheduler";
 import { getActiveQuery } from "./lib/session";
 import {
@@ -86,9 +85,7 @@ import {
 	clearDeadLetters,
 	clearSession,
 	loadDeadLetters,
-	logEvent,
 	offset,
-	rotateEvents,
 	saveDeadLetter,
 	saveOffset,
 	sessionId,
@@ -104,10 +101,10 @@ const isCloud =
 	process.env.CLOUD_MODE === "true" ||
 	process.env.CLOUD_MODE === "1";
 
-console.log(`[edith-cloud] Starting in ${isCloud ? "CLOUD (Railway)" : "local cloud-mode"} mode`);
+edithLog.info("cloud_startup", { mode: isCloud ? "cloud" : "local" });
 
 if (!BOT_TOKEN) {
-	console.error("TELEGRAM_BOT_TOKEN not set");
+	edithLog.fatal("config_missing", { key: "TELEGRAM_BOT_TOKEN" });
 	process.exit(1);
 }
 
@@ -117,13 +114,11 @@ if (!isCloud) {
 	if (existsSync(ENV_FILE)) {
 		const envMode = statSync(ENV_FILE).mode & 0o777;
 		if (envMode & 0o044) {
-			console.warn(
-				`[edith-cloud] WARNING: .env is world/group-readable (mode ${envMode.toString(8)}). Fixing to 600.`
-			);
+			edithLog.warn("env_file_permissions", { mode: envMode.toString(8), action: "fixing_to_600" });
 			try {
 				chmodSync(ENV_FILE, 0o600);
 			} catch (e) {
-				console.error("[edith-cloud] Could not chmod .env:", e);
+				edithLog.error("env_file_chmod_failed", { error: fmtErr(e) });
 			}
 		}
 	}
@@ -137,9 +132,9 @@ if (STATE_DIR_OVERRIDE) {
 	try {
 		mkdirSync(STATE_DIR_OVERRIDE, { recursive: true });
 		process.env.EDITH_STATE_DIR = STATE_DIR_OVERRIDE;
-		console.log(`[edith-cloud] State directory: ${STATE_DIR_OVERRIDE}`);
+		edithLog.info("state_directory", { path: STATE_DIR_OVERRIDE });
 	} catch (e) {
-		console.warn("[edith-cloud] Could not create /data/.edith, falling back to HOME:", e);
+		edithLog.warn("state_directory_fallback", { error: fmtErr(e) });
 	}
 }
 
@@ -197,8 +192,7 @@ const server = Bun.serve<WsClientData>({
 		open(ws) {
 			const { deviceId } = ws.data;
 			connectedDevices.set(deviceId, ws);
-			console.log(`[cloud-ws] Device connected: ${deviceId} (total: ${connectedDevices.size})`);
-			logEvent("device_connected", { deviceId });
+			edithLog.info("device_connected", { deviceId, total: connectedDevices.size });
 
 			ws.send(
 				JSON.stringify(
@@ -238,29 +232,31 @@ const server = Bun.serve<WsClientData>({
 
 			if (msg.type === "input") {
 				const input = msg as unknown as WsInputMessage;
-				console.log(`[cloud-ws] Input from device ${deviceId}: ${String(input.text).slice(0, 80)}`);
+				edithLog.info("ws_device_input", { deviceId, preview: String(input.text).slice(0, 80) });
 				dispatchToConversation(CHAT_ID, 0, input.text).catch((err) => {
-					console.error("[cloud-ws] Failed to dispatch device input:", err);
+					edithLog.error("ws_dispatch_failed", { deviceId, error: fmtErr(err) });
 				});
 				return;
 			}
 
 			if (msg.type === "sync-request") {
 				// TODO(TAURI-SYNC-118): build and send full SyncPayload
-				console.log(`[cloud-ws] Sync request from device ${deviceId}`);
+				edithLog.info("ws_sync_request", { deviceId });
 				return;
 			}
 
-			console.warn(`[cloud-ws] Unhandled message type from ${deviceId}: ${msg.type}`);
+			edithLog.warn("ws_unhandled_message", { deviceId, messageType: msg.type });
 		},
 
 		close(ws, code, reason) {
 			const { deviceId } = ws.data;
 			connectedDevices.delete(deviceId);
-			console.log(
-				`[cloud-ws] Device disconnected: ${deviceId} (code ${code}) — remaining: ${connectedDevices.size}`
-			);
-			logEvent("device_disconnected", { deviceId, code, reason: reason?.toString() });
+			edithLog.info("device_disconnected", {
+				deviceId,
+				code,
+				reason: reason?.toString(),
+				remaining: connectedDevices.size,
+			});
 		},
 
 		// Note: Bun's WebSocketHandler does not expose an `error` callback;
@@ -268,14 +264,14 @@ const server = Bun.serve<WsClientData>({
 	},
 });
 
-console.log(`[edith-cloud] HTTP server listening on port ${HTTP_PORT}`);
+edithLog.info("http_server_listening", { port: HTTP_PORT });
 
 // ── Telegram polling loop ─────────────────────────────────────────────────────
 const recentlyIgnored = new Set<number>();
 let currentOffset = offset;
 
 async function poll(): Promise<void> {
-	console.log("[edith-cloud] Starting Telegram poll loop...");
+	edithLog.info("telegram_poll_start", {});
 	let consecutiveErrors = 0;
 
 	while (true) {
@@ -303,7 +299,7 @@ async function poll(): Promise<void> {
 				const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
 				if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
 					if (!recentlyIgnored.has(chatId)) {
-						console.log(`[edith-cloud] Ignoring message from unauthorized chat: ${chatId}`);
+						edithLog.warn("unauthorized_chat", { chatId });
 						recentlyIgnored.add(chatId);
 						setTimeout(() => recentlyIgnored.delete(chatId), 60_000);
 					}
@@ -315,13 +311,11 @@ async function poll(): Promise<void> {
 				if (!msg.location) {
 					const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
 					const msgPreview = String(msg.text ?? msg.caption ?? "").slice(0, 80);
-					console.log(
-						`[edith-cloud] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`
-					);
-					logEvent("message_received", {
+					edithLog.info("message_received", {
 						chatId,
 						type: msgType,
-						text: String(msg.text ?? "").slice(0, 200),
+						source: isSmsBot ? "sms_relay" : "randy",
+						preview: msgPreview || "(no text)",
 					});
 				}
 
@@ -354,11 +348,7 @@ async function poll(): Promise<void> {
 			consecutiveErrors++;
 			const backoff =
 				BACKOFF_SCHEDULE[Math.min(consecutiveErrors - 1, BACKOFF_SCHEDULE.length - 1)];
-			console.error(
-				`[edith-cloud] Poll error (${consecutiveErrors}x, backoff ${backoff / 1000}s):`,
-				fmtErr(err)
-			);
-			logEvent("poll_error", { error: fmtErr(err), consecutiveErrors, backoffMs: backoff });
+			edithLog.error("poll_error", { error: fmtErr(err), consecutiveErrors, backoffMs: backoff });
 			await Bun.sleep(backoff);
 			continue;
 		}
@@ -372,7 +362,7 @@ async function bootstrap(): Promise<void> {
 	rotateTaskboard();
 
 	if (existsSync(SIGNAL_FRESH)) {
-		console.log("[edith-cloud] Signal: fresh session requested. Clearing session.");
+		edithLog.info("fresh_session_signal", {});
 		clearSession();
 		try {
 			unlinkSync(SIGNAL_FRESH);
@@ -380,48 +370,43 @@ async function bootstrap(): Promise<void> {
 	}
 
 	if (!sessionId) {
-		console.log("[edith-cloud] Bootstrapping new Claude session...");
+		edithLog.info("bootstrap_start", {});
 		const bootBrief = await buildBrief("boot");
 		await dispatchToClaude(bootBrief, { resume: true, label: "bootstrap", briefType: "boot" });
-		console.log("[edith-cloud] Bootstrap complete.");
+		edithLog.info("bootstrap_complete", {});
 	} else {
-		console.log(`[edith-cloud] Resuming session: ${sessionId}`);
+		edithLog.info("session_resume", { sessionId });
 	}
 
 	const deadLetters = loadDeadLetters();
 	if (deadLetters.length > 0) {
-		console.log(`[edith-cloud] Replaying ${deadLetters.length} dead-lettered message(s)...`);
-		logEvent("dead_letter_replay", { count: deadLetters.length });
+		edithLog.info("dead_letter_replay_start", { count: deadLetters.length });
 		for (const dl of deadLetters) {
-			console.log(`[edith-cloud] Replaying: "${dl.message.slice(0, 60)}..."`);
+			edithLog.info("dead_letter_replaying", { preview: dl.message.slice(0, 60) });
 			try {
 				await dispatchToConversation(dl.chatId, 0, dl.message);
 			} catch (err) {
-				console.error("[edith-cloud] Dead-letter replay failed, re-queuing:", err);
+				edithLog.error("dead_letter_replay_failed", { error: fmtErr(err) });
 				saveDeadLetter(dl.chatId, dl.message, `replay failed: ${err}`);
 			}
 		}
 		clearDeadLetters();
-		console.log("[edith-cloud] Dead-letter replay complete.");
+		edithLog.info("dead_letter_replay_complete", {});
 	}
 }
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
-import * as Sentry from "@sentry/bun";
-
 async function gracefulShutdown(): Promise<void> {
 	const activeQuery = getActiveQuery();
 	if (activeQuery) {
-		console.log("[edith-cloud] Closing active Agent SDK session...");
+		edithLog.info("closing_active_session", {});
 		try {
 			activeQuery.close();
 		} catch {}
 	}
 
 	if (dispatchQueue.length > 0) {
-		console.log(
-			`[edith-cloud] Draining ${dispatchQueue.length} queued message(s) to dead-letter...`
-		);
+		edithLog.info("shutdown_drain", { count: dispatchQueue.length });
 		for (const job of dispatchQueue) {
 			saveDeadLetter(job.opts.chatId ?? CHAT_ID, job.prompt, "shutdown_drain");
 		}
@@ -429,7 +414,7 @@ async function gracefulShutdown(): Promise<void> {
 	}
 
 	server.stop();
-	await Sentry.close(2000);
+	await edithLog.flush();
 	try {
 		unlinkSync(PID_FILE);
 	} catch {}
@@ -440,22 +425,19 @@ process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
 process.on("uncaughtException", (err: Error) => {
-	console.error("[edith-cloud] Uncaught exception:", err);
-	Sentry.captureException(err);
+	edithLog.fatal("uncaught_exception", { error: err.message, err });
 	gracefulShutdown();
 });
 
 process.on("unhandledRejection", (reason: unknown) => {
-	console.error("[edith-cloud] Unhandled promise rejection:", reason);
-	if (reason instanceof Error) {
-		Sentry.captureException(reason);
-	} else {
-		Sentry.captureMessage(`Unhandled rejection: ${String(reason)}`, { level: "error" });
-	}
+	edithLog.error("unhandled_rejection", {
+		error: reason instanceof Error ? reason.message : String(reason),
+		...(reason instanceof Error ? { err: reason } : {}),
+	});
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-console.log("[edith-cloud] Edith Cloud is starting up...");
+edithLog.info("cloud_init", {});
 rotateEvents();
 
 import { seedTokensFromEnv } from "./lib/google-auth";
@@ -463,7 +445,7 @@ import { seedTokensFromEnv } from "./lib/google-auth";
 try {
 	seedTokensFromEnv();
 } catch (err) {
-	console.warn("[edith-cloud] Failed to seed OAuth tokens:", err);
+	edithLog.warn("oauth_seed_failed", { error: fmtErr(err) });
 }
 
 // Clean up old inbox files
@@ -479,7 +461,7 @@ try {
 	}
 } catch {}
 
-logEvent("startup", { pid: process.pid, sessionId: sessionId || "new", mode: "cloud" });
+edithLog.info("startup", { pid: process.pid, sessionId: sessionId || "new", mode: "cloud" });
 
 // NOTE: caffeinate, dashboard, fswatch, screenpipe — all skipped in cloud mode
 
@@ -494,22 +476,22 @@ setInterval(async () => {
 		await schedulerTick(tickState);
 		pingHeartbeat();
 	} catch (err) {
-		console.error("[edith-cloud:scheduler] Error:", fmtErr(err));
+		edithLog.error("scheduler_tick_error", { error: fmtErr(err) });
 	} finally {
 		schedulerRunning = false;
 	}
 }, SCHEDULE_CHECK_MS);
 
-runScheduler().catch((err) => console.error("[edith-cloud:scheduler] Error:", fmtErr(err)));
+runScheduler().catch((err) => edithLog.error("scheduler_run_error", { error: fmtErr(err) }));
 
 // Telegram polling is DISABLED in cloud mode — the local Edith instance handles
 // Telegram. Cloud Edith only serves WebSocket connections from the desktop app.
 // Enable with CLOUD_TELEGRAM_POLLING=true if running cloud-only (no local instance).
 if (process.env.CLOUD_TELEGRAM_POLLING === "true") {
 	poll().catch((err) => {
-		console.error("[edith-cloud] Poll loop crashed:", err);
+		edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
 		process.exit(1);
 	});
 } else {
-	console.log("[edith-cloud] Telegram polling disabled (handled by local instance)");
+	edithLog.info("telegram_polling_disabled", {});
 }

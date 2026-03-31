@@ -4,6 +4,7 @@
 
 import { BRIEF_TYPE_MAP, buildBrief } from "./briefs";
 import { dispatchToClaude } from "./dispatch";
+import { edithLog } from "./edith-logger";
 import { isUserIdle } from "./screenpipe";
 import { logEvent, SCHEDULE_STATE_FILE } from "./state";
 import { loadJson, loadSchedule, saveJson } from "./storage";
@@ -113,12 +114,12 @@ export async function runScheduler(): Promise<void> {
 		if (entry.intervalMinutes) {
 			if (userIdle === null) userIdle = await isUserIdle();
 			if (userIdle) {
-				console.log(`[edith:scheduler] Skipping ${entry.name} — user idle`);
+				edithLog.info("scheduler_skipped_idle", { task: entry.name });
 				continue;
 			}
 		}
 
-		console.log(`[edith:scheduler] Firing ${entry.name}`);
+		edithLog.info("scheduler_firing", { task: entry.name });
 		logEvent("schedule_fire", { task: entry.name, prompt: entry.prompt });
 
 		// Use brief types for known tasks, generic scheduled brief for custom ones
@@ -133,7 +134,7 @@ export async function runScheduler(): Promise<void> {
 
 		// Empty brief = heuristics decided to skip (e.g. proactive-check with no triggers)
 		if (!prompt.trim()) {
-			console.log(`[scheduler] ${entry.name}: skipped (no triggers)`);
+			edithLog.info("scheduler_skipped_no_triggers", { task: entry.name });
 			state.lastFired[entry.name] = now.toISOString();
 			saveScheduleState(state);
 			continue;

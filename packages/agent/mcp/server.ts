@@ -9,6 +9,7 @@ import { registerCalendarTools } from "./tools/calendar";
 import { registerDocsTools } from "./tools/docs";
 import { registerEmailTools } from "./tools/email";
 import { registerLocationTools } from "./tools/location";
+import { registerLogTools } from "./tools/logs";
 import { registerMessagingTools } from "./tools/messaging";
 import { registerProactiveTools } from "./tools/proactive";
 import { registerScheduleTools } from "./tools/schedule";
@@ -32,6 +33,7 @@ registerCalendarTools(server);
 registerDocsTools(server);
 registerProactiveTools(server);
 registerActivityTools(server);
+registerLogTools(server);
 
 // ============================================================
 // Start

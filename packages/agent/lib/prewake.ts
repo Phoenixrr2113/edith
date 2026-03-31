@@ -4,6 +4,7 @@
  * Used only for boot/morning briefs as a head start before Claude is live.
  */
 
+import { edithLog } from "./edith-logger";
 import { getEvents } from "./gcal";
 import { searchEmails } from "./gmail";
 import { fmtErr } from "./util";
@@ -40,7 +41,7 @@ async function getCalendarEvents(): Promise<string> {
 			})
 			.join("\n");
 	} catch (err) {
-		console.error("[prewake] Calendar fetch failed:", fmtErr(err));
+		edithLog.error("prewake_calendar_failed", { message: fmtErr(err) });
 		return "";
 	}
 }
@@ -68,7 +69,7 @@ async function getRecentEmails(): Promise<string> {
 			})
 			.join("\n");
 	} catch (err) {
-		console.error("[prewake] Email fetch failed:", fmtErr(err));
+		edithLog.error("prewake_email_failed", { message: fmtErr(err) });
 		return "";
 	}
 }

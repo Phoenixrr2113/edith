@@ -20,6 +20,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { edithLog } from "./edith-logger";
 import { fmtErr } from "./util";
 
 let activeQuery: Query | null = null;
@@ -80,10 +81,10 @@ export async function injectMessage(text: string, _chatId?: number): Promise<boo
 		}
 
 		await activeQuery.streamInput(singleMessage());
-		console.log(`[session] Injected message into active session: "${text.slice(0, 80)}..."`);
+		edithLog.info("session_message_injected", { preview: text.slice(0, 80) });
 		return true;
 	} catch (err) {
-		console.error("[session] streamInput failed:", fmtErr(err));
+		edithLog.error("session_stream_input_failed", { message: fmtErr(err) });
 		return false;
 	}
 }

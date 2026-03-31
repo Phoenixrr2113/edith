@@ -6,6 +6,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { LocationEntry, Reminder, ScheduleEntry } from "../mcp/types";
 import { LOCATIONS_FILE, REMINDERS_FILE, SCHEDULE_FILE } from "./config";
 import { openDatabase } from "./db";
+import { edithLog } from "./edith-logger";
 
 // --- Generic helpers ---
 
@@ -93,7 +94,7 @@ export function loadSchedule(): ScheduleEntry[] {
 
 		if (schedule.length === 0) {
 			saveSchedule(DEFAULT_SCHEDULE);
-			console.log("[storage] Seeded default schedule to SQLite");
+			edithLog.info("storage_seeded_default_schedule", {});
 			return [...DEFAULT_SCHEDULE];
 		}
 
@@ -103,13 +104,13 @@ export function loadSchedule(): ScheduleEntry[] {
 			if (!schedule.some((s) => s.name === def.name)) {
 				schedule.push(def);
 				updated = true;
-				console.log(`[storage] Added missing default task: ${def.name}`);
+				edithLog.info("storage_added_missing_task", { task: def.name });
 			}
 		}
 		if (updated) saveSchedule(schedule);
 		return schedule;
 	} catch (err) {
-		console.error("[storage] loadSchedule SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_load_schedule_sqlite_error", { message: String(err) });
 		return loadJson<ScheduleEntry[]>(SCHEDULE_FILE, []);
 	}
 }
@@ -138,7 +139,7 @@ export function saveSchedule(entries: ScheduleEntry[]): void {
 			}
 		})();
 	} catch (err) {
-		console.error("[storage] saveSchedule SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_save_schedule_sqlite_error", { message: String(err) });
 		saveJson(SCHEDULE_FILE, entries);
 	}
 }
@@ -161,7 +162,7 @@ export function loadLocations(): LocationEntry[] {
 				radiusMeters: r.radius_meters,
 			}));
 	} catch (err) {
-		console.error("[storage] loadLocations SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_load_locations_sqlite_error", { message: String(err) });
 		const raw = loadJson<{ locations?: LocationEntry[] } | LocationEntry[]>(LOCATIONS_FILE, {
 			locations: [],
 		});
@@ -193,7 +194,7 @@ export function saveLocations(locations: LocationEntry[]): void {
 			}
 		})();
 	} catch (err) {
-		console.error("[storage] saveLocations SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_save_locations_sqlite_error", { message: String(err) });
 		saveJson(LOCATIONS_FILE, { locations });
 	}
 }
@@ -229,7 +230,7 @@ export function loadReminders(): Reminder[] {
 				created: r.created,
 			}));
 	} catch (err) {
-		console.error("[storage] loadReminders SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_load_reminders_sqlite_error", { message: String(err) });
 		return loadJson<Reminder[]>(REMINDERS_FILE, []);
 	}
 }
@@ -268,7 +269,7 @@ export function saveReminders(reminders: Reminder[]): void {
 			}
 		})();
 	} catch (err) {
-		console.error("[storage] saveReminders SQLite error, falling back to JSON:", err);
+		edithLog.error("storage_save_reminders_sqlite_error", { message: String(err) });
 		saveJson(REMINDERS_FILE, reminders);
 	}
 }

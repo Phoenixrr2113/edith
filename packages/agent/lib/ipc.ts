@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { BRIEF_TYPE_MAP, type BriefType, buildBrief } from "./briefs";
 import { CHAT_ID, INBOX_DIR, STATE_DIR } from "./config";
 import { dispatchToClaude } from "./dispatch";
+import { edithLog } from "./edith-logger";
 import { logEvent } from "./state";
 import { fmtErr } from "./util";
 
@@ -44,7 +45,7 @@ export interface TickState {
  */
 export function checkSignals(state: TickState): "restart" | "pause" | null {
 	if (existsSync(SIGNAL_RESTART)) {
-		console.log("[edith] Signal: restart requested.");
+		edithLog.info("signal_restart_requested", {});
 		try {
 			unlinkSync(SIGNAL_RESTART);
 		} catch {}
@@ -53,7 +54,7 @@ export function checkSignals(state: TickState): "restart" | "pause" | null {
 	}
 
 	if (existsSync(SIGNAL_PAUSE)) {
-		console.log("[edith] Signal: pause requested. Waiting for 'wake up' message...");
+		edithLog.info("signal_pause_requested", {});
 		try {
 			unlinkSync(SIGNAL_PAUSE);
 		} catch {}
@@ -76,7 +77,7 @@ export async function processTriggers(): Promise<void> {
 		if (!existsSync(TRIGGERS_DIR)) return;
 		for (const f of readdirSync(TRIGGERS_DIR)) {
 			const fp = join(TRIGGERS_DIR, f);
-			console.log(`[edith] Dashboard trigger: ${f}`);
+			edithLog.info("dashboard_trigger_received", { task: f });
 			logEvent("dashboard_trigger", { task: f });
 			const briefType: BriefType | undefined = BRIEF_TYPE_MAP[f];
 			const prompt = briefType
@@ -94,7 +95,7 @@ export async function processTriggers(): Promise<void> {
 					} catch {}
 				})
 				.catch((err) => {
-					console.error(`[edith] Trigger dispatch error:`, fmtErr(err));
+					edithLog.error("trigger_dispatch_error", { message: fmtErr(err) });
 					try {
 						unlinkSync(fp);
 					} catch {}
@@ -117,7 +118,7 @@ export async function processInbox(): Promise<void> {
 			try {
 				const msg = JSON.parse(readFileSync(fp, "utf-8"));
 				if (msg.text?.trim()) {
-					console.log(`[edith] Dashboard message: ${msg.text.slice(0, 80)}`);
+					edithLog.info("dashboard_message_received", { preview: msg.text.slice(0, 80) });
 					logEvent("dashboard_message", { text: msg.text.slice(0, 200) });
 					const brief = await buildBrief("message", { message: msg.text, chatId: String(CHAT_ID) });
 					dispatchToClaude(brief, { resume: true, label: "dashboard-msg", chatId: CHAT_ID })
@@ -127,7 +128,7 @@ export async function processInbox(): Promise<void> {
 							} catch {}
 						})
 						.catch((err) => {
-							console.error(`[edith] Dashboard msg dispatch error:`, fmtErr(err));
+							edithLog.error("dashboard_msg_dispatch_error", { message: fmtErr(err) });
 							try {
 								unlinkSync(fp);
 							} catch {}

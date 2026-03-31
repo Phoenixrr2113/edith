@@ -119,9 +119,23 @@ mock.module("../lib/state", () => ({
 	},
 }));
 
+// edith-logger — used directly by handlers.ts
+mock.module("../lib/edith-logger", () => ({
+	edithLog: {
+		info: () => {},
+		warn: () => {},
+		error: () => {},
+		debug: () => {},
+		event: () => {},
+	},
+}));
+
 // Config — provide a stable CHAT_ID for the SMS handler
 mock.module("../lib/config", () => ({
 	CHAT_ID: 12345,
+	EVENTS_FILE: "/tmp/test-events.jsonl",
+	EVENTS_MAX_AGE_MS: 48 * 60 * 60 * 1000,
+	STATE_DIR: "/tmp/test-state",
 }));
 
 mock.module("../lib/util", () => ({

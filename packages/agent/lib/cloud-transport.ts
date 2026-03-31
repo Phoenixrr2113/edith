@@ -12,6 +12,7 @@
  */
 import { extractBearerToken, verifyDeviceToken } from "./auth.js";
 import { DEVICE_SECRET } from "./config.js";
+import { edithLog } from "./edith-logger.js";
 
 // ── Message Types ─────────────────────────────────────────────────────────────
 
@@ -233,20 +234,18 @@ export async function authenticateUpgrade(req: Request): Promise<string | null> 
 	const authHeader = req.headers.get("authorization");
 	const token = extractBearerToken(authHeader);
 	if (!token) {
-		console.warn("[cloud-transport] WebSocket upgrade rejected: missing Authorization header");
+		edithLog.warn("ws_upgrade_rejected", { reason: "missing Authorization header" });
 		return null;
 	}
 
 	const result = await verifyDeviceToken(token, DEVICE_SECRET);
 	if (!result.valid) {
-		console.warn(`[cloud-transport] WebSocket upgrade rejected: token ${result.reason}`);
+		edithLog.warn("ws_upgrade_rejected", { reason: `token ${result.reason}` });
 		return null;
 	}
 
 	if (result.needsRefresh) {
-		console.log(
-			`[cloud-transport] Device ${result.payload.deviceId}: token expiring soon, client should refresh`
-		);
+		edithLog.info("ws_token_expiring_soon", { deviceId: result.payload.deviceId });
 	}
 
 	return result.payload.deviceId;
@@ -267,9 +266,9 @@ export function broadcastToDevices(msg: AnyWsMessage): void {
 		try {
 			// TODO(CLOUD-WS-047): cast ws to Bun.ServerWebSocket and call ws.send(json)
 			void json; // placeholder until Bun types wired
-			console.log(`[cloud-transport] broadcast → ${deviceId}: ${msg.type}`);
+			edithLog.debug("ws_broadcast", { deviceId, messageType: msg.type });
 		} catch (err) {
-			console.error(`[cloud-transport] Failed to send to ${deviceId}:`, err);
+			edithLog.error("ws_send_failed", { deviceId, message: String(err) });
 			connectedDevices.delete(deviceId);
 		}
 	}

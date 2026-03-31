@@ -33,13 +33,12 @@ import {
 	REFLECTOR_EVAL_ONLY_RATIO,
 } from "./config";
 import { assembleSystemPrompt } from "./context";
-import { logger } from "./logger";
+import { edithLog } from "./edith-logger";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { getActiveQuery, injectMessage, setActiveQuery, setActiveSessionId } from "./session";
 import {
 	activeProcesses,
 	clearSession,
-	logEvent,
 	PROJECT_ROOT,
 	saveSession,
 	sessionId,
@@ -47,7 +46,6 @@ import {
 } from "./state";
 import { loadJson } from "./storage";
 import { sendTyping } from "./telegram";
-import { recordGeneration, startTrace } from "./telemetry";
 import { appendTranscript, startTranscript } from "./transcript";
 import { fmtErr } from "./util";
 
@@ -158,6 +156,9 @@ export interface StreamResult {
 	totalCost: number;
 	turns: number;
 	needsRetry: boolean;
+	modelUsage: Record<string, { inputTokens: number; outputTokens: number }>;
+	durationApiMs: number;
+	stopReason: string | null;
 }
 
 /** Consumes the Agent SDK query stream, tracking turns, cost, and session. */
@@ -176,6 +177,9 @@ export async function processMessageStream(
 	let newSessionId = "";
 	let totalCost = 0;
 	let needsRetry = false;
+	let modelUsage: Record<string, { inputTokens: number; outputTokens: number }> = {};
+	let durationApiMs = 0;
+	let stopReason: string | null = null;
 
 	/** Inject a reflection into the running session (non-blocking). */
 	const maybeInject = async (
@@ -189,11 +193,15 @@ export async function processMessageStream(
 				const injected = await injectMessage(reflection);
 				if (injected) {
 					reflector.recordUserMessage(`[reflector:${trigger}] ${reflection.slice(0, 100)}`);
-					console.log(`[reflector:${label}] Injected (${trigger}): ${reflection.slice(0, 80)}...`);
+					edithLog.debug("reflector_injected", {
+						label,
+						trigger,
+						reflection: reflection.slice(0, 80),
+					});
 				}
 			}
 		} catch (err) {
-			console.error(`[reflector:${label}] Injection failed:`, err);
+			edithLog.error("reflector_inject_failed", { label, trigger, error: fmtErr(err) });
 		}
 	};
 
@@ -218,8 +226,7 @@ export async function processMessageStream(
 				const boundary = message as SDKCompactBoundaryMessage;
 				const preTokens = boundary.compact_metadata.pre_tokens;
 				const trigger = boundary.compact_metadata.trigger;
-				console.log(`[edith:${label}] ⚙️ Context compacted (${preTokens} tokens, ${trigger})`);
-				logEvent("compaction", { label, preTokens, trigger });
+				edithLog.info("compaction", { label, preTokens, trigger });
 
 				if (reflector) {
 					reflector.recordCompaction(preTokens, trigger);
@@ -234,26 +241,24 @@ export async function processMessageStream(
 
 				if (subtype === "task_started") {
 					const m = message as SDKTaskStartedMessage;
-					console.log(`[edith:${label}] 🚀 Agent started: ${m.description} (${m.task_id})`);
-					logEvent("task_started", { label, taskId: m.task_id, description: m.description });
+					edithLog.info("task_started", { label, taskId: m.task_id, description: m.description });
 				}
 
 				if (subtype === "task_progress") {
 					const m = message as SDKTaskProgressMessage;
-					const tool = m.last_tool_name ?? "working";
-					const secs = Math.round((m.usage?.duration_ms ?? 0) / 1000);
-					console.log(
-						`[edith:${label}] 📊 Agent progress: ${m.task_id} — ${tool} (${secs}s, ${m.usage?.tool_uses ?? 0} tools)`
-					);
+					edithLog.debug("task_progress", {
+						label,
+						taskId: m.task_id,
+						tool: m.last_tool_name ?? "working",
+						durationSecs: Math.round((m.usage?.duration_ms ?? 0) / 1000),
+						toolUses: m.usage?.tool_uses ?? 0,
+					});
 				}
 
 				if (subtype === "task_notification") {
 					const m = message as SDKTaskNotificationMessage;
 					const durSecs = m.usage?.duration_ms ? Math.round(m.usage.duration_ms / 1000) : 0;
-					console.log(
-						`[edith:${label}] 🏁 Agent ${m.status}: ${m.summary ?? m.task_id} (${durSecs}s, ${m.usage?.tool_uses ?? 0} tools)`
-					);
-					logEvent("task_complete", {
+					edithLog.info("task_complete", {
 						label,
 						taskId: m.task_id,
 						status: m.status,
@@ -311,6 +316,11 @@ export async function processMessageStream(
 				const resultMsg = message as SDKResultMessage;
 				totalCost = resultMsg.total_cost_usd ?? 0;
 				turns = resultMsg.num_turns ?? turns;
+				if ("modelUsage" in resultMsg) modelUsage = resultMsg.modelUsage ?? {};
+				if ("duration_api_ms" in resultMsg)
+					durationApiMs = ((resultMsg as Record<string, unknown>).duration_api_ms as number) ?? 0;
+				if ("stop_reason" in resultMsg)
+					stopReason = (resultMsg as Record<string, unknown>).stop_reason as string | null;
 
 				if ("result" in resultMsg && typeof resultMsg.result === "string") {
 					lastResult = resultMsg.result ?? lastResult;
@@ -319,12 +329,11 @@ export async function processMessageStream(
 				// Check for errors
 				if (resultMsg.is_error) {
 					const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
-					console.error(`[edith:${label}] ❌ Error: ${errorSubtype}`);
+					edithLog.error("sdk_result_error", { label, errorSubtype });
 
 					// Detect corrupted session — flag for retry after cleanup
 					if (errorSubtype === "error_during_execution" && sessionId && !opts._sessionRetried) {
-						console.error(`[edith:${label}] Session may be corrupted, will reset and retry...`);
-						logEvent("session_reset", { label, reason: errorSubtype });
+						edithLog.warn("session_reset", { label, reason: errorSubtype });
 						clearSession();
 						needsRetry = true;
 					}
@@ -338,7 +347,16 @@ export async function processMessageStream(
 		writeActiveProcesses();
 	}
 
-	return { lastResult, newSessionId, totalCost, turns, needsRetry };
+	return {
+		lastResult,
+		newSessionId,
+		totalCost,
+		turns,
+		needsRetry,
+		modelUsage,
+		durationApiMs,
+		stopReason,
+	};
 }
 
 /**
@@ -352,8 +370,7 @@ export async function dispatchToClaude(
 
 	// Circuit breaker check
 	if (Date.now() < circuitBreakerUntil) {
-		console.log(`[edith:${label}] Circuit breaker active, skipping dispatch`);
-		logEvent("dispatch_skipped", { label, reason: "circuit_breaker" });
+		edithLog.warn("dispatch_skipped", { label, reason: "circuit_breaker" });
 		return "";
 	}
 
@@ -362,18 +379,16 @@ export async function dispatchToClaude(
 		if (getActiveQuery()) {
 			const injected = await injectMessage(prompt, opts.chatId);
 			if (injected) {
-				logEvent("message_injected", { label, prompt: prompt.slice(0, 200) });
+				edithLog.info("message_injected", { label, prompt: prompt.slice(0, 200) });
 				return "injected";
 			}
 		}
 
 		if (opts.skipIfBusy) {
-			console.log(`[edith:${label}] Skipped — Claude is busy and injection failed`);
-			logEvent("dispatch_skipped", { label, reason: "busy" });
+			edithLog.info("dispatch_skipped", { label, reason: "busy" });
 			return "";
 		}
-		console.log(`[edith:${label}] Queued (Claude is busy, ${dispatchQueue.length} in queue)`);
-		logEvent("dispatch_queued", { label, queueSize: dispatchQueue.length + 1 });
+		edithLog.info("dispatch_queued", { label, queueSize: dispatchQueue.length + 1 });
 		return new Promise((resolve) => {
 			dispatchQueue.push({ prompt, opts, resolve });
 		});
@@ -389,28 +404,16 @@ export async function dispatchToClaude(
 	const abortController = new AbortController();
 	const timeoutMs = LIGHTWEIGHT_TASKS.has(label) ? LIGHTWEIGHT_TIMEOUT_MS : QUERY_TIMEOUT_MS;
 	const timeoutHandle = setTimeout(() => {
-		console.error(`[edith:${label}] Query timeout after ${timeoutMs / 1000}s, aborting...`);
-		logger.error(`[dispatch:timeout] ${label}`, { label, timeoutMs });
-		logEvent("dispatch_timeout", { label, timeoutMs });
+		edithLog.error("dispatch_timeout", { label, timeoutMs });
 		abortController.abort();
 	}, timeoutMs);
 
 	try {
-		console.log(
-			`[edith:${label}] Dispatching via Agent SDK (session: ${resume && sessionId ? sessionId.slice(0, 8) : "ephemeral"})...`
-		);
-		logger.info(`[dispatch:start] ${label}`, { label, session: resume ? sessionId : "ephemeral" });
-		logEvent("dispatch_start", {
+		edithLog.info("dispatch_start", {
 			label,
 			session: resume ? sessionId : "ephemeral",
-			prompt: prompt.slice(0, 200),
-		});
-
-		// Langfuse trace for this dispatch
-		const lfTrace = startTrace(label, {
-			session: resume ? sessionId : "ephemeral",
 			briefType: opts.briefType,
-			prompt: prompt.slice(0, 500),
+			prompt: prompt.slice(0, 1000),
 		});
 
 		// Typing indicator
@@ -445,11 +448,20 @@ export async function dispatchToClaude(
 			? new ReflectorSession(prompt, label, { mode: reflectorMode })
 			: null;
 		if (reflector) {
-			logEvent("reflector_assigned", { label, mode: reflectorMode });
+			edithLog.info("reflector_assigned", { label, mode: reflectorMode });
 		}
 
 		// Process message stream
-		const { lastResult, newSessionId, totalCost, turns, needsRetry } = await processMessageStream(
+		const {
+			lastResult,
+			newSessionId,
+			totalCost,
+			turns,
+			needsRetry,
+			modelUsage,
+			durationApiMs,
+			stopReason,
+		} = await processMessageStream(
 			queryHandle,
 			label,
 			wakeId,
@@ -474,39 +486,25 @@ export async function dispatchToClaude(
 		// Save session ID
 		if (resume && newSessionId && newSessionId !== sessionId) {
 			saveSession(newSessionId);
-			console.log(`[edith:${label}] New session: ${newSessionId.slice(0, 8)}`);
+			edithLog.info("session_new", { label, sessionId: newSessionId.slice(0, 8) });
 		}
 
 		// Log completion
 		const durationMs = Date.now() - startTime;
-		const secs = (durationMs / 1000).toFixed(1);
-		const costStr = totalCost ? `$${totalCost.toFixed(4)}` : "";
-		console.log(
-			`[edith:${label}] ✅ done (${secs}s, ${turns} turns${costStr ? `, ${costStr}` : ""})`
-		);
-		if (lastResult)
-			console.log(`[edith:${label}] → ${lastResult.replace(/\n/g, " ").slice(0, 120)}`);
-		logger.info(`[dispatch:complete] ${label}`, {
+		edithLog.info("dispatch_end", {
 			label,
 			durationMs,
+			durationApiMs,
 			turns,
 			cost: totalCost,
-			result: lastResult?.replace(/\n/g, " ").slice(0, 200),
+			stopReason,
+			models: modelUsage,
+			inputTokens: Object.values(modelUsage).reduce((s, m) => s + m.inputTokens, 0),
+			outputTokens: Object.values(modelUsage).reduce((s, m) => s + m.outputTokens, 0),
+			prompt: prompt.slice(0, 1000),
+			result: lastResult?.replace(/\n/g, " ").slice(0, 1000),
 			session: newSessionId?.slice(0, 8) ?? "ephemeral",
 		});
-		logEvent("dispatch_end", { label, durationMs, turns, cost: totalCost });
-
-		// Record in Langfuse
-		if (lfTrace) {
-			recordGeneration(lfTrace, {
-				name: `agent-sdk:${label}`,
-				model: "claude-sonnet-4-20250514",
-				input: prompt.slice(0, 1000),
-				output: lastResult?.slice(0, 1000),
-				usage: { totalTokens: turns * 1000 }, // approximate
-				durationMs,
-			});
-		}
 
 		// Reflector: post-completion evaluation (non-blocking)
 		if (reflector) {
@@ -514,10 +512,7 @@ export async function dispatchToClaude(
 				.evaluateCompletion(lastResult)
 				.then((eval_) => {
 					if (eval_) {
-						console.log(
-							`[reflector:${label}] Eval: ${eval_.score}/10 — ${eval_.assessment.slice(0, 100)}`
-						);
-						logger.info(`[reflector:eval] ${label}`, {
+						edithLog.info("reflector_evaluation", {
 							label,
 							score: eval_.score,
 							assessment: eval_.assessment.slice(0, 200),
@@ -528,7 +523,7 @@ export async function dispatchToClaude(
 		}
 
 		if (totalCost) {
-			logEvent("cost", { label, usd: totalCost });
+			edithLog.info("cost", { label, usd: totalCost });
 		}
 
 		// Reset circuit breaker on success
@@ -537,22 +532,13 @@ export async function dispatchToClaude(
 		return lastResult;
 	} catch (err) {
 		const errMsg = fmtErr(err);
-		console.error(`[edith:${label}] Error:`, errMsg);
-		logger.error(`[dispatch:error] ${label}`, { label, error: errMsg });
-		logEvent("dispatch_error", { label, error: errMsg });
+		edithLog.error("dispatch_error", { label, error: errMsg });
 
 		// Circuit breaker
 		consecutiveFailures++;
 		if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
 			circuitBreakerUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS;
-			console.error(
-				`[edith] ⚠️ Circuit breaker activated (${consecutiveFailures} failures). Cooling down for 10 minutes.`
-			);
-			logger.error(`[dispatch:circuit-breaker]`, {
-				failures: consecutiveFailures,
-				cooldownMs: CIRCUIT_BREAKER_COOLDOWN_MS,
-			});
-			logEvent("circuit_breaker", {
+			edithLog.error("circuit_breaker", {
 				failures: consecutiveFailures,
 				cooldownMs: CIRCUIT_BREAKER_COOLDOWN_MS,
 			});
@@ -571,11 +557,13 @@ export async function dispatchToClaude(
 		if (dispatchQueue.length > 0) {
 			// Delay to allow MCP servers from previous dispatch to shut down (prevents Kuzu lock contention)
 			await Bun.sleep(INTER_DISPATCH_DELAY_MS);
-			const next = dispatchQueue.shift()!;
-			console.log(`[edith] Processing queued job (${dispatchQueue.length} remaining)`);
-			dispatchToClaude(next.prompt, next.opts)
-				.then(next.resolve)
-				.catch(() => next.resolve(""));
+			const next = dispatchQueue.shift();
+			if (next) {
+				edithLog.info("dispatch_queue_drain", { remaining: dispatchQueue.length });
+				dispatchToClaude(next.prompt, next.opts)
+					.then(next.resolve)
+					.catch(() => next.resolve(""));
+			}
 		}
 	}
 }

@@ -8,6 +8,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OPENROUTER_API_KEY, STATE_DIR } from "./config";
+import { edithLog } from "./edith-logger";
 import type { AudioTranscript } from "./screenpipe";
 import { logEvent } from "./state";
 import { fmtErr } from "./util";
@@ -82,7 +83,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 		});
 
 		if (!res.ok) {
-			console.warn(`[audio-extract] OpenRouter error: ${res.status}`);
+			edithLog.warn("audio_extract_openrouter_error", { status: res.status });
 			return null;
 		}
 
@@ -105,7 +106,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 
 		return parsed;
 	} catch (err) {
-		console.warn("[audio-extract] Extraction failed:", fmtErr(err));
+		edithLog.warn("audio_extract_failed", { message: fmtErr(err) });
 		return null;
 	}
 }
@@ -154,12 +155,13 @@ export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<bool
 			summary: knowledge.summary.slice(0, 100),
 			file: filename,
 		});
-		console.log(
-			`[audio-extract] Queued for Cognee: [${knowledge.type}] ${knowledge.summary.slice(0, 80)}`
-		);
+		edithLog.info("audio_extract_queued_cognee", {
+			type: knowledge.type,
+			summary: knowledge.summary.slice(0, 80),
+		});
 		return true;
 	} catch (err) {
-		console.warn("[audio-extract] Failed to queue knowledge:", fmtErr(err));
+		edithLog.warn("audio_extract_queue_failed", { message: fmtErr(err) });
 		return false;
 	}
 }

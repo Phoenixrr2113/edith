@@ -5,6 +5,7 @@
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GOOGLE_API_KEY } from "./config";
+import { edithLog } from "./edith-logger";
 import type { ScreenContext } from "./screenpipe";
 import { fmtErr } from "./util";
 
@@ -108,7 +109,7 @@ ${rawFormatted}`,
 		if (text?.trim()) return text.trim();
 		return rawFormatted;
 	} catch (err) {
-		console.warn("[gemini] Summarization failed, using raw context:", fmtErr(err));
+		edithLog.warn("gemini_summarization_failed", { message: fmtErr(err) });
 		return rawFormatted;
 	}
 }

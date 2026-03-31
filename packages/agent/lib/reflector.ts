@@ -15,6 +15,7 @@
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { REFLECTOR_ENABLED, REFLECTOR_TOOL_CALL_FREQUENCY } from "./config";
+import { edithLog } from "./edith-logger";
 import { logEvent, PROJECT_ROOT } from "./state";
 
 // ---------------------------------------------------------------------------
@@ -189,8 +190,7 @@ export class ReflectorSession {
 			});
 			return `<reflection source="edith-reflector" trigger="${trigger}">\n${reflection}\n</reflection>`;
 		} catch (err) {
-			console.error(`[reflector:${this.label}] Failed to generate reflection:`, err);
-			logEvent("reflector_error", { label: this.label, error: String(err) });
+			edithLog.error("reflector_generation_failed", { label: this.label, message: String(err) });
 			return null;
 		}
 	}
@@ -229,7 +229,7 @@ export class ReflectorSession {
 
 			return { score, assessment };
 		} catch (err) {
-			console.error(`[reflector:${this.label}] Completion eval failed:`, err);
+			edithLog.error("reflector_eval_failed", { label: this.label, message: String(err) });
 			return null;
 		}
 	}

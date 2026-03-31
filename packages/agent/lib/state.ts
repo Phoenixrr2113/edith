@@ -8,21 +8,12 @@ import {
 	mkdirSync,
 	readFileSync,
 	renameSync,
-	statSync,
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 
-import {
-	CHAT_ID,
-	DEAD_LETTER_FILE,
-	EVENTS_FILE,
-	EVENTS_MAX_AGE_MS,
-	INBOX_DIR,
-	SESSION_FILE,
-	STATE_DIR,
-} from "./config";
+import { CHAT_ID, DEAD_LETTER_FILE, INBOX_DIR, SESSION_FILE, STATE_DIR } from "./config";
 import { openDatabase } from "./db";
 import { saveJson } from "./storage";
 
@@ -96,33 +87,14 @@ export function clearSession(): void {
 	} catch {}
 }
 
-// --- Event logging ---
-export function logEvent(type: string, data: Record<string, any> = {}): void {
-	try {
-		appendFileSync(
-			EVENTS_FILE,
-			`${JSON.stringify({ ts: new Date().toISOString(), type, ...data })}\n`,
-			"utf-8"
-		);
-	} catch {}
-}
+// --- Event logging (delegated to edith-logger for stack trace capture) ---
+export { edithLog, rotateEvents } from "./edith-logger";
 
-export function rotateEvents(): void {
-	if (!existsSync(EVENTS_FILE)) return;
-	try {
-		const stat = statSync(EVENTS_FILE);
-		if (stat.size < 1_000_000) return;
-		const lines = readFileSync(EVENTS_FILE, "utf-8").split("\n").filter(Boolean);
-		const cutoff = Date.now() - EVENTS_MAX_AGE_MS;
-		const recent = lines.filter((line) => {
-			try {
-				return new Date(JSON.parse(line).ts).getTime() > cutoff;
-			} catch {
-				return false;
-			}
-		});
-		writeFileSync(EVENTS_FILE, `${recent.join("\n")}\n`, "utf-8");
-	} catch {}
+import { edithLog } from "./edith-logger";
+
+// biome-ignore lint/suspicious/noExplicitAny: logEvent data values are untyped by design
+export function logEvent(type: string, data: Record<string, any> = {}): void {
+	edithLog.event(type, data);
 }
 
 // --- Active processes (for dashboard) ---
@@ -167,7 +139,7 @@ export function saveDeadLetter(chatId: number, message: string, error: string): 
 		appendFileSync(DEAD_LETTER_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
 	}
 	logEvent("dead_letter", { chatId, message: message.slice(0, 100), error: error.slice(0, 200) });
-	console.log(`[edith] Dead-lettered message: "${message.slice(0, 80)}..."`);
+	edithLog.warn("dead_letter_saved", { chatId, preview: message.slice(0, 80) });
 }
 
 export function loadDeadLetters(): DeadLetter[] {

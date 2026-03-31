@@ -6,6 +6,7 @@
 import { appendActivity } from "../activity";
 import { processAudioTranscripts } from "../audio-extract";
 import { CHAT_ID } from "../config";
+import { edithLog } from "../edith-logger";
 import { summarizeScreenContext } from "../gemini";
 import { canIntervene, recordIntervention } from "../proactive";
 import {
@@ -80,7 +81,11 @@ export async function gatherScreenContext(
 		if (processAudio && ctx.audioTranscripts.length > 0) {
 			processAudioTranscripts(ctx.audioTranscripts)
 				.then((k) => {
-					if (k) console.log(`[proactive] Audio processed: [${k.type}] ${k.summary.slice(0, 60)}`);
+					if (k)
+						edithLog.info("proactive_audio_processed", {
+							type: k.type,
+							summary: k.summary.slice(0, 60),
+						});
 				})
 				.catch(() => {});
 		}

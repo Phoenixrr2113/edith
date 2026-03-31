@@ -7,7 +7,6 @@
  *
  * All logic is in lib/ modules. This file is just the startup + poll loop.
  */
-import "./lib/telemetry";
 import {
 	appendFileSync,
 	chmodSync,
@@ -25,6 +24,7 @@ const _origLog = console.log;
 const _origErr = console.error;
 const _origWarn = console.warn;
 
+// biome-ignore lint/suspicious/noExplicitAny: console overrides require any[]
 function writeLog(_level: string, args: any[]) {
 	const line = `[${new Date().toISOString().slice(11, 19)}] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`;
 	if (LOG_FILE)
@@ -33,10 +33,12 @@ function writeLog(_level: string, args: any[]) {
 		} catch {}
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: console overrides require any[]
 console.log = (...args: any[]) => {
 	_origLog(...args);
 	writeLog("info", args);
 };
+// biome-ignore lint/suspicious/noExplicitAny: console overrides require any[]
 console.error = (...args: any[]) => {
 	_origErr(...args);
 	writeLog("error", args);
@@ -60,9 +62,9 @@ import {
 	SMS_BOT_ID,
 } from "./lib/config";
 import { dispatchQueue, dispatchToClaude, dispatchToConversation } from "./lib/dispatch";
+import { edithLog, pingHeartbeat, rotateEvents } from "./lib/edith-logger";
 import { handleLocation, handlePhoto, handleText, handleVoice } from "./lib/handlers";
 import { SIGNAL_FRESH } from "./lib/ipc";
-import { pingHeartbeat } from "./lib/logger";
 import { runScheduler } from "./lib/scheduler";
 import { getActiveQuery } from "./lib/session";
 import {
@@ -72,7 +74,6 @@ import {
 	loadDeadLetters,
 	logEvent,
 	offset,
-	rotateEvents,
 	saveDeadLetter,
 	saveOffset,
 	sessionId,
@@ -85,7 +86,7 @@ import { fmtErr } from "./lib/util";
 let paused = false;
 
 if (!BOT_TOKEN) {
-	console.error("TELEGRAM_BOT_TOKEN not set");
+	edithLog.fatal("config_missing", { key: "TELEGRAM_BOT_TOKEN" });
 	process.exit(1);
 }
 
@@ -94,13 +95,11 @@ const ENV_FILE = join(import.meta.dir, ".env");
 if (existsSync(ENV_FILE)) {
 	const envMode = statSync(ENV_FILE).mode & 0o777;
 	if (envMode & 0o044) {
-		console.warn(
-			`[edith] WARNING: .env is world/group-readable (mode ${envMode.toString(8)}). Fixing to 600.`
-		);
+		edithLog.warn("env_permission_insecure", { mode: envMode.toString(8) });
 		try {
 			chmodSync(ENV_FILE, 0o600);
 		} catch (e) {
-			console.error("[edith] Could not chmod .env:", e);
+			edithLog.error("env_chmod_failed", { error: fmtErr(e) });
 		}
 	}
 }
@@ -115,7 +114,7 @@ const recentlyIgnored = new Set<number>();
 let currentOffset = offset;
 
 async function poll(): Promise<void> {
-	console.log("[edith] Starting Telegram poll loop...");
+	edithLog.info("telegram_poll_start", {});
 	let consecutiveErrors = 0;
 
 	while (true) {
@@ -141,7 +140,7 @@ async function poll(): Promise<void> {
 				const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
 				if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
 					if (!recentlyIgnored.has(chatId)) {
-						console.log(`[edith] Ignoring message from unauthorized chat: ${chatId}`);
+						edithLog.warn("unauthorized_chat_ignored", { chatId });
 						recentlyIgnored.add(chatId);
 						setTimeout(() => recentlyIgnored.delete(chatId), 60_000);
 					}
@@ -151,16 +150,18 @@ async function poll(): Promise<void> {
 				await sendTyping(chatId);
 				if (paused) {
 					paused = false;
-					console.log("[edith] Unpaused by incoming message.");
+					edithLog.info("unpaused_by_message", {});
 				}
 				// Skip logging raw location updates — they fire frequently from live location sharing
 				// and create massive log spam. Geofence transitions are logged inside handleLocation.
 				if (!msg.location) {
-					const msgType = msg.voice ? "🎤 voice" : msg.photo ? "📸 photo" : "💬 text";
+					const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
 					const msgPreview = msg.text?.slice(0, 80) ?? msg.caption?.slice(0, 80) ?? "";
-					console.log(
-						`[edith] ${msgType} from ${isSmsBot ? "SMS relay" : "Randy"}: ${msgPreview || "(no text)"}`
-					);
+					edithLog.info("message_received", {
+						type: msgType,
+						source: isSmsBot ? "sms_relay" : "randy",
+						preview: msgPreview || "(no text)",
+					});
 					logEvent("message_received", {
 						chatId,
 						type: msg.voice ? "voice" : msg.photo ? "photo" : "text",
@@ -195,10 +196,11 @@ async function poll(): Promise<void> {
 			consecutiveErrors++;
 			const backoff =
 				BACKOFF_SCHEDULE[Math.min(consecutiveErrors - 1, BACKOFF_SCHEDULE.length - 1)];
-			console.error(
-				`[edith] Poll error (${consecutiveErrors}x, backoff ${backoff / 1000}s):`,
-				fmtErr(err)
-			);
+			edithLog.error("poll_error", {
+				error: fmtErr(err),
+				consecutiveErrors,
+				backoffMs: backoff,
+			});
 			logEvent("poll_error", { error: fmtErr(err), consecutiveErrors, backoffMs: backoff });
 			await Bun.sleep(backoff);
 			continue;
@@ -216,7 +218,7 @@ async function bootstrap(): Promise<void> {
 
 	// Check for signal files
 	if (existsSync(SIGNAL_FRESH)) {
-		console.log("[edith] Signal: fresh session requested. Clearing session.");
+		edithLog.info("signal_fresh_session", {});
 		clearSession();
 		try {
 			unlinkSync(SIGNAL_FRESH);
@@ -224,30 +226,30 @@ async function bootstrap(): Promise<void> {
 	}
 
 	if (!sessionId) {
-		console.log("[edith] Bootstrapping new Claude session...");
+		edithLog.info("bootstrap_start", {});
 		const bootBrief = await buildBrief("boot");
 		await dispatchToClaude(bootBrief, { resume: true, label: "bootstrap", briefType: "boot" });
-		console.log("[edith] Bootstrap complete.");
+		edithLog.info("bootstrap_complete", {});
 	} else {
-		console.log(`[edith] Resuming session: ${sessionId}`);
+		edithLog.info("session_resume", { sessionId });
 	}
 
 	// Replay dead-lettered messages
 	const deadLetters = loadDeadLetters();
 	if (deadLetters.length > 0) {
-		console.log(`[edith] Replaying ${deadLetters.length} dead-lettered message(s)...`);
+		edithLog.info("dead_letter_replay_start", { count: deadLetters.length });
 		logEvent("dead_letter_replay", { count: deadLetters.length });
 		for (const dl of deadLetters) {
-			console.log(`[edith] Replaying: "${dl.message.slice(0, 60)}..."`);
+			edithLog.info("dead_letter_replaying", { preview: dl.message.slice(0, 60) });
 			try {
 				await dispatchToConversation(dl.chatId, 0, dl.message);
 			} catch (err) {
-				console.error(`[edith] Dead-letter replay failed, re-queuing:`, err);
+				edithLog.error("dead_letter_replay_failed", { error: fmtErr(err) });
 				saveDeadLetter(dl.chatId, dl.message, `replay failed: ${err}`);
 			}
 		}
 		clearDeadLetters();
-		console.log("[edith] Dead-letter replay complete.");
+		edithLog.info("dead_letter_replay_complete", {});
 	}
 }
 
@@ -258,27 +260,22 @@ async function gracefulShutdown(): Promise<void> {
 	// Close active Agent SDK query if running
 	const activeQuery = getActiveQuery();
 	if (activeQuery) {
-		console.log("[edith] Closing active Agent SDK session...");
+		edithLog.info("shutdown_closing_session", {});
 		try {
 			activeQuery.close();
 		} catch {}
 	}
 
 	if (dispatchQueue.length > 0) {
-		console.log(`[edith] Draining ${dispatchQueue.length} queued message(s) to dead-letter...`);
+		edithLog.info("shutdown_draining_queue", { count: dispatchQueue.length });
 		for (const job of dispatchQueue) {
 			saveDeadLetter(job.opts.chatId ?? CHAT_ID, job.prompt, "shutdown_drain");
 		}
 		dispatchQueue.length = 0;
 	}
 	stopCaffeinate();
-	// Flush Langfuse traces before exit
-	try {
-		const { flushTraces } = await import("./lib/telemetry");
-		await flushTraces();
-	} catch {}
-	// Flush buffered Sentry events before exit
-	await Sentry.close(2000);
+	// Flush buffered logs before exit
+	await edithLog.flush();
 	try {
 		unlinkSync(PID_FILE);
 	} catch {}
@@ -289,35 +286,26 @@ process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
 // ============================================================
-// Global error handlers — capture to Sentry before crashing
+// Global error handlers
 // ============================================================
-import * as Sentry from "@sentry/bun";
-
 process.on("uncaughtException", (err: Error) => {
-	console.error("[edith] Uncaught exception:", err);
-	Sentry.captureException(err);
+	edithLog.fatal("uncaught_exception", { error: err.message, err });
 	gracefulShutdown();
 });
 
 process.on("unhandledRejection", (reason: unknown) => {
-	console.error("[edith] Unhandled promise rejection:", reason);
-	if (reason instanceof Error) {
-		Sentry.captureException(reason);
-	} else {
-		Sentry.captureMessage(`Unhandled rejection: ${String(reason)}`, { level: "error" });
-	}
+	edithLog.error("unhandled_rejection", {
+		error: reason instanceof Error ? reason.message : String(reason),
+		...(reason instanceof Error ? { err: reason } : {}),
+	});
 });
 
 // ============================================================
 // Start
 // ============================================================
-console.log("[edith] Edith is starting up...");
-console.log("[edith] Services:");
-console.log(`[edith]   Langfuse:    ${process.env.LANGFUSE_BASE_URL ?? "http://localhost:3000"}`);
-console.log(`[edith]   Sentry:      ${process.env.SENTRY_DSN ? "✅ connected" : "⚠️  no DSN"}`);
-console.log(
-	`[edith]   BetterStack: ${process.env.BETTERSTACK_HEARTBEAT_URL ? "✅ heartbeat" : "⚠️  no URL"}`
-);
+edithLog.info("startup_begin", {
+	betterstack: !!process.env.BETTERSTACK_SOURCE_TOKEN,
+});
 rotateEvents();
 
 // Seed Google OAuth tokens from env vars into SQLite
@@ -326,7 +314,7 @@ import { seedTokensFromEnv } from "./lib/google-auth";
 try {
 	seedTokensFromEnv();
 } catch (err) {
-	console.warn("[edith] Failed to seed OAuth tokens:", err);
+	edithLog.warn("oauth_seed_failed", { error: fmtErr(err) });
 }
 
 // Clean up old inbox files (older than 7 days)
@@ -359,16 +347,16 @@ setInterval(async () => {
 		paused = tickState.paused;
 		pingHeartbeat();
 	} catch (err) {
-		console.error("[edith:scheduler] Error:", fmtErr(err));
+		edithLog.error("scheduler_tick_error", { error: fmtErr(err) });
 	} finally {
 		schedulerRunning = false;
 	}
 }, SCHEDULE_CHECK_MS);
 
-runScheduler().catch((err) => console.error("[edith:scheduler] Error:", fmtErr(err)));
+runScheduler().catch((err) => edithLog.error("scheduler_run_error", { error: fmtErr(err) }));
 
 // Start polling
 poll().catch((err) => {
-	console.error("[edith] Poll loop crashed:", err);
+	edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
 	process.exit(1);
 });

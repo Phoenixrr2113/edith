@@ -22,6 +22,7 @@ import {
 	SCHEDULE_FILE,
 	STATE_DIR,
 } from "./config";
+import { edithLog } from "./edith-logger";
 
 // --- DB path ---
 const DB_PATH = join(STATE_DIR, "edith.db");
@@ -144,7 +145,7 @@ function _migrateLegacySchedule(db: Database): void {
 	});
 	batch(entries);
 	_markMigrated(db, "schedule");
-	console.log(`[db] Migrated ${entries.length} schedule entries from JSON`);
+	edithLog.info("db_migrated_schedule", { count: entries.length });
 }
 
 function _migrateLegacyLocations(db: Database): void {
@@ -176,7 +177,7 @@ function _migrateLegacyLocations(db: Database): void {
 	});
 	batch(entries);
 	_markMigrated(db, "locations");
-	console.log(`[db] Migrated ${entries.length} locations from JSON`);
+	edithLog.info("db_migrated_locations", { count: entries.length });
 }
 
 function _migrateLegacyReminders(db: Database): void {
@@ -206,7 +207,7 @@ function _migrateLegacyReminders(db: Database): void {
 	});
 	batch(entries);
 	_markMigrated(db, "reminders");
-	console.log(`[db] Migrated ${entries.length} reminders from JSON`);
+	edithLog.info("db_migrated_reminders", { count: entries.length });
 }
 
 function _migrateLegacyDeadLetters(db: Database): void {
@@ -244,7 +245,7 @@ function _migrateLegacyDeadLetters(db: Database): void {
 	});
 	batch(lines);
 	_markMigrated(db, "dead_letters");
-	console.log(`[db] Migrated ${lines.length} dead letters from JSONL`);
+	edithLog.info("db_migrated_dead_letters", { count: lines.length });
 }
 
 /** Read existing JSON/file state and import into SQLite. Safe to call multiple times. */

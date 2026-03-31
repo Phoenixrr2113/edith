@@ -3,6 +3,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { edithLog } from "./edith-logger";
 import { PROMPTS_DIR } from "./state";
 
 /**
@@ -17,7 +18,7 @@ export function assembleSystemPrompt(): string {
 	const reasoning = existsSync(reasoningPath) ? readFileSync(reasoningPath, "utf-8") : "";
 
 	if (!system && !reasoning) {
-		console.warn("[context] Warning: No prompt files found at", PROMPTS_DIR);
+		edithLog.warn("context_no_prompt_files", { path: PROMPTS_DIR });
 		return "";
 	}
 
