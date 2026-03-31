@@ -11,7 +11,7 @@ import {
 	STATE_DIR,
 } from "./config";
 import { openDatabase } from "./db";
-import { loadJson, saveJson } from "./storage";
+import { loadJson } from "./storage";
 
 const PROACTIVE_CONFIG_FILE = join(STATE_DIR, "proactive-config.json");
 

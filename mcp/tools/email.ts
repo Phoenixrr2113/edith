@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
 import { batchManage, manageEmail, searchEmails } from "../../lib/gmail";
+import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
 import { logEvent } from "../../lib/state";
 
 // ============================================================
@@ -28,7 +28,10 @@ export function registerEmailTools(server: McpServer): void {
 					.describe("(get) Hours back to search. Default: 4"),
 				unreadOnly: z.boolean().optional().describe("(get) Only unread emails. Default: true"),
 				maxResults: z.number().min(1).max(50).optional().describe("(get) Max emails. Default: 10"),
-				query: z.string().optional().describe("(get) Raw Gmail search query (overrides hoursBack/unreadOnly)"),
+				query: z
+					.string()
+					.optional()
+					.describe("(get) Raw Gmail search query (overrides hoursBack/unreadOnly)"),
 				// Single manage params
 				messageId: z.string().optional().describe("(manage) Gmail message ID from a previous get"),
 				label: z.string().optional().describe("(addLabel/removeLabel) Label name"),
@@ -50,14 +53,22 @@ export function registerEmailTools(server: McpServer): void {
 			// ── Batch mode ──────────────────────────────────────────────────────────
 			if (operations && operations.length > 0) {
 				try {
-					const data = await batchManage(operations as Array<{ messageId: string; action: "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel"; label?: string }>);
+					const data = await batchManage(
+						operations as Array<{
+							messageId: string;
+							action: "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel";
+							label?: string;
+						}>
+					);
 					logEvent("email_managed_batch", {
 						count: operations.length,
 						actions: [...new Set(operations.map((o) => o.action))].join(","),
 					});
 					return jsonResponse(data ?? { success: true, count: operations.length });
 				} catch (err) {
-					return textResponse(`Batch email error: ${err instanceof Error ? err.message : String(err)}`);
+					return textResponse(
+						`Batch email error: ${err instanceof Error ? err.message : String(err)}`
+					);
 				}
 			}
 
@@ -82,11 +93,17 @@ export function registerEmailTools(server: McpServer): void {
 				return textResponse(`${action} requires a label name`);
 			}
 			try {
-				await manageEmail(messageId, action as "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel", label);
+				await manageEmail(
+					messageId,
+					action as "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel",
+					label
+				);
 				logEvent("email_managed", { messageId, action, label });
 				return textResponse(`Done: ${action} on ${messageId}`);
 			} catch (err) {
-				return textResponse(`Email manage error: ${err instanceof Error ? err.message : String(err)}`);
+				return textResponse(
+					`Email manage error: ${err instanceof Error ? err.message : String(err)}`
+				);
 			}
 		}
 	);

@@ -15,7 +15,13 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DEAD_LETTER_FILE, LOCATIONS_FILE, REMINDERS_FILE, SCHEDULE_FILE, STATE_DIR } from "./config";
+import {
+	DEAD_LETTER_FILE,
+	LOCATIONS_FILE,
+	REMINDERS_FILE,
+	SCHEDULE_FILE,
+	STATE_DIR,
+} from "./config";
 
 // --- DB path ---
 const DB_PATH = join(STATE_DIR, "edith.db");

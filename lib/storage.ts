@@ -89,7 +89,7 @@ export function loadSchedule(): ScheduleEntry[] {
 		const rows = db
 			.query<{ name: string; data: string }, []>("SELECT name, data FROM schedule")
 			.all();
-		let schedule: ScheduleEntry[] = rows.map((r) => JSON.parse(r.data) as ScheduleEntry);
+		const schedule: ScheduleEntry[] = rows.map((r) => JSON.parse(r.data) as ScheduleEntry);
 
 		if (schedule.length === 0) {
 			saveSchedule(DEFAULT_SCHEDULE);
@@ -120,7 +120,10 @@ export function saveSchedule(entries: ScheduleEntry[]): void {
 		const upsert = db.prepare("INSERT OR REPLACE INTO schedule (name, data) VALUES (?, ?)");
 		const del = db.prepare("DELETE FROM schedule WHERE name = ?");
 		const existingNames = new Set(
-			db.query<{ name: string }, []>("SELECT name FROM schedule").all().map((r) => r.name)
+			db
+				.query<{ name: string }, []>("SELECT name FROM schedule")
+				.all()
+				.map((r) => r.name)
 		);
 		const newNames = new Set(entries.map((e) => e.name));
 
@@ -146,10 +149,9 @@ export function loadLocations(): LocationEntry[] {
 	try {
 		const db = openDatabase();
 		return db
-			.query<
-				{ name: string; label: string; lat: number; lon: number; radius_meters: number },
-				[]
-			>("SELECT name, label, lat, lon, radius_meters FROM locations")
+			.query<{ name: string; label: string; lat: number; lon: number; radius_meters: number }, []>(
+				"SELECT name, label, lat, lon, radius_meters FROM locations"
+			)
 			.all()
 			.map((r) => ({
 				name: r.name,
@@ -175,7 +177,10 @@ export function saveLocations(locations: LocationEntry[]): void {
 		);
 		const del = db.prepare("DELETE FROM locations WHERE name = ?");
 		const existingNames = new Set(
-			db.query<{ name: string }, []>("SELECT name FROM locations").all().map((r) => r.name)
+			db
+				.query<{ name: string }, []>("SELECT name FROM locations")
+				.all()
+				.map((r) => r.name)
 		);
 		const newNames = new Set(locations.map((l) => l.name));
 
@@ -238,7 +243,10 @@ export function saveReminders(reminders: Reminder[]): void {
     `);
 		const del = db.prepare("DELETE FROM reminders WHERE id = ?");
 		const existingIds = new Set(
-			db.query<{ id: string }, []>("SELECT id FROM reminders").all().map((r) => r.id)
+			db
+				.query<{ id: string }, []>("SELECT id FROM reminders")
+				.all()
+				.map((r) => r.id)
 		);
 		const newIds = new Set(reminders.map((r) => r.id));
 

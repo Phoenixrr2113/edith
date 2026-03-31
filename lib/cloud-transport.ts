@@ -196,9 +196,7 @@ export const WS_CLOSE_CODES = {
 
 // ── Helper: build a typed message ────────────────────────────────────────────
 
-export function makeWsMessage<T extends AnyWsMessage>(
-	msg: Omit<T, "ts"> & { ts?: number }
-): T {
+export function makeWsMessage<T extends AnyWsMessage>(msg: Omit<T, "ts"> & { ts?: number }): T {
 	return { ts: Date.now(), ...msg } as T;
 }
 
@@ -246,7 +244,9 @@ export async function authenticateUpgrade(req: Request): Promise<string | null> 
 	}
 
 	if (result.needsRefresh) {
-		console.log(`[cloud-transport] Device ${result.payload.deviceId}: token expiring soon, client should refresh`);
+		console.log(
+			`[cloud-transport] Device ${result.payload.deviceId}: token expiring soon, client should refresh`
+		);
 	}
 
 	return result.payload.deviceId;
@@ -263,7 +263,7 @@ export interface WsClientData {
  */
 export function broadcastToDevices(msg: AnyWsMessage): void {
 	const json = JSON.stringify(msg);
-	for (const [deviceId, ws] of connectedDevices) {
+	for (const [deviceId, _ws] of connectedDevices) {
 		try {
 			// TODO(CLOUD-WS-047): cast ws to Bun.ServerWebSocket and call ws.send(json)
 			void json; // placeholder until Bun types wired
@@ -325,9 +325,7 @@ export function emitProgress(
  * Emit a text message to all connected devices (mirrors Telegram send_message).
  */
 export function emitTextMessage(text: string, speak = false): void {
-	broadcastToDevices(
-		makeWsMessage<WsTextMessage>({ type: "message", text, from: "edith", speak })
-	);
+	broadcastToDevices(makeWsMessage<WsTextMessage>({ type: "message", text, from: "edith", speak }));
 }
 
 /**

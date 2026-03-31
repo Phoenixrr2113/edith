@@ -25,9 +25,7 @@ export const logger = {
 		if (logtail) logtail.error(message, context);
 		console.error(message, context ? JSON.stringify(context) : "");
 		// If context contains an actual Error, send it with full stack trace
-		const err = context
-			? Object.values(context).find((v) => v instanceof Error)
-			: undefined;
+		const err = context ? Object.values(context).find((v) => v instanceof Error) : undefined;
 		if (err instanceof Error) {
 			Sentry.captureException(err, { extra: { message, ...context } });
 		} else {

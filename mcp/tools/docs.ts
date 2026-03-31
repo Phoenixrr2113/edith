@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { generateImages } from "../../lib/gemini";
 import { createDoc } from "../../lib/gdocs";
+import { generateImages } from "../../lib/gemini";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
 import { fmtErr } from "../../lib/util";
 
@@ -27,7 +27,12 @@ export function registerDocsTools(server: McpServer): void {
 		async ({ title, content, folderId }) => {
 			try {
 				const result = await createDoc(title, content, folderId);
-				return jsonResponse({ ok: true, docId: result.docId, docUrl: result.docUrl, name: result.name });
+				return jsonResponse({
+					ok: true,
+					docId: result.docId,
+					docUrl: result.docUrl,
+					name: result.name,
+				});
 			} catch (err) {
 				return textResponse(`Failed to create doc: ${fmtErr(err)}`);
 			}

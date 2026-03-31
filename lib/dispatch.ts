@@ -167,7 +167,7 @@ export async function processMessageStream(
 	opts: DispatchOptions,
 	pseudoPid: number,
 	reflector: ReflectorSession | null,
-	abortController?: AbortController
+	_abortController?: AbortController
 ): Promise<StreamResult> {
 	let turns = 0;
 	let lastResult = "";

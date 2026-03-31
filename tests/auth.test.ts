@@ -62,10 +62,16 @@ describe("verifyDeviceToken", () => {
 	test("expired token returns expired", async () => {
 		// Manually craft a token with exp in the past
 		const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }))
-			.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=/g, "");
 		const past = Math.floor(Date.now() / 1000) - 100;
-		const payload = btoa(JSON.stringify({ sub: DEVICE_ID, deviceId: DEVICE_ID, iat: past - 10, exp: past }))
-			.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+		const payload = btoa(
+			JSON.stringify({ sub: DEVICE_ID, deviceId: DEVICE_ID, iat: past - 10, exp: past })
+		)
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=/g, "");
 
 		// We need a valid signature for the expired payload — generate via real token then swap payload
 		// Easier: generate valid token, then tamper the exp in the raw JWT

@@ -177,7 +177,9 @@ export function registerMessagingTools(server: McpServer): void {
 
 			// Slack, Discord — not yet supported
 			if (!recipient) return textResponse(`${channel} requires a recipient`);
-			return textResponse(`${channel} notifications are not configured. Set up Slack/Discord webhooks to enable this channel.`);
+			return textResponse(
+				`${channel} notifications are not configured. Set up Slack/Discord webhooks to enable this channel.`
+			);
 		}
 	);
 }

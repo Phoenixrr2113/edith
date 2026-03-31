@@ -70,13 +70,10 @@ function base64urlDecode(str: string): Uint8Array {
 
 async function importHmacKey(secret: string): Promise<CryptoKey> {
 	const keyBytes = new TextEncoder().encode(secret);
-	return crypto.subtle.importKey(
-		"raw",
-		keyBytes,
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign", "verify"]
-	);
+	return crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
+		"sign",
+		"verify",
+	]);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -91,7 +88,9 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
 export async function generateDeviceToken(deviceId: string, secret: string): Promise<string> {
 	if (!secret) throw new Error("DEVICE_SECRET is not set — cannot generate device token");
 
-	const header = base64urlEncode(new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
+	const header = base64urlEncode(
+		new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" }))
+	);
 	const now = Math.floor(Date.now() / 1000);
 	const payload: DeviceTokenPayload = {
 		deviceId,

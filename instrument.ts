@@ -20,4 +20,3 @@ Sentry.init({
 
 	enableLogs: true,
 });
-

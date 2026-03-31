@@ -30,10 +30,7 @@ export interface EmailList {
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-async function gmailFetch(
-	path: string,
-	options: RequestInit = {}
-): Promise<Response> {
+async function gmailFetch(path: string, options: RequestInit = {}): Promise<Response> {
 	const token = await getAccessToken();
 	const url = `${GMAIL_API}${path}`;
 	const res = await fetch(url, {
@@ -52,7 +49,9 @@ function headerValue(headers: Array<{ name: string; value: string }>, name: stri
 }
 
 async function fetchMessage(id: string): Promise<EmailMessage> {
-	const res = await gmailFetch(`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
+	const res = await gmailFetch(
+		`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`
+	);
 	if (!res.ok) {
 		throw new Error(`Gmail messages.get failed (${res.status}): ${await res.text()}`);
 	}
@@ -112,7 +111,10 @@ export async function searchEmails(options: SearchEmailsOptions = {}): Promise<E
 		throw new Error(`Gmail messages.list failed (${res.status}): ${await res.text()}`);
 	}
 
-	const data = (await res.json()) as { messages?: Array<{ id: string }>; resultSizeEstimate?: number };
+	const data = (await res.json()) as {
+		messages?: Array<{ id: string }>;
+		resultSizeEstimate?: number;
+	};
 	const messageRefs = data.messages ?? [];
 
 	// Fetch headers for each message in parallel (capped at maxResults)
@@ -228,7 +230,9 @@ export async function batchManage(
 			await manageEmail(op.messageId, op.action, op.label);
 			count++;
 		} catch (err) {
-			errors.push(`${op.messageId}/${op.action}: ${err instanceof Error ? err.message : String(err)}`);
+			errors.push(
+				`${op.messageId}/${op.action}: ${err instanceof Error ? err.message : String(err)}`
+			);
 		}
 	}
 

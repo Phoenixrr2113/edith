@@ -9,11 +9,11 @@ import {
 	buildEveningBrief,
 	buildFullBrief,
 	buildMiddayBrief,
+	buildMonthlyReviewBrief,
+	buildQuarterlyReviewBrief,
 	buildScheduledBrief,
 	buildWeekendBrief,
 	buildWeeklyReviewBrief,
-	buildMonthlyReviewBrief,
-	buildQuarterlyReviewBrief,
 } from "./scheduled";
 
 export type BriefType =
@@ -51,18 +51,18 @@ export interface SkillRoute {
 }
 
 export const SKILL_ROUTING: Record<BriefType, SkillRoute> = {
-	boot:      { agent: "communicator", model: "sonnet", skill: "morning-brief" },
-	morning:   { agent: "communicator", model: "sonnet", skill: "morning-brief" },
-	midday:    { agent: "communicator", model: "sonnet", skill: "midday-check" },
-	evening:   { agent: "communicator", model: "sonnet", skill: "evening-wrap" },
-	weekend:   { agent: "communicator", model: "sonnet", skill: "weekend-brief" },
-	weekly:    { agent: "analyst",      model: "sonnet", skill: "weekly-review" },
-	monthly:   { agent: "analyst",      model: "sonnet", skill: "monthly-review" },
-	quarterly: { agent: "analyst",      model: "opus",   skill: "quarterly-review" },
-	message:   { agent: "communicator", model: "sonnet", skill: null },
-	location:  { agent: "communicator", model: "sonnet", skill: null },
-	scheduled: { agent: "monitor",      model: "haiku",  skill: "reminder-check" },
-	proactive: { agent: "monitor",      model: "haiku",  skill: "proactive-check" },
+	boot: { agent: "communicator", model: "sonnet", skill: "morning-brief" },
+	morning: { agent: "communicator", model: "sonnet", skill: "morning-brief" },
+	midday: { agent: "communicator", model: "sonnet", skill: "midday-check" },
+	evening: { agent: "communicator", model: "sonnet", skill: "evening-wrap" },
+	weekend: { agent: "communicator", model: "sonnet", skill: "weekend-brief" },
+	weekly: { agent: "analyst", model: "sonnet", skill: "weekly-review" },
+	monthly: { agent: "analyst", model: "sonnet", skill: "monthly-review" },
+	quarterly: { agent: "analyst", model: "opus", skill: "quarterly-review" },
+	message: { agent: "communicator", model: "sonnet", skill: null },
+	location: { agent: "communicator", model: "sonnet", skill: null },
+	scheduled: { agent: "monitor", model: "haiku", skill: "reminder-check" },
+	proactive: { agent: "monitor", model: "haiku", skill: "proactive-check" },
 };
 
 /**
@@ -110,9 +110,9 @@ export {
 	buildEveningBrief,
 	buildFullBrief,
 	buildMiddayBrief,
+	buildMonthlyReviewBrief,
+	buildQuarterlyReviewBrief,
 	buildScheduledBrief,
 	buildWeekendBrief,
 	buildWeeklyReviewBrief,
-	buildMonthlyReviewBrief,
-	buildQuarterlyReviewBrief,
 } from "./scheduled";

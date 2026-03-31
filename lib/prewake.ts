@@ -3,8 +3,9 @@
  * This gives Edith context without needing tool calls, saving turns and time.
  * Used only for boot/morning briefs as a head start before Claude is live.
  */
-import { searchEmails } from "./gmail";
+
 import { getEvents } from "./gcal";
+import { searchEmails } from "./gmail";
 import { fmtErr } from "./util";
 
 /**

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { createEvent, deleteEvent, getEvents, updateEvent } from "../../lib/gcal";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { getEvents, createEvent, updateEvent, deleteEvent } from "../../lib/gcal";
 import { logEvent } from "../../lib/state";
 
 export function registerCalendarTools(server: McpServer): void {
@@ -90,7 +90,9 @@ export function registerCalendarTools(server: McpServer): void {
 					});
 					return jsonResponse({ events, count: events.length });
 				} catch (err) {
-					return textResponse(`Calendar error: ${err instanceof Error ? err.message : String(err)}`);
+					return textResponse(
+						`Calendar error: ${err instanceof Error ? err.message : String(err)}`
+					);
 				}
 			}
 

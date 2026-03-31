@@ -137,8 +137,15 @@ export interface CreateEventOptions {
 
 /** Insert a new event and return the created event. */
 export async function createEvent(options: CreateEventOptions): Promise<CalendarEvent> {
-	const { calendarId = DEFAULT_CALENDAR, summary, start, end, description, location, allDay } =
-		options;
+	const {
+		calendarId = DEFAULT_CALENDAR,
+		summary,
+		start,
+		end,
+		description,
+		location,
+		allDay,
+	} = options;
 
 	const startDate = allDay
 		? { date: start.slice(0, 10) }
@@ -179,8 +186,15 @@ export interface UpdateEventOptions {
 
 /** Patch an existing event (partial update). Returns the updated event. */
 export async function updateEvent(options: UpdateEventOptions): Promise<CalendarEvent> {
-	const { calendarId = DEFAULT_CALENDAR, eventId, summary, start, end, description, location } =
-		options;
+	const {
+		calendarId = DEFAULT_CALENDAR,
+		eventId,
+		summary,
+		start,
+		end,
+		description,
+		location,
+	} = options;
 
 	const body: GCalEvent = {};
 	if (summary !== undefined) body.summary = summary;
