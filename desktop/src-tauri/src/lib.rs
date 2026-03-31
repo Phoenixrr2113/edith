@@ -1,3 +1,5 @@
+mod screen;
+
 use tauri::{
     menu::{MenuBuilder, MenuEvent, MenuItemBuilder},
     tray::{TrayIcon, TrayIconBuilder},
@@ -11,6 +13,13 @@ struct TrayState(TrayIcon);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
+        .manage(screen::CaptureSession::new())
+        .invoke_handler(tauri::generate_handler![
+            screen::capture_screen,
+            screen::start_capture,
+            screen::stop_capture,
+        ])
         .setup(|app| {
             // --- System tray with right-click menu ---
             let show = MenuItemBuilder::with_id("show", "Show/Hide Edith").build(app)?;

@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { settingsStore } from './settings.js';
 	import { setTheme, type ThemeMode } from './theme.js';
+	import { audioCapture } from './audio-capture.js';
+	import type { AudioCaptureMode } from './audio-capture.js';
 	import OllamaStatus from './OllamaStatus.svelte';
 	import PiperStatus from './PiperStatus.svelte';
 	import CacheStatus from './CacheStatus.svelte';
 	import { localCache, type CacheKey } from './local-cache.js';
+	import CaptureHistory from './CaptureHistory.svelte';
+	import { captureStore } from './capture-store.js';
 
 	interface Props {
 		open: boolean;
@@ -106,6 +110,47 @@
 		settingsStore.update('groqApiKey', groqApiKeyDraft);
 	}
 
+	// Audio capture handlers
+	function handleAudioCaptureEnabledChange(e: Event) {
+		const enabled = (e.target as HTMLInputElement).checked;
+		settingsStore.update('audioCaptureEnabled', enabled);
+		if (!enabled && audioCapture.isActive) {
+			audioCapture.stopAudioCapture();
+		}
+	}
+
+	function handleAudioCaptureModeChange(e: Event) {
+		const mode = (e.target as HTMLSelectElement).value as AudioCaptureMode;
+		settingsStore.update('audioCaptureMode', mode);
+		// Restart capture with new mode if currently active
+		if (audioCapture.isActive) {
+			audioCapture.stopAudioCapture();
+			audioCapture.startAudioCapture({ mode }).catch((err) => {
+				console.error('[Settings] Audio capture restart failed:', err);
+			});
+		}
+	}
+
+	function handleAudioCaptureBufferSecsChange(e: Event) {
+		const val = parseInt((e.target as HTMLInputElement).value, 10);
+		if (!isNaN(val) && val >= 5 && val <= 120) {
+			settingsStore.update('audioCaptureBufferSecs', val);
+			audioCapture.updateOptions({ bufferSecs: val });
+		}
+	}
+
+	// Screen capture handlers
+	function handleScreenCaptureEnabledChange(e: Event) {
+		settingsStore.update('screenCaptureEnabled', (e.target as HTMLInputElement).checked);
+	}
+
+	function handleScreenCaptureIntervalChange(e: Event) {
+		const val = parseInt((e.target as HTMLInputElement).value, 10);
+		if (!isNaN(val) && val >= 500 && val <= 60000) {
+			settingsStore.update('screenCaptureIntervalMs', val);
+		}
+	}
+
 	// Used to force CacheStatus to re-render after clear
 	let cacheRevision = $state(0);
 
@@ -120,6 +165,36 @@
 		localCache.delete(_key);
 		cacheRevision += 1;
 	}
+
+	// Capture storage settings
+	function handleMaxCapturesChange(e: Event) {
+		const val = parseInt((e.target as HTMLInputElement).value, 10);
+		if (!isNaN(val) && val >= 5 && val <= 200) {
+			settingsStore.update('maxCaptures', val);
+			captureStore.updateSettings({ maxCaptures: val });
+		}
+	}
+
+	function handleAutoDeleteCapturesChange(e: Event) {
+		const enabled = (e.target as HTMLInputElement).checked;
+		settingsStore.update('autoDeleteCaptures', enabled);
+		captureStore.updateSettings({ autoDelete: enabled });
+	}
+
+	function handleCaptureRetentionHoursChange(e: Event) {
+		const val = parseInt((e.target as HTMLInputElement).value, 10);
+		if (!isNaN(val) && val >= 1 && val <= 48) {
+			settingsStore.update('captureRetentionHours', val);
+			captureStore.updateSettings({ captureRetentionHours: val });
+		}
+	}
+
+	function handleClearCaptures() {
+		captureStore.clearAll();
+		captureHistoryRevision += 1;
+	}
+
+	let captureHistoryRevision = $state(0);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -340,6 +415,166 @@
 						Uses Groq Whisper for ~300ms transcription.
 					</p>
 				{/if}
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Audio Capture -->
+			<section class="section">
+				<div class="section-label">Audio Capture</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Enable ambient audio capture</span>
+					<span class="toggle-track" class:on={settingsStore.value.audioCaptureEnabled}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.audioCaptureEnabled}
+							onchange={handleAudioCaptureEnabledChange}
+							aria-label="Enable ambient audio capture"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				{#if settingsStore.value.audioCaptureEnabled}
+					<label class="field-col" style="margin-bottom: 10px;">
+						<span class="field-label">Source</span>
+						<select
+							class="text-input"
+							value={settingsStore.value.audioCaptureMode}
+							onchange={handleAudioCaptureModeChange}
+							aria-label="Audio capture source"
+						>
+							<option value="microphone">Microphone</option>
+							<option value="system">System audio (screen recording)</option>
+						</select>
+					</label>
+					<label class="field-row">
+						<span class="field-label">Buffer</span>
+						<div class="input-suffix">
+							<input
+								type="number"
+								class="number-input"
+								min="5"
+								max="120"
+								step="5"
+								value={settingsStore.value.audioCaptureBufferSecs}
+								onchange={handleAudioCaptureBufferSecsChange}
+								aria-label="Audio buffer duration in seconds"
+							/>
+							<span class="suffix">sec</span>
+						</div>
+					</label>
+					{#if settingsStore.value.audioCaptureMode === 'system'}
+						<p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0;">
+							Requires screen recording permission in macOS System Settings.
+						</p>
+					{/if}
+				{/if}
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Screen Capture -->
+			<section class="section">
+				<div class="section-label">Screen Capture</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Enable screen capture</span>
+					<span class="toggle-track" class:on={settingsStore.value.screenCaptureEnabled}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.screenCaptureEnabled}
+							onchange={handleScreenCaptureEnabledChange}
+							aria-label="Enable screen capture"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				{#if settingsStore.value.screenCaptureEnabled}
+					<label class="field-row">
+						<span class="field-label">Capture every</span>
+						<div class="input-suffix">
+							<input
+								type="number"
+								class="number-input"
+								min="500"
+								max="60000"
+								step="500"
+								value={settingsStore.value.screenCaptureIntervalMs}
+								onchange={handleScreenCaptureIntervalChange}
+								aria-label="Screen capture interval in milliseconds"
+							/>
+							<span class="suffix">ms</span>
+						</div>
+					</label>
+					<p style="font-size: 11px; color: var(--text-muted); margin: 6px 0 0;">
+						Requires Screen Recording permission in macOS System Settings.
+					</p>
+				{/if}
+			</section>
+
+			<div class="separator"></div>
+
+			<!-- Capture Storage -->
+			<section class="section">
+				<div class="section-label">Capture Storage</div>
+				<label class="toggle-row" style="margin-bottom: 10px;">
+					<span class="toggle-label">Auto-delete old captures</span>
+					<span class="toggle-track" class:on={settingsStore.value.autoDeleteCaptures}>
+						<input
+							type="checkbox"
+							checked={settingsStore.value.autoDeleteCaptures}
+							onchange={handleAutoDeleteCapturesChange}
+							aria-label="Auto-delete old captures"
+						/>
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+				<label class="field-row" style="margin-bottom: 10px;">
+					<span class="field-label">Keep per type</span>
+					<div class="input-suffix">
+						<input
+							type="number"
+							class="number-input"
+							min="5"
+							max="200"
+							step="5"
+							value={settingsStore.value.maxCaptures}
+							onchange={handleMaxCapturesChange}
+							aria-label="Max captures per type"
+						/>
+					</div>
+				</label>
+				{#if settingsStore.value.autoDeleteCaptures}
+					<label class="field-row" style="margin-bottom: 10px;">
+						<span class="field-label">Retain for</span>
+						<div class="input-suffix">
+							<input
+								type="number"
+								class="number-input"
+								min="1"
+								max="48"
+								step="1"
+								value={settingsStore.value.captureRetentionHours}
+								onchange={handleCaptureRetentionHoursChange}
+								aria-label="Capture retention in hours"
+							/>
+							<span class="suffix">hr</span>
+						</div>
+					</label>
+				{/if}
+				<p style="font-size: 11px; color: var(--text-muted); margin: 0 0 10px;">
+					Max 10 MB total. Oldest captures pruned first.
+				</p>
+				{#key captureHistoryRevision}
+					<CaptureHistory count={10} />
+				{/key}
+				<button
+					class="clear-cache-btn"
+					type="button"
+					onclick={handleClearCaptures}
+					style="margin-top: 12px;"
+				>
+					Clear all captures
+				</button>
 			</section>
 
 			<div class="separator"></div>

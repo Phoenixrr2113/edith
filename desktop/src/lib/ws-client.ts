@@ -129,7 +129,10 @@ export interface WsInputMessage extends WsMessage {
 
 export interface WsScreenContextMessage extends WsMessage {
 	type: "screen_context";
+	/** Human-readable summary of screen contents (populated server-side). */
 	summary: string;
+	/** Base64-encoded PNG of the captured frame (device → cloud). */
+	imageData?: string;
 	apps: string[];
 	confidence: number;
 }

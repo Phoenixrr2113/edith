@@ -33,6 +33,12 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
+		"macOS": {
+			"infoPlist": {
+				"NSScreenCaptureUsageDescription": "Edith uses screen capture to understand your context and proactively assist you.",
+				"NSMicrophoneUsageDescription": "Edith uses the microphone for ambient audio capture and voice input."
+			}
+		},
 		"icon": [
 			"icons/32x32.png",
 			"icons/128x128.png",

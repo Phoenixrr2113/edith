@@ -18,6 +18,13 @@
 	import { SyncManager, type SyncStatus as SyncStatusType } from './lib/sync.js';
 	import SyncStatus from './lib/SyncStatus.svelte';
 	import VoiceInput from './lib/VoiceInput.svelte';
+	import { audioCapture } from './lib/audio-capture.js';
+	import {
+		startPeriodicCapture,
+		stopPeriodicCapture,
+		onScreenFrame,
+		isCaptureActive,
+	} from './lib/screen-capture.js';
 
 	const MAX_BUBBLES = 3;
 
@@ -75,6 +82,20 @@
 	const syncManager = new SyncManager(wsClient);
 	let syncStatus = $state<SyncStatusType>(syncManager.status);
 	let lastSyncAt = $state<number | null>(syncManager.lastSyncAt);
+
+	// React to settings changes — start/stop capture when toggles change
+	$effect(() => {
+		void settingsStore.value.screenCaptureEnabled;
+		void settingsStore.value.screenCaptureIntervalMs;
+		syncScreenCapture().catch((err) => console.warn('[App] syncScreenCapture (effect):', err));
+	});
+
+	$effect(() => {
+		void settingsStore.value.audioCaptureEnabled;
+		void settingsStore.value.audioCaptureMode;
+		void settingsStore.value.audioCaptureBufferSecs;
+		syncAudioCapture().catch((err) => console.warn('[App] syncAudioCapture (effect):', err));
+	});
 
 	onMount(() => {
 		// Initialize theme system (applies data-theme, starts system listener)
@@ -205,7 +226,68 @@
 		);
 
 		wsClient.connect(settingsStore.value.wsUrl, settingsStore.value.wsToken);
+
+		// Start ambient audio capture if enabled in settings
+		syncAudioCapture().catch((err) => console.warn('[App] syncAudioCapture:', err));
+
+		// Start screen capture if enabled in settings
+		syncScreenCapture().catch((err) => console.warn('[App] syncScreenCapture:', err));
 	});
+
+	// ── Audio capture lifecycle ─────────────────────────────────────────────────
+
+	/** Start/restart ambient audio capture based on current settings. */
+	async function syncAudioCapture(): Promise<void> {
+		const { audioCaptureEnabled, audioCaptureMode, audioCaptureBufferSecs } = settingsStore.value;
+
+		if (audioCaptureEnabled && !audioCapture.isActive) {
+			try {
+				await audioCapture.startAudioCapture({
+					mode: audioCaptureMode,
+					bufferSecs: audioCaptureBufferSecs,
+				});
+			} catch (err) {
+				console.warn('[App] Audio capture start failed:', err);
+			}
+		} else if (!audioCaptureEnabled && audioCapture.isActive) {
+			audioCapture.stopAudioCapture();
+		}
+	}
+
+	// ── Screen capture lifecycle ────────────────────────────────────────────────
+
+	let _screenFrameUnsub: (() => void) | null = null;
+
+	/** Start/stop periodic screen capture based on current settings. */
+	async function syncScreenCapture(): Promise<void> {
+		const { screenCaptureEnabled, screenCaptureIntervalMs } = settingsStore.value;
+
+		if (screenCaptureEnabled && !isCaptureActive()) {
+			try {
+				// Subscribe to frames before starting — forward each frame to the cloud via WS.
+				_screenFrameUnsub = onScreenFrame((frame) => {
+					wsClient.send({
+						type: 'screen_context',
+						// summary will be populated server-side after vision analysis
+						summary: '',
+						imageData: frame.data,
+						apps: [],
+						confidence: 1.0,
+						ts: frame.ts,
+					});
+				});
+				await startPeriodicCapture(screenCaptureIntervalMs);
+			} catch (err) {
+				console.warn('[App] Screen capture start failed:', err);
+				_screenFrameUnsub?.();
+				_screenFrameUnsub = null;
+			}
+		} else if (!screenCaptureEnabled && isCaptureActive()) {
+			await stopPeriodicCapture();
+			_screenFrameUnsub?.();
+			_screenFrameUnsub = null;
+		}
+	}
 
 	/** Send a voice-transcribed message to the orchestrator via WebSocket. */
 	function handleVoiceTranscript(text: string) {
@@ -223,6 +305,10 @@
 		for (const unsub of unsubs) unsub();
 		wsClient.disconnect();
 		stopAudio();
+		audioCapture.stopAudioCapture();
+		stopPeriodicCapture().catch(() => {});
+		_screenFrameUnsub?.();
+		_screenFrameUnsub = null;
 	});
 </script>
 

@@ -31,6 +31,22 @@ export interface DesktopSettings {
 	groqApiKey: string;
 	/** Whether voice input (STT) is enabled */
 	sttEnabled: boolean;
+	/** Whether ambient audio capture is enabled */
+	audioCaptureEnabled: boolean;
+	/** Audio capture mode: mic or system audio */
+	audioCaptureMode: "microphone" | "system";
+	/** Rolling buffer length in seconds */
+	audioCaptureBufferSecs: number;
+	/** Whether screen capture is enabled */
+	screenCaptureEnabled: boolean;
+	/** How often to capture the screen (milliseconds, minimum 500) */
+	screenCaptureIntervalMs: number;
+	/** Max number of captures to keep per type in local storage */
+	maxCaptures: number;
+	/** Auto-delete captures older than captureRetentionHours */
+	autoDeleteCaptures: boolean;
+	/** How long to retain captures in hours */
+	captureRetentionHours: number;
 }
 
 const STORAGE_KEY = "edith-settings";
@@ -48,6 +64,14 @@ const DEFAULTS: DesktopSettings = {
 	cartesiaVoiceId: "",
 	groqApiKey: "",
 	sttEnabled: false,
+	audioCaptureEnabled: false,
+	audioCaptureMode: "microphone",
+	audioCaptureBufferSecs: 30,
+	screenCaptureEnabled: false,
+	screenCaptureIntervalMs: 1_000,
+	maxCaptures: 50,
+	autoDeleteCaptures: true,
+	captureRetentionHours: 2,
 };
 
 // ── Load / save ───────────────────────────────────────────────────────────────
