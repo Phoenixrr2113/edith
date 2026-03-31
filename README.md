@@ -2,37 +2,41 @@
 
 A proactive, always-on AI personal assistant. Cortana's brain, Bonzi's charm.
 
-Edith runs as a Bun daemon on macOS, dispatching to Claude via the Agent SDK. She communicates via Telegram, remembers via Cognee, manages Google services via n8n, and runs scheduled background agents on a timer.
+Edith runs as a Bun daemon on macOS, dispatching to Claude via the Agent SDK. She communicates via Telegram, stores state in SQLite, manages Google services via direct REST APIs, and runs scheduled background agents on a timer.
 
-## Architecture (v4 — Orchestrator Pattern)
+## Architecture (v4 — Orchestrator + Skill Routing)
 
 ```
 edith.ts (Bun daemon)
   ├── Telegram polling  → dispatch to persistent Claude session
   ├── Scheduler         → fires skills on cron (morning-brief, midday-check, etc.)
-  └── Geofencing        → location-based reminders via OwnTracks pings
+  ├── Geofencing        → location-based reminders via OwnTracks pings
+  └── Proactive engine  → screen context triggers with cooldown gates
 
 Claude session (orchestrator):
   Light tasks  → handles directly (reminders, lookups, quick questions)
   Heavy tasks  → spawns background agents via Agent tool
-    ├── morning-briefer   (calendar, email, Cognee, meeting prep)
-    ├── email-triager     (scan inbox, archive noise, draft replies)
-    ├── midday-checker    (catch changes, prep afternoon)
-    ├── evening-wrapper   (day review, tomorrow prep, Cognee storage)
-    ├── researcher        (web + codebase research)
-    └── reminder-checker  (check due reminders — haiku)
 
-MCP tools (mcp/server.ts):
-  send_message, send_notification, manage_emails, manage_calendar,
-  manage_docs, generate_image, save_reminder, list_reminders,
-  save_location, list_locations, add/list/remove_scheduled_task,
-  proactive_history, record_intervention
+  4 general agents (skill-routed):
+    ├── communicator  (briefs, email triage, messaging — sonnet)
+    ├── researcher    (web + codebase research — sonnet)
+    ├── analyst       (weekly/monthly/quarterly reviews — sonnet/opus)
+    └── monitor       (reminder checks, proactive checks — haiku)
 
-Integration backend (n8n, port 5679):
-  /webhook/calendar  — Google Calendar (get/create/update/delete)
-  /webhook/gmail     — Gmail (get/send/reply/draft/archive/trash)
-  /webhook/docs      — Google Docs (create)
-  /webhook/notify    — Telegram, WhatsApp, SMS routing
+MCP tools (mcp/server.ts → mcp/tools/*.ts):
+  8 domain modules: messaging, schedule, location, email,
+  calendar, docs, proactive, activity
+
+Google APIs (direct REST, no middleware):
+  lib/gmail.ts      — Gmail (search, archive, trash, labels, send)
+  lib/gcal.ts       — Calendar (list, create, update, delete events)
+  lib/gdocs.ts      — Docs (create, read)
+  lib/gdrive.ts     — Drive (search, get, download, upload)
+  lib/google-auth.ts — OAuth2 token management (SQLite-backed)
+
+State (SQLite — ~/.edith/edith.db):
+  schedule, locations, reminders, sessions, dead_letters,
+  proactive_state, geo_state, oauth_tokens
 
 External services:
   Cognee (port 8001) — knowledge graph + semantic memory
@@ -45,50 +49,71 @@ External services:
 | File | What |
 |------|------|
 | `edith.ts` | Daemon — Telegram polling, scheduler, geofencing, dispatch |
-| `lib/dispatch.ts` | Agent SDK dispatch — session management, event streaming |
-| `mcp/server.ts` | MCP tool server — all tools Edith can call |
+| `lib/dispatch.ts` | Agent SDK dispatch — session management, circuit breaker, queue |
+| `lib/briefs/` | Brief builders — scheduled, conversation, proactive (3 modules) |
+| `lib/handlers.ts` | Message/voice/photo/location handler routing |
+| `lib/ipc.ts` | Centralized IPC — signals, triggers, inbox processing |
+| `lib/db.ts` | SQLite persistence — all state tables |
+| `mcp/server.ts` | MCP entrypoint — registers 8 domain tool modules |
+| `mcp/tools/*.ts` | Domain-specific MCP tools (email, calendar, etc.) |
+| `lib/config.ts` | Centralized constants (timeouts, limits, paths, env vars) |
 | `prompts/system.md` | Edith's identity, voice, orchestrator instructions |
-| `.claude/agents/*.md` | Background agent definitions (scoped tools + prompts) |
+| `.claude/agents/*.md` | 4 general agent definitions + project-auditor |
+| `.claude/skills/*.md` | Skill definitions (morning-brief, check-reminders, etc.) |
 | `.claude/rules/*.md` | Behavioral rules (communication, priorities, autonomy, memory) |
-| `n8n/` | Workflow JSONs + documentation |
 | `ARCHITECTURE-V4.md` | Full architecture doc, decision log, future plans |
 
 ## Services
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **Langfuse** | http://localhost:3000 | LLM traces, cost dashboard, latency analysis |
+| **Langfuse** | http://localhost:3000 | LLM traces, cost tracking, latency analysis |
 | **BetterStack Logs** | https://telemetry.betterstack.com | Structured logs, search, alerts |
 | **BetterStack Uptime** | https://uptime.betterstack.com | Heartbeat monitoring, uptime alerts |
-| **n8n** | http://localhost:5679 | Google Calendar/Gmail/Docs via OAuth webhooks |
+| **Sentry** | https://sentry.io | Error tracking, crash reports |
 | **Cognee** | http://localhost:8001 | Knowledge graph, semantic memory |
-| **GitHub Project** | https://github.com/users/Phoenixrr2113/projects/1 | Task backlog and pipeline |
+| **Anthropic Console** | https://console.anthropic.com | API cost and usage reporting |
 
 ## Requirements
 
 - **Claude Code CLI** v2.1.80+ (Agent SDK)
 - **Bun** (runtime)
-- **n8n** (`npx n8n start` — runs as child process, no Docker needed)
-- **Cognee** (Docker or MCP stdio)
+- **Docker** (for Langfuse + Cognee)
 - **Telegram Bot** (via [@BotFather](https://t.me/BotFather))
+- **Google OAuth credentials** (for Gmail, Calendar, Docs, Drive)
 
 ## Setup
 
 ```bash
-cp .env.example .env   # fill in API keys
-cd mcp && bun install && cd ..
-./launch-edith.sh       # starts n8n + Edith
+./setup.sh              # interactive — generates .env with all keys
+./install.sh            # installs LaunchAgent for auto-start on login
+# or manually:
+./launch-edith.sh       # starts Docker services + Edith daemon
 ```
+
+### Environment Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `TELEGRAM_BOT_TOKEN` | Yes | Telegram Bot API token |
+| `TELEGRAM_CHAT_ID` | Yes | Your Telegram chat ID |
+| `ANTHROPIC_API_KEY` | Yes | Claude API key |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
+| `GOOGLE_REFRESH_TOKEN` | Yes | Google OAuth refresh token |
+| `SENTRY_DSN` | No | Sentry error tracking DSN |
+| `DEVICE_SECRET` | No | JWT secret for device auth (auto-generated) |
 
 ## How It Works
 
 1. **edith.ts** polls Telegram and runs scheduled tasks on cron
 2. Messages dispatch to a persistent Claude session via Agent SDK
 3. Claude decides: handle directly (light) or spawn background agent (heavy)
-4. Background agents run in parallel, stream progress events
+4. Skill routing maps brief types to the right agent + model
 5. Results flow back to Randy via Telegram
 6. **Cognee** stores long-term knowledge; agents query it for context
-7. **n8n** proxies Google services via pre-authenticated OAuth webhooks
+7. **SQLite** persists all state (schedule, reminders, sessions, locations)
+8. **Google APIs** called directly via OAuth2 (no middleware)
 
 ## Notification Channels
 
@@ -96,6 +121,27 @@ cd mcp && bun install && cd ..
 |---------|--------|--------|
 | Telegram | Bot API | Working |
 | WhatsApp | Twilio sandbox | Working (rejoin every 72h) |
-| SMS | Twilio A2P | Pending registration (~2-3 weeks) |
+| SMS | Twilio A2P | Pending registration |
 | Desktop | macOS toast | Working |
 | Dialog | macOS modal | Working |
+
+## Testing
+
+```bash
+bun test                    # run all tests (265 tests)
+bun run test:coverage       # with coverage report
+bunx biome check .          # lint check
+bun run tsc --noEmit        # type check
+```
+
+## Design Documents
+
+| Document | Topic |
+|----------|-------|
+| `docs/design-skill-library.md` | Skill format, taxonomy, routing |
+| `docs/design-websocket-protocol.md` | Device-cloud WebSocket protocol |
+| `docs/design-device-auth.md` | JWT-based device authentication |
+| `docs/design-session-management.md` | Cloud-ready session management |
+| `docs/eval-agent-consolidation.md` | 11→4 agent consolidation analysis |
+| `docs/mcp-audit.md` | MCP tool backend audit |
+| `docs/mcp-direct.md` | Direct function exposure evaluation |
