@@ -3,7 +3,6 @@
  * Uses bun:sqlite for zero-dependency local storage.
  *
  * Tables:
- *   dispatch_costs  — per-task cost tracking (one row per dispatchToClaude call)
  *   schedule        — scheduled tasks (replaces schedule.json)
  *   locations       — saved locations (replaces locations.json)
  *   reminders       — time/location reminders (replaces reminders.json)
@@ -38,27 +37,9 @@ export function openDatabase(pathOverride?: string): Database {
 	return _db;
 }
 
-/** @internal backward-compat alias used by cost functions below */
-function getDb(): Database {
-	return openDatabase();
-}
-
 // --- Schema ---
 function applySchema(db: Database): void {
 	db.exec(`
-    CREATE TABLE IF NOT EXISTS dispatch_costs (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-      label       TEXT    NOT NULL,
-      usd         REAL    NOT NULL,
-      turns       INTEGER NOT NULL DEFAULT 0,
-      duration_ms INTEGER NOT NULL DEFAULT 0,
-      session_id  TEXT    NOT NULL DEFAULT ''
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_dispatch_costs_ts    ON dispatch_costs(ts);
-    CREATE INDEX IF NOT EXISTS idx_dispatch_costs_label ON dispatch_costs(label);
-
     CREATE TABLE IF NOT EXISTS schedule (
       name  TEXT PRIMARY KEY,
       data  TEXT NOT NULL
@@ -267,104 +248,6 @@ export function migrateState(): void {
 	_migrateLegacyLocations(db);
 	_migrateLegacyReminders(db);
 	_migrateLegacyDeadLetters(db);
-}
-
-// --- Types ---
-export interface DispatchCost {
-	id: number;
-	ts: string;
-	label: string;
-	usd: number;
-	turns: number;
-	duration_ms: number;
-	session_id: string;
-}
-
-// --- Write ---
-
-/** Record a cost entry after a completed dispatch. */
-export function recordCost(params: {
-	label: string;
-	usd: number;
-	turns: number;
-	duration_ms: number;
-	session_id?: string;
-}): void {
-	try {
-		const db = getDb();
-		const stmt = db.prepare(`
-      INSERT INTO dispatch_costs (label, usd, turns, duration_ms, session_id)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-		stmt.run(params.label, params.usd, params.turns, params.duration_ms, params.session_id ?? "");
-	} catch (err) {
-		// Non-fatal — cost tracking should never crash dispatch
-		console.error("[db:recordCost] Failed to record cost:", err);
-	}
-}
-
-// --- Read ---
-
-/** Return all cost rows from the last N days (default: 7). */
-export function getRecentCosts(days = 7): DispatchCost[] {
-	try {
-		const db = getDb();
-		const stmt = db.prepare<DispatchCost, [string]>(`
-      SELECT id, ts, label, usd, turns, duration_ms, session_id
-      FROM dispatch_costs
-      WHERE ts >= datetime('now', ?)
-      ORDER BY ts DESC
-    `);
-		return stmt.all(`-${days} days`);
-	} catch (err) {
-		console.error("[db:getRecentCosts] Failed to query costs:", err);
-		return [];
-	}
-}
-
-/** Return all cost rows for a given calendar date (YYYY-MM-DD, defaults to today). */
-export function getCostsByDate(date?: string): DispatchCost[] {
-	const d = date ?? new Date().toISOString().slice(0, 10);
-	try {
-		const db = getDb();
-		const stmt = db.prepare<DispatchCost, [string]>(`
-      SELECT id, ts, label, usd, turns, duration_ms, session_id
-      FROM dispatch_costs
-      WHERE ts LIKE ?
-      ORDER BY ts DESC
-    `);
-		return stmt.all(`${d}%`);
-	} catch (err) {
-		console.error("[db:getCostsByDate] Failed to query costs:", err);
-		return [];
-	}
-}
-
-/** Return all cost rows for a given label. */
-export function getCostsByLabel(label: string, days = 7): DispatchCost[] {
-	try {
-		const db = getDb();
-		const stmt = db.prepare<DispatchCost, [string, string]>(`
-      SELECT id, ts, label, usd, turns, duration_ms, session_id
-      FROM dispatch_costs
-      WHERE label = ? AND ts >= datetime('now', ?)
-      ORDER BY ts DESC
-    `);
-		return stmt.all(label, `-${days} days`);
-	} catch (err) {
-		console.error("[db:getCostsByLabel] Failed to query costs:", err);
-		return [];
-	}
-}
-
-/** Return the total cost (USD) for today. */
-export function getTotalCostToday(): number {
-	try {
-		const rows = getCostsByDate();
-		return rows.reduce((sum, r) => sum + r.usd, 0);
-	} catch {
-		return 0;
-	}
 }
 
 /** Close the database connection (used in tests / graceful shutdown). */
