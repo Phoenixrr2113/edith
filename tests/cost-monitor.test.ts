@@ -1,28 +1,24 @@
 /**
  * Tests for lib/cost-monitor.ts — checkCostBudget() and checkDailyCostLimit().
  *
- * Uses a temp HOME dir so DB writes never touch ~/.edith/edith.db.
- * Telegram calls are intercepted by overriding CHAT_ID to 0.
+ * Uses openDatabase(pathOverride) to isolate from ~/.edith/edith.db.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Isolate DB and suppress Telegram
-const tempDir = join(tmpdir(), `edith-cost-monitor-test-${Date.now()}`);
-process.env["HOME"] = tempDir;
+// Must set env BEFORE importing modules that read it at load time
 process.env["TELEGRAM_CHAT_ID"] = "0"; // no-op Telegram calls
 process.env["DAILY_COST_LIMIT_USD"] = "1"; // low limit so tests can trip it
 
-const { checkCostBudget, checkDailyCostLimit, _resetAlertFlag } = await import(
-	"../lib/cost-monitor.ts"
-);
-const { recordCost, closeDb } = await import("../lib/db.ts");
+import { openDatabase, recordCost, closeDb } from "../lib/db";
+import { checkCostBudget, checkDailyCostLimit, _resetAlertFlag } from "../lib/cost-monitor";
 
-beforeAll(() => {
-	// DB opened lazily
-});
+// Force an isolated temp DB
+const tempDir = join(tmpdir(), `edith-cost-monitor-test-${Date.now()}`);
+mkdirSync(tempDir, { recursive: true });
+openDatabase(join(tempDir, "test.db"));
 
 afterAll(() => {
 	closeDb();
@@ -43,13 +39,11 @@ describe("checkCostBudget", () => {
 		expect(typeof status.totalToday).toBe("number");
 		expect(typeof status.overBudget).toBe("boolean");
 		expect(typeof status.percentUsed).toBe("number");
-		// overBudget must be consistent with the numbers
 		expect(status.overBudget).toBe(status.totalToday > status.budget);
 	});
 
 	test("detects over-budget after recording costs that exceed the budget", () => {
 		const before = checkCostBudget();
-		// Record an amount that definitely pushes us over regardless of starting total
 		const excess = before.budget + 1;
 		recordCost({ label: "cost-monitor-over", usd: excess, turns: 5, duration_ms: 2000 });
 		const after = checkCostBudget();
@@ -65,8 +59,7 @@ describe("checkDailyCostLimit", () => {
 	});
 
 	test("second call on the same day is deduplicated silently", async () => {
-		await checkDailyCostLimit(); // first call
-		await checkDailyCostLimit(); // second call — should be a no-op
-		// No assertion on Telegram (CHAT_ID=0), just verify no throw on either call
+		await checkDailyCostLimit();
+		await checkDailyCostLimit();
 	});
 });

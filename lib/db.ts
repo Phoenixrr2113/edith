@@ -24,11 +24,14 @@ const DB_PATH = join(STATE_DIR, "edith.db");
 // --- Singleton connection ---
 let _db: Database | null = null;
 
-/** Open (or return cached) the shared Edith database. */
-export function openDatabase(): Database {
+/** Open (or return cached) the shared Edith database.
+ *  Pass `pathOverride` in tests to use an isolated DB file. */
+export function openDatabase(pathOverride?: string): Database {
 	if (_db) return _db;
-	mkdirSync(STATE_DIR, { recursive: true });
-	_db = new Database(DB_PATH, { create: true });
+	const dbPath = pathOverride ?? DB_PATH;
+	const dbDir = pathOverride ? pathOverride.replace(/\/[^/]+$/, "") : STATE_DIR;
+	mkdirSync(dbDir, { recursive: true });
+	_db = new Database(dbPath, { create: true });
 	_db.exec("PRAGMA journal_mode=WAL;");
 	_db.exec("PRAGMA foreign_keys=ON;");
 	applySchema(_db);

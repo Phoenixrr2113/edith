@@ -2,44 +2,33 @@
  * Tests for lib/db.ts — dispatch_costs table: recordCost, getRecentCosts,
  * getCostsByDate, getCostsByLabel, getTotalCostToday.
  *
- * Uses an in-memory SQLite database via a temp DB_PATH so tests never
- * touch ~/.edith/edith.db.
+ * Uses openDatabase(pathOverride) to isolate from ~/.edith/edith.db.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Point STATE_DIR at a temp dir before importing db.ts
-const tempDir = join(tmpdir(), `edith-db-test-${Date.now()}`);
-
-// Override the module-level STATE_DIR used by config — must happen before import
-process.env["HOME"] = tempDir; // config derives STATE_DIR from HOME
-
-// Dynamically import so the env override takes effect
-const {
+import {
+	openDatabase,
 	recordCost,
 	getRecentCosts,
 	getCostsByDate,
 	getCostsByLabel,
 	getTotalCostToday,
 	closeDb,
-} = await import("../lib/db.ts");
+} from "../lib/db";
 
-beforeAll(() => {
-	// DB is created lazily on first call; nothing to setup here
-});
+// Force an isolated temp DB before any test runs
+const tempDir = join(tmpdir(), `edith-db-test-${Date.now()}`);
+mkdirSync(tempDir, { recursive: true });
+openDatabase(join(tempDir, "test.db"));
 
 afterAll(() => {
 	closeDb();
 	try {
 		rmSync(tempDir, { recursive: true, force: true });
 	} catch {}
-});
-
-beforeEach(() => {
-	// No easy way to truncate without exposing a test-only helper, so
-	// each test uses unique labels to avoid cross-test pollution.
 });
 
 describe("recordCost + getRecentCosts", () => {
@@ -74,7 +63,6 @@ describe("recordCost + getRecentCosts", () => {
 	});
 
 	test("multiple rows accumulate", () => {
-		// Use a unique label to avoid cross-test pollution
 		const label = `test-multi-${Date.now()}`;
 		recordCost({ label, usd: 0.001, turns: 1, duration_ms: 100 });
 		recordCost({ label, usd: 0.002, turns: 2, duration_ms: 200 });
@@ -87,10 +75,8 @@ describe("recordCost + getRecentCosts", () => {
 		recordCost({ label: "test-order-a", usd: 0.001, turns: 1, duration_ms: 10 });
 		recordCost({ label: "test-order-b", usd: 0.002, turns: 2, duration_ms: 20 });
 		const rows = getRecentCosts(7);
-		// Most recent first — the last-inserted row should appear before earlier ones
 		const aIdx = rows.findIndex((r) => r.label === "test-order-a");
 		const bIdx = rows.findIndex((r) => r.label === "test-order-b");
-		// b was inserted after a, so b has a higher id → appears earlier in DESC order
 		expect(bIdx).toBeLessThan(aIdx);
 	});
 });
@@ -98,7 +84,7 @@ describe("recordCost + getRecentCosts", () => {
 describe("getCostsByDate", () => {
 	test("returns rows for today", () => {
 		recordCost({ label: "test-date-today", usd: 0.005, turns: 2, duration_ms: 800 });
-		const rows = getCostsByDate(); // defaults to today
+		const rows = getCostsByDate();
 		const row = rows.find((r) => r.label === "test-date-today");
 		expect(row).toBeDefined();
 		expect(row!.usd).toBeCloseTo(0.005);
@@ -134,9 +120,7 @@ describe("getTotalCostToday", () => {
 		expect(after - before).toBeCloseTo(0.03);
 	});
 
-	test("returns 0 when no rows exist for today (isolated via label check)", () => {
-		// We can't guarantee 0 since other tests insert rows, but we can verify
-		// the function returns a non-negative number
+	test("returns a non-negative number", () => {
 		const total = getTotalCostToday();
 		expect(total).toBeGreaterThanOrEqual(0);
 	});
