@@ -1,324 +1,300 @@
 [
-  {
-    "updatedAt": "2026-02-05T21:39:42.000Z",
-    "createdAt": "2026-02-05T20:59:21.476Z",
-    "id": "GXNFGEV89TJPf9FV",
-    "name": "Calendar",
-    "active": true,
-    "isArchived": false,
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "calendar",
-          "responseMode": "lastNode",
-          "options": {}
-        },
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          -16,
-          32
-        ],
-        "id": "7086bb8c-1968-4a72-b379-cd8c1c1bb3cd",
-        "name": "Webhook",
-        "webhookId": "7388b91b-3530-4baf-b59f-16cfd251743b"
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "calendar": {
-            "__rl": true,
-            "value": "randyrowanwilson@gmail.com",
-            "mode": "list",
-            "cachedResultName": "randyrowanwilson@gmail.com"
-          },
-          "limit": 50,
-          "timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
-          "timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
-          "options": {}
-        },
-        "type": "n8n-nodes-base.googleCalendar",
-        "typeVersion": 1.3,
-        "position": [
-          208,
-          128
-        ],
-        "id": "72655d58-8b50-4323-8d4b-39f5eb7f6ac5",
-        "name": "randyrowanwilson",
-        "credentials": {
-          "googleCalendarOAuth2Api": {
-            "id": "2uhNyOZKyoDoTlLn",
-            "name": "Google Calendar account 2"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "calendar": {
-            "__rl": true,
-            "value": "phoenixrr2113@gmail.com",
-            "mode": "list",
-            "cachedResultName": "driftking718@yahoo.com"
-          },
-          "limit": 50,
-          "timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
-          "timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
-          "options": {}
-        },
-        "type": "n8n-nodes-base.googleCalendar",
-        "typeVersion": 1.3,
-        "position": [
-          208,
-          -64
-        ],
-        "id": "de8c6e06-b0f9-4edf-a796-3c520e5e1477",
-        "name": "phoenixrr2113",
-        "credentials": {
-          "googleCalendarOAuth2Api": {
-            "id": "9NVuZQuy5XwGHGLG",
-            "name": "Google Calendar account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const events = $input.all().map(item => ({\n  id: item.json.id,\n  title: item.json.summary || 'Untitled',\n  start: item.json.start?.dateTime || item.json.start?.date,\n  end: item.json.end?.dateTime || item.json.end?.date,\n  location: item.json.location\n}));\n\n// Always return a response, even if empty\nreturn [{ json: { events: events, count: events.length } }];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          416,
-          0
-        ],
-        "id": "ca09cc18-1338-4fda-8c30-b439136392d0",
-        "name": "Parser"
-      }
-    ],
-    "connections": {
-      "Webhook": {
-        "main": [
-          [
-            {
-              "node": "phoenixrr2113",
-              "type": "main",
-              "index": 0
-            },
-            {
-              "node": "randyrowanwilson",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "randyrowanwilson": {
-        "main": [
-          [
-            {
-              "node": "Parser",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "phoenixrr2113": {
-        "main": [
-          [
-            {
-              "node": "Parser",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
-    },
-    "settings": {
-      "executionOrder": "v1"
-    },
-    "staticData": null,
-    "meta": {
-      "templateCredsSetupCompleted": true
-    },
-    "pinData": {},
-    "versionId": "d112e60c-e431-4745-84c8-8db86b7605de",
-    "versionCounter": 21,
-    "triggerCount": 1,
-    "tags": [],
-    "shared": [
-      {
-        "updatedAt": "2026-02-05T20:59:21.479Z",
-        "createdAt": "2026-02-05T20:59:21.479Z",
-        "role": "workflow:owner",
-        "workflowId": "GXNFGEV89TJPf9FV",
-        "projectId": "jK7tyRU5i5WopCCv",
-        "project": {
-          "updatedAt": "2026-02-05T18:31:37.031Z",
-          "createdAt": "2026-02-05T18:29:35.732Z",
-          "id": "jK7tyRU5i5WopCCv",
-          "name": "Randy wilson <randyrowanwilson@gmail.com>",
-          "type": "personal",
-          "icon": null,
-          "description": null
-        }
-      }
-    ]
-  },
-  {
-    "updatedAt": "2026-02-05T21:37:39.000Z",
-    "createdAt": "2026-02-05T21:20:44.274Z",
-    "id": "BlsFzeOY3wFf1Zic",
-    "name": "Gmail",
-    "active": true,
-    "isArchived": false,
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "gmail",
-          "responseMode": "lastNode",
-          "options": {}
-        },
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          64
-        ],
-        "id": "5a21a8ee-f6ed-4874-8690-d3333dabe1ac",
-        "name": "Webhook",
-        "webhookId": "165ea6b5-8080-4da3-a949-7aefdcdc8729"
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "limit": 10,
-          "filters": {}
-        },
-        "type": "n8n-nodes-base.gmail",
-        "typeVersion": 2.1,
-        "position": [
-          288,
-          -32
-        ],
-        "id": "9064dca3-7b9d-488c-903c-37571de1de1d",
-        "name": "Phoenixrr2113",
-        "webhookId": "fa8d5c0b-b668-4ae2-9bcb-bd0fadddb884",
-        "credentials": {
-          "gmailOAuth2": {
-            "id": "kqoF6C1gAVvYVB3U",
-            "name": "Gmail account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "limit": 10,
-          "filters": {}
-        },
-        "type": "n8n-nodes-base.gmail",
-        "typeVersion": 2.1,
-        "position": [
-          304,
-          160
-        ],
-        "id": "3c393280-b6ef-472b-a78c-c7f7cf754832",
-        "name": "randyrowanwilson",
-        "webhookId": "7c6c090f-0845-4659-8040-90f864bd44df",
-        "credentials": {
-          "gmailOAuth2": {
-            "id": "26Fcs2PRPlZd07eH",
-            "name": "Gmail account 2"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const emails = $input.all().map(item => ({\n  id: item.json.id,\n  threadId: item.json.threadId,\n  from: item.json.from,\n  to: item.json.to,\n  subject: item.json.subject,\n  snippet: item.json.snippet,\n  date: item.json.date,\n  isUnread: item.json.labelIds?.includes('UNREAD'),\n  labels: item.json.labelIds || []\n}));\n\nreturn [{ json: { emails, count: emails.length } }];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          576,
-          16
-        ],
-        "id": "68e9e31f-9e04-4203-bdc4-05198c25c6e2",
-        "name": "Parser"
-      }
-    ],
-    "connections": {
-      "Webhook": {
-        "main": [
-          [
-            {
-              "node": "randyrowanwilson",
-              "type": "main",
-              "index": 0
-            },
-            {
-              "node": "Phoenixrr2113",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Phoenixrr2113": {
-        "main": [
-          [
-            {
-              "node": "Parser",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "randyrowanwilson": {
-        "main": [
-          [
-            {
-              "node": "Parser",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
-    },
-    "settings": {
-      "executionOrder": "v1"
-    },
-    "staticData": null,
-    "meta": {
-      "templateCredsSetupCompleted": true
-    },
-    "pinData": {},
-    "versionId": "0f222a42-e8dd-4ba1-803c-53601c465047",
-    "versionCounter": 12,
-    "triggerCount": 1,
-    "tags": [],
-    "shared": [
-      {
-        "updatedAt": "2026-02-05T21:20:44.276Z",
-        "createdAt": "2026-02-05T21:20:44.276Z",
-        "role": "workflow:owner",
-        "workflowId": "BlsFzeOY3wFf1Zic",
-        "projectId": "jK7tyRU5i5WopCCv",
-        "project": {
-          "updatedAt": "2026-02-05T18:31:37.031Z",
-          "createdAt": "2026-02-05T18:29:35.732Z",
-          "id": "jK7tyRU5i5WopCCv",
-          "name": "Randy wilson <randyrowanwilson@gmail.com>",
-          "type": "personal",
-          "icon": null,
-          "description": null
-        }
-      }
-    ]
-  }
+	{
+		"updatedAt": "2026-02-05T21:39:42.000Z",
+		"createdAt": "2026-02-05T20:59:21.476Z",
+		"id": "GXNFGEV89TJPf9FV",
+		"name": "Calendar",
+		"active": true,
+		"isArchived": false,
+		"nodes": [
+			{
+				"parameters": {
+					"httpMethod": "POST",
+					"path": "calendar",
+					"responseMode": "lastNode",
+					"options": {}
+				},
+				"type": "n8n-nodes-base.webhook",
+				"typeVersion": 2.1,
+				"position": [-16, 32],
+				"id": "7086bb8c-1968-4a72-b379-cd8c1c1bb3cd",
+				"name": "Webhook",
+				"webhookId": "7388b91b-3530-4baf-b59f-16cfd251743b"
+			},
+			{
+				"parameters": {
+					"operation": "getAll",
+					"calendar": {
+						"__rl": true,
+						"value": "randyrowanwilson@gmail.com",
+						"mode": "list",
+						"cachedResultName": "randyrowanwilson@gmail.com"
+					},
+					"limit": 50,
+					"timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
+					"timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
+					"options": {}
+				},
+				"type": "n8n-nodes-base.googleCalendar",
+				"typeVersion": 1.3,
+				"position": [208, 128],
+				"id": "72655d58-8b50-4323-8d4b-39f5eb7f6ac5",
+				"name": "randyrowanwilson",
+				"credentials": {
+					"googleCalendarOAuth2Api": {
+						"id": "2uhNyOZKyoDoTlLn",
+						"name": "Google Calendar account 2"
+					}
+				}
+			},
+			{
+				"parameters": {
+					"operation": "getAll",
+					"calendar": {
+						"__rl": true,
+						"value": "phoenixrr2113@gmail.com",
+						"mode": "list",
+						"cachedResultName": "driftking718@yahoo.com"
+					},
+					"limit": 50,
+					"timeMin": "={{ $json.body.timeMin ?? $now.toISO() }}",
+					"timeMax": "={{ $json.body.timeMax ?? $now.plus({ hours: 24 }).toISO() }}",
+					"options": {}
+				},
+				"type": "n8n-nodes-base.googleCalendar",
+				"typeVersion": 1.3,
+				"position": [208, -64],
+				"id": "de8c6e06-b0f9-4edf-a796-3c520e5e1477",
+				"name": "phoenixrr2113",
+				"credentials": {
+					"googleCalendarOAuth2Api": {
+						"id": "9NVuZQuy5XwGHGLG",
+						"name": "Google Calendar account"
+					}
+				}
+			},
+			{
+				"parameters": {
+					"jsCode": "const events = $input.all().map(item => ({\n  id: item.json.id,\n  title: item.json.summary || 'Untitled',\n  start: item.json.start?.dateTime || item.json.start?.date,\n  end: item.json.end?.dateTime || item.json.end?.date,\n  location: item.json.location\n}));\n\n// Always return a response, even if empty\nreturn [{ json: { events: events, count: events.length } }];"
+				},
+				"type": "n8n-nodes-base.code",
+				"typeVersion": 2,
+				"position": [416, 0],
+				"id": "ca09cc18-1338-4fda-8c30-b439136392d0",
+				"name": "Parser"
+			}
+		],
+		"connections": {
+			"Webhook": {
+				"main": [
+					[
+						{
+							"node": "phoenixrr2113",
+							"type": "main",
+							"index": 0
+						},
+						{
+							"node": "randyrowanwilson",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			},
+			"randyrowanwilson": {
+				"main": [
+					[
+						{
+							"node": "Parser",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			},
+			"phoenixrr2113": {
+				"main": [
+					[
+						{
+							"node": "Parser",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			}
+		},
+		"settings": {
+			"executionOrder": "v1"
+		},
+		"staticData": null,
+		"meta": {
+			"templateCredsSetupCompleted": true
+		},
+		"pinData": {},
+		"versionId": "d112e60c-e431-4745-84c8-8db86b7605de",
+		"versionCounter": 21,
+		"triggerCount": 1,
+		"tags": [],
+		"shared": [
+			{
+				"updatedAt": "2026-02-05T20:59:21.479Z",
+				"createdAt": "2026-02-05T20:59:21.479Z",
+				"role": "workflow:owner",
+				"workflowId": "GXNFGEV89TJPf9FV",
+				"projectId": "jK7tyRU5i5WopCCv",
+				"project": {
+					"updatedAt": "2026-02-05T18:31:37.031Z",
+					"createdAt": "2026-02-05T18:29:35.732Z",
+					"id": "jK7tyRU5i5WopCCv",
+					"name": "Randy wilson <randyrowanwilson@gmail.com>",
+					"type": "personal",
+					"icon": null,
+					"description": null
+				}
+			}
+		]
+	},
+	{
+		"updatedAt": "2026-02-05T21:37:39.000Z",
+		"createdAt": "2026-02-05T21:20:44.274Z",
+		"id": "BlsFzeOY3wFf1Zic",
+		"name": "Gmail",
+		"active": true,
+		"isArchived": false,
+		"nodes": [
+			{
+				"parameters": {
+					"httpMethod": "POST",
+					"path": "gmail",
+					"responseMode": "lastNode",
+					"options": {}
+				},
+				"type": "n8n-nodes-base.webhook",
+				"typeVersion": 2.1,
+				"position": [0, 64],
+				"id": "5a21a8ee-f6ed-4874-8690-d3333dabe1ac",
+				"name": "Webhook",
+				"webhookId": "165ea6b5-8080-4da3-a949-7aefdcdc8729"
+			},
+			{
+				"parameters": {
+					"operation": "getAll",
+					"limit": 10,
+					"filters": {}
+				},
+				"type": "n8n-nodes-base.gmail",
+				"typeVersion": 2.1,
+				"position": [288, -32],
+				"id": "9064dca3-7b9d-488c-903c-37571de1de1d",
+				"name": "Phoenixrr2113",
+				"webhookId": "fa8d5c0b-b668-4ae2-9bcb-bd0fadddb884",
+				"credentials": {
+					"gmailOAuth2": {
+						"id": "kqoF6C1gAVvYVB3U",
+						"name": "Gmail account"
+					}
+				}
+			},
+			{
+				"parameters": {
+					"operation": "getAll",
+					"limit": 10,
+					"filters": {}
+				},
+				"type": "n8n-nodes-base.gmail",
+				"typeVersion": 2.1,
+				"position": [304, 160],
+				"id": "3c393280-b6ef-472b-a78c-c7f7cf754832",
+				"name": "randyrowanwilson",
+				"webhookId": "7c6c090f-0845-4659-8040-90f864bd44df",
+				"credentials": {
+					"gmailOAuth2": {
+						"id": "26Fcs2PRPlZd07eH",
+						"name": "Gmail account 2"
+					}
+				}
+			},
+			{
+				"parameters": {
+					"jsCode": "const emails = $input.all().map(item => ({\n  id: item.json.id,\n  threadId: item.json.threadId,\n  from: item.json.from,\n  to: item.json.to,\n  subject: item.json.subject,\n  snippet: item.json.snippet,\n  date: item.json.date,\n  isUnread: item.json.labelIds?.includes('UNREAD'),\n  labels: item.json.labelIds || []\n}));\n\nreturn [{ json: { emails, count: emails.length } }];"
+				},
+				"type": "n8n-nodes-base.code",
+				"typeVersion": 2,
+				"position": [576, 16],
+				"id": "68e9e31f-9e04-4203-bdc4-05198c25c6e2",
+				"name": "Parser"
+			}
+		],
+		"connections": {
+			"Webhook": {
+				"main": [
+					[
+						{
+							"node": "randyrowanwilson",
+							"type": "main",
+							"index": 0
+						},
+						{
+							"node": "Phoenixrr2113",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			},
+			"Phoenixrr2113": {
+				"main": [
+					[
+						{
+							"node": "Parser",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			},
+			"randyrowanwilson": {
+				"main": [
+					[
+						{
+							"node": "Parser",
+							"type": "main",
+							"index": 0
+						}
+					]
+				]
+			}
+		},
+		"settings": {
+			"executionOrder": "v1"
+		},
+		"staticData": null,
+		"meta": {
+			"templateCredsSetupCompleted": true
+		},
+		"pinData": {},
+		"versionId": "0f222a42-e8dd-4ba1-803c-53601c465047",
+		"versionCounter": 12,
+		"triggerCount": 1,
+		"tags": [],
+		"shared": [
+			{
+				"updatedAt": "2026-02-05T21:20:44.276Z",
+				"createdAt": "2026-02-05T21:20:44.276Z",
+				"role": "workflow:owner",
+				"workflowId": "BlsFzeOY3wFf1Zic",
+				"projectId": "jK7tyRU5i5WopCCv",
+				"project": {
+					"updatedAt": "2026-02-05T18:31:37.031Z",
+					"createdAt": "2026-02-05T18:29:35.732Z",
+					"id": "jK7tyRU5i5WopCCv",
+					"name": "Randy wilson <randyrowanwilson@gmail.com>",
+					"type": "personal",
+					"icon": null,
+					"description": null
+				}
+			}
+		]
+	}
 ]

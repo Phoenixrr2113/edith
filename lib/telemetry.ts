@@ -7,13 +7,14 @@
  * Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL in .env.
  * If Langfuse is not running, tracing silently no-ops.
  */
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { LangfuseSpanProcessor } from "@langfuse/otel";
+
 import { ClaudeAgentSDKInstrumentation } from "@arizeai/openinference-instrumentation-claude-agent-sdk";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 
 const sdk = new NodeSDK({
-  spanProcessors: [new LangfuseSpanProcessor()],
-  instrumentations: [new ClaudeAgentSDKInstrumentation()],
+	spanProcessors: [new LangfuseSpanProcessor()],
+	instrumentations: [new ClaudeAgentSDKInstrumentation()],
 });
 
 sdk.start();

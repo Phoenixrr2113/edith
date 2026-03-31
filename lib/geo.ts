@@ -1,65 +1,67 @@
 /**
  * Geofence utilities — haversine distance, reminder checking, location transitions.
  */
-import { loadLocations, loadReminders, saveReminders } from "./storage";
+
 import type { LocationEntry, Reminder } from "../mcp/types";
+import { loadLocations, loadReminders, saveReminders } from "./storage";
+
 export type { LocationEntry, Reminder };
 
 export interface LocationTransition {
-  type: "arrived" | "departed";
-  locationName: string;
-  locationLabel: string;
+	type: "arrived" | "departed";
+	locationName: string;
+	locationLabel: string;
 }
 
 /** Haversine distance between two lat/lon points in meters. */
 export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6_371_000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	const R = 6_371_000;
+	const toRad = (deg: number) => (deg * Math.PI) / 180;
+	const dLat = toRad(lat2 - lat1);
+	const dLon = toRad(lon2 - lon1);
+	const a =
+		Math.sin(dLat / 2) ** 2 +
+		Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+	return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 /** Check unfired location reminders against current position. */
 export function checkLocationReminders(
-  lat: number,
-  lon: number
+	lat: number,
+	lon: number
 ): { reminder: Reminder; locationLabel: string }[] {
-  const locations = loadLocations();
-  const reminders = loadReminders();
-  const triggered: { reminder: Reminder; locationLabel: string }[] = [];
+	const locations = loadLocations();
+	const reminders = loadReminders();
+	const triggered: { reminder: Reminder; locationLabel: string }[] = [];
 
-  for (const r of reminders) {
-    if (r.fired || r.type !== "location" || !r.location) continue;
-    const loc = locations.find((l) => l.name === r.location);
-    if (!loc) continue;
-    const radius = r.radiusMeters ?? loc.radiusMeters ?? 500;
-    if (haversineMeters(lat, lon, loc.lat, loc.lon) <= radius) {
-      triggered.push({ reminder: r, locationLabel: loc.label ?? loc.name });
-    }
-  }
-  return triggered;
+	for (const r of reminders) {
+		if (r.fired || r.type !== "location" || !r.location) continue;
+		const loc = locations.find((l) => l.name === r.location);
+		if (!loc) continue;
+		const radius = r.radiusMeters ?? loc.radiusMeters ?? 500;
+		if (haversineMeters(lat, lon, loc.lat, loc.lon) <= radius) {
+			triggered.push({ reminder: r, locationLabel: loc.label ?? loc.name });
+		}
+	}
+	return triggered;
 }
 
 /** Check unfired time-based reminders. */
 export function checkTimeReminders(): Reminder[] {
-  const reminders = loadReminders();
-  const now = Date.now();
-  return reminders.filter(
-    (r) => !r.fired && r.type === "time" && r.fireAt && new Date(r.fireAt).getTime() <= now
-  );
+	const reminders = loadReminders();
+	const now = Date.now();
+	return reminders.filter(
+		(r) => !r.fired && r.type === "time" && r.fireAt && new Date(r.fireAt).getTime() <= now
+	);
 }
 
 /** Mark reminders as fired. */
 export function markFired(ids: string[]): void {
-  const reminders = loadReminders();
-  for (const r of reminders) {
-    if (ids.includes(r.id)) r.fired = true;
-  }
-  saveReminders(reminders);
+	const reminders = loadReminders();
+	for (const r of reminders) {
+		if (ids.includes(r.id)) r.fired = true;
+	}
+	saveReminders(reminders);
 }
 
 // --- Location transition detection (stateful) ---
@@ -68,44 +70,44 @@ let initialized = false;
 
 /** Detect arrive/depart events when Randy moves between named locations. */
 export function checkLocationTransitions(lat: number, lon: number): LocationTransition[] {
-  const locations = loadLocations();
-  const transitions: LocationTransition[] = [];
+	const locations = loadLocations();
+	const transitions: LocationTransition[] = [];
 
-  let atLocation: LocationEntry | null = null;
-  for (const loc of locations) {
-    if (haversineMeters(lat, lon, loc.lat, loc.lon) <= (loc.radiusMeters ?? 500)) {
-      atLocation = loc;
-      break;
-    }
-  }
+	let atLocation: LocationEntry | null = null;
+	for (const loc of locations) {
+		if (haversineMeters(lat, lon, loc.lat, loc.lon) <= (loc.radiusMeters ?? 500)) {
+			atLocation = loc;
+			break;
+		}
+	}
 
-  const newName = atLocation?.name ?? null;
+	const newName = atLocation?.name ?? null;
 
-  if (!initialized) {
-    currentLocationName = newName;
-    initialized = true;
-    return [];
-  }
+	if (!initialized) {
+		currentLocationName = newName;
+		initialized = true;
+		return [];
+	}
 
-  if (newName === currentLocationName) return [];
+	if (newName === currentLocationName) return [];
 
-  if (currentLocationName) {
-    const prev = locations.find((l) => l.name === currentLocationName);
-    transitions.push({
-      type: "departed",
-      locationName: currentLocationName,
-      locationLabel: prev?.label ?? currentLocationName,
-    });
-  }
+	if (currentLocationName) {
+		const prev = locations.find((l) => l.name === currentLocationName);
+		transitions.push({
+			type: "departed",
+			locationName: currentLocationName,
+			locationLabel: prev?.label ?? currentLocationName,
+		});
+	}
 
-  if (newName && atLocation) {
-    transitions.push({
-      type: "arrived",
-      locationName: newName,
-      locationLabel: atLocation.label ?? newName,
-    });
-  }
+	if (newName && atLocation) {
+		transitions.push({
+			type: "arrived",
+			locationName: newName,
+			locationLabel: atLocation.label ?? newName,
+		});
+	}
 
-  currentLocationName = newName;
-  return transitions;
+	currentLocationName = newName;
+	return transitions;
 }

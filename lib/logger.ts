@@ -12,26 +12,26 @@ const heartbeatUrl = process.env.BETTERSTACK_HEARTBEAT_URL;
 const logtail = token ? new Logtail(token) : null;
 
 export const logger = {
-  info(message: string, context?: Record<string, unknown>) {
-    if (logtail) logtail.info(message, context);
-    console.log(message, context ? JSON.stringify(context) : "");
-  },
-  warn(message: string, context?: Record<string, unknown>) {
-    if (logtail) logtail.warn(message, context);
-    console.warn(message, context ? JSON.stringify(context) : "");
-  },
-  error(message: string, context?: Record<string, unknown>) {
-    if (logtail) logtail.error(message, context);
-    console.error(message, context ? JSON.stringify(context) : "");
-  },
-  flush() {
-    return logtail?.flush();
-  },
+	info(message: string, context?: Record<string, unknown>) {
+		if (logtail) logtail.info(message, context);
+		console.log(message, context ? JSON.stringify(context) : "");
+	},
+	warn(message: string, context?: Record<string, unknown>) {
+		if (logtail) logtail.warn(message, context);
+		console.warn(message, context ? JSON.stringify(context) : "");
+	},
+	error(message: string, context?: Record<string, unknown>) {
+		if (logtail) logtail.error(message, context);
+		console.error(message, context ? JSON.stringify(context) : "");
+	},
+	flush() {
+		return logtail?.flush();
+	},
 };
 
 export async function pingHeartbeat() {
-  if (!heartbeatUrl) return;
-  try {
-    await fetch(heartbeatUrl, { method: "HEAD" });
-  } catch {}
+	if (!heartbeatUrl) return;
+	try {
+		await fetch(heartbeatUrl, { method: "HEAD" });
+	} catch {}
 }

@@ -1,7 +1,7 @@
 /**
  * Centralized configuration — all env vars and derived constants in one place.
  */
-import { join } from "path";
+import { join } from "node:path";
 
 // --- Paths ---
 export const STATE_DIR = join(process.env.HOME ?? "~", ".edith");

@@ -1,29 +1,29 @@
 {
-  "mcpServers": {
-    "cognee": {
-      "command": "bash",
-      "args": ["mcp/cognee-wrapper.sh"]
-    },
-    "edith": {
-      "command": "bash",
-      "args": ["mcp/start.sh"]
-    },
-    "computer-use": {
-      "command": "npx",
-      "args": ["-y", "computer-use-mcp"]
-    },
-    "betterstack": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.betterstack.com",
-        "--header",
-        "Authorization: Bearer ${BETTERSTACK_API_KEY}"
-      ],
-      "env": {
-        "BETTERSTACK_API_KEY": "${BETTERSTACK_API_KEY}"
-      }
-    }
-  }
+	"mcpServers": {
+		"cognee": {
+			"command": "bash",
+			"args": ["mcp/cognee-wrapper.sh"]
+		},
+		"edith": {
+			"command": "bash",
+			"args": ["mcp/start.sh"]
+		},
+		"computer-use": {
+			"command": "npx",
+			"args": ["-y", "computer-use-mcp"]
+		},
+		"betterstack": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-remote",
+				"https://mcp.betterstack.com",
+				"--header",
+				"Authorization: Bearer ${BETTERSTACK_API_KEY}"
+			],
+			"env": {
+				"BETTERSTACK_API_KEY": "${BETTERSTACK_API_KEY}"
+			}
+		}
+	}
 }

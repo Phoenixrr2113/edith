@@ -1,1 +1,1 @@
-bun run tsc --noEmit && bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts
+bunx biome check . && bun run tsc --noEmit && bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts

@@ -1,28 +1,31 @@
 {
-  "name": "edith",
-  "version": "3.0.0",
-  "type": "module",
-  "scripts": {
-    "start": "./launch-edith.sh",
-    "dashboard": "bun dashboard.ts",
-    "test": "bun test tests/",
-    "test:coverage": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts",
-    "test:e2e": "bash test-e2e.sh",
-    "setup": "bash setup.sh",
-    "docker": "docker compose up -d",
-    "stop": "bash -c 'PID=$(cat ~/.edith/edith.pid 2>/dev/null) && kill $PID 2>/dev/null && echo \"Edith stopped (PID $PID)\" || echo \"Edith not running\"'",
-    "prepare": "husky"
-  },
-  "devDependencies": {
-    "bun-types": "^1.3.11",
-    "husky": "^9.1.7"
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.83",
-    "@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2.0",
-    "@google/generative-ai": "^0.24.1",
-    "@langfuse/otel": "^5.0.1",
-    "@logtail/node": "^0.5.8",
-    "@opentelemetry/sdk-node": "^0.214.0"
-  }
+	"name": "edith",
+	"version": "3.0.0",
+	"type": "module",
+	"scripts": {
+		"start": "./launch-edith.sh",
+		"dashboard": "bun dashboard.ts",
+		"test": "bun test tests/",
+		"test:coverage": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts",
+		"test:e2e": "bash test-e2e.sh",
+		"setup": "bash setup.sh",
+		"docker": "docker compose up -d",
+		"stop": "bash -c 'PID=$(cat ~/.edith/edith.pid 2>/dev/null) && kill $PID 2>/dev/null && echo \"Edith stopped (PID $PID)\" || echo \"Edith not running\"'",
+		"lint": "biome check .",
+		"format": "biome format --write .",
+		"prepare": "husky"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.10",
+		"bun-types": "^1.3.11",
+		"husky": "^9.1.7"
+	},
+	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "^0.2.83",
+		"@arizeai/openinference-instrumentation-claude-agent-sdk": "^0.2.0",
+		"@google/generative-ai": "^0.24.1",
+		"@langfuse/otel": "^5.0.1",
+		"@logtail/node": "^0.5.8",
+		"@opentelemetry/sdk-node": "^0.214.0"
+	}
 }
