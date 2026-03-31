@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { generateImages } from "../../lib/gemini";
+import { createDoc } from "../../lib/gdocs";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { n8nPost } from "../../lib/n8n-client";
 import { fmtErr } from "../../lib/util";
 
 export function registerDocsTools(server: McpServer): void {
@@ -25,10 +25,12 @@ export function registerDocsTools(server: McpServer): void {
 			},
 		},
 		async ({ title, content, folderId }) => {
-			const result = await n8nPost("docs", { title, content, folderId });
-			if (!result.ok) return textResponse(`Failed to create doc: ${result.error}`);
-			const data = result.data as { docId?: string; docUrl?: string; name?: string };
-			return jsonResponse({ ok: true, docId: data.docId, docUrl: data.docUrl, name: data.name });
+			try {
+				const result = await createDoc(title, content, folderId);
+				return jsonResponse({ ok: true, docId: result.docId, docUrl: result.docUrl, name: result.name });
+			} catch (err) {
+				return textResponse(`Failed to create doc: ${fmtErr(err)}`);
+			}
 		}
 	);
 
