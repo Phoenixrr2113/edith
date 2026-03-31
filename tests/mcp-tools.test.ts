@@ -8,7 +8,7 @@ import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:tes
 import { join } from "path";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { setupTestDir, cleanupTestDir } from "./helpers";
-import { haversineMeters } from "../mcp/geo";
+import { haversineMeters } from "../lib/geo";
 import { textResponse, jsonResponse } from "../lib/mcp-helpers";
 import { fmtErr } from "../lib/util";
 

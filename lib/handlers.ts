@@ -12,7 +12,7 @@ import {
   checkLocationTransitions,
   checkTimeReminders,
   markFired,
-} from "../mcp/geo";
+} from "./geo";
 
 /** Handle a location update message. */
 export async function handleLocation(chatId: number, lat: number, lon: number): Promise<void> {

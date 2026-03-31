@@ -1,8 +1,8 @@
 /**
  * Geofence utilities — haversine distance, reminder checking, location transitions.
  */
-import { loadLocations, loadReminders, saveReminders } from "../lib/storage";
-import type { LocationEntry, Reminder } from "./types";
+import { loadLocations, loadReminders, saveReminders } from "./storage";
+import type { LocationEntry, Reminder } from "../mcp/types";
 export type { LocationEntry, Reminder };
 
 export interface LocationTransition {

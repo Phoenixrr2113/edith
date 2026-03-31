@@ -7,7 +7,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { join } from "path";
 import { setupTestDir, cleanupTestDir } from "./helpers";
-import { haversineMeters } from "../mcp/geo";
+import { haversineMeters } from "../lib/geo";
 
 // For reminder/transition tests, we reimplement against temp files
 import { writeFileSync, readFileSync } from "fs";
