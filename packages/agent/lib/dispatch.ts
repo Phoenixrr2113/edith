@@ -28,6 +28,16 @@ import { sendTyping } from "./telegram";
 import { startTranscript } from "./transcript";
 import { fmtErr } from "./util";
 
+// Lazy import to avoid circular deps — only used in cloud mode
+const emitState = async (state: "thinking" | "idle") => {
+	try {
+		const { IS_CLOUD } = await import("./config");
+		if (!IS_CLOUD) return;
+		const { emitAgentState } = await import("./cloud-transport");
+		emitAgentState(state);
+	} catch {}
+};
+
 // --- Re-exports (preserve public API for tests and consumers) ---
 export type { DispatchOptions } from "./dispatch-options";
 export { buildSdkOptions } from "./dispatch-options";
@@ -136,6 +146,8 @@ export async function dispatchToClaude(
 			briefType: opts.briefType,
 			prompt: prompt.slice(0, 1000),
 		});
+
+		emitState("thinking");
 
 		// Typing indicator
 		const typingChatId = opts.chatId ?? CHAT_ID;
@@ -257,6 +269,7 @@ export async function dispatchToClaude(
 		// Reset circuit breaker on success
 		consecutiveFailures = 0;
 
+		emitState("idle");
 		return lastResult;
 	} catch (err) {
 		const errMsg = fmtErr(err);
@@ -270,6 +283,8 @@ export async function dispatchToClaude(
 			elapsedMs: Date.now() - startTime,
 			prompt: prompt.slice(0, 300),
 		});
+
+		emitState("idle");
 
 		// Circuit breaker
 		consecutiveFailures++;

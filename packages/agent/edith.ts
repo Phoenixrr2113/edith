@@ -90,7 +90,7 @@ if (!IS_CLOUD) {
 	}
 }
 
-// ── HTTP server (cloud only) ───────────────────────────────────────────────────
+// ── HTTP server + capability router (cloud only) ──────────────────────────────
 let httpServer: ReturnType<typeof Bun.serve> | null = null;
 
 if (IS_CLOUD) {
@@ -100,6 +100,19 @@ if (IS_CLOUD) {
 		(await import("./lib/telegram-webhook")).WEBHOOK_SECRET,
 		processUpdate
 	);
+
+	// Wire capability router to WebSocket transport
+	const { getCloudRouter } = await import("./lib/capability-router");
+	const { broadcastCapabilityRequest, connectedDeviceCount } = await import(
+		"./lib/cloud-transport"
+	);
+	const cloudRouter = getCloudRouter();
+	if (cloudRouter) {
+		cloudRouter.wire({
+			sendToDevices: broadcastCapabilityRequest,
+			isDeviceConnected: () => connectedDeviceCount() > 0,
+		});
+	}
 }
 
 // ── Shutdown handlers ──────────────────────────────────────────────────────────

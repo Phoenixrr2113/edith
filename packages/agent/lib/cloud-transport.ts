@@ -34,6 +34,9 @@ export type WsMessageType =
 	| "progress"
 	| "sync"
 	| "error"
+	// capability protocol (bidirectional)
+	| "capability_request"
+	| "capability_response"
 	// device → cloud
 	| "input"
 	| "screen_context"
@@ -173,7 +176,23 @@ export type AnyWsMessage =
 	| WsScreenContextMessage
 	| WsSyncRequestMessage
 	| WsPingMessage
-	| WsPongMessage;
+	| WsPongMessage
+	| CapabilityRequestMessage
+	| CapabilityResponseMessage;
+
+/** Capability request (cloud → device) */
+export interface CapabilityRequestMessage extends WsMessage {
+	type: "capability_request";
+	capability: string;
+	params: Record<string, unknown>;
+}
+
+/** Capability response (device → cloud) */
+export interface CapabilityResponseMessage extends WsMessage {
+	type: "capability_response";
+	result?: Record<string, unknown>;
+	error?: string;
+}
 
 // ── Connection State (client-side state machine) ──────────────────────────────
 
@@ -201,16 +220,26 @@ export function makeWsMessage<T extends AnyWsMessage>(msg: Omit<T, "ts"> & { ts?
 	return { ts: Date.now(), ...msg } as T;
 }
 
-// ── WebSocket Server (skeleton — full impl in CLOUD-WS-047) ──────────────────
+// ── Device Registry ──────────────────────────────────────────────────────────
 
 /**
- * Registry of connected devices.
- * Key: deviceId, Value: WebSocket handle (Bun ServerWebSocket)
- *
- * TODO(CLOUD-WS-047): replace `unknown` with Bun.ServerWebSocket<WsClientData>
- * once Bun types are available in this project.
+ * Shared registry of connected WebSocket devices.
+ * Populated by http-server.ts on connect, cleaned up on disconnect.
+ * Used by broadcastToDevices / sendToDevice for message delivery.
  */
-const connectedDevices = new Map<string, unknown>();
+// biome-ignore lint/suspicious/noExplicitAny: Bun ServerWebSocket type not fully exported
+const connectedDevices = new Map<string, any>();
+
+/** Register a device WebSocket. Called from http-server.ts open handler. */
+// biome-ignore lint/suspicious/noExplicitAny: Bun ServerWebSocket type
+export function registerDevice(deviceId: string, ws: any): void {
+	connectedDevices.set(deviceId, ws);
+}
+
+/** Unregister a device. Called from http-server.ts close handler. */
+export function unregisterDevice(deviceId: string): void {
+	connectedDevices.delete(deviceId);
+}
 
 /**
  * Authenticate a WebSocket upgrade request.
@@ -261,12 +290,11 @@ export interface WsClientData {
  * Broadcast a message to all connected devices.
  */
 export function broadcastToDevices(msg: AnyWsMessage): void {
+	if (connectedDevices.size === 0) return;
 	const json = JSON.stringify(msg);
-	for (const [deviceId, _ws] of connectedDevices) {
+	for (const [deviceId, ws] of connectedDevices) {
 		try {
-			// TODO(CLOUD-WS-047): cast ws to Bun.ServerWebSocket and call ws.send(json)
-			void json; // placeholder until Bun types wired
-			edithLog.debug("ws_broadcast", { deviceId, messageType: msg.type });
+			ws.send(json);
 		} catch (err) {
 			edithLog.error("ws_send_failed", { deviceId, error: String(err), messageType: msg.type });
 			connectedDevices.delete(deviceId);
@@ -281,14 +309,34 @@ export function sendToDevice(deviceId: string, msg: AnyWsMessage): boolean {
 	const ws = connectedDevices.get(deviceId);
 	if (!ws) return false;
 	try {
-		// TODO(CLOUD-WS-047): cast ws to Bun.ServerWebSocket and call ws.send(json)
-		const json = JSON.stringify(msg);
-		void json; // placeholder until Bun types wired
+		ws.send(JSON.stringify(msg));
 		return true;
 	} catch {
 		connectedDevices.delete(deviceId);
 		return false;
 	}
+}
+
+/**
+ * Broadcast a capability request to all devices.
+ * Returns true if at least one device received the message.
+ */
+export function broadcastCapabilityRequest(
+	msg: import("./capability-router").CapabilityRequest
+): boolean {
+	if (connectedDevices.size === 0) return false;
+	const json = JSON.stringify(msg);
+	let sent = false;
+	for (const [deviceId, ws] of connectedDevices) {
+		try {
+			ws.send(json);
+			sent = true;
+		} catch (err) {
+			edithLog.error("ws_capability_send_failed", { deviceId, error: String(err) });
+			connectedDevices.delete(deviceId);
+		}
+	}
+	return sent;
 }
 
 /**

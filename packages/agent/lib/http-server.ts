@@ -18,10 +18,13 @@ export async function startHttpServer(
 	webhookSecret: string,
 	onUpdate: (update: Record<string, unknown>) => Promise<void>
 ): Promise<ReturnType<typeof Bun.serve>> {
-	const { authenticateUpgrade, makeWsMessage } = await import("./cloud-transport");
-
-	// biome-ignore lint/suspicious/noExplicitAny: Bun WS type not yet publicly exported
-	const connectedDevices = new Map<string, any>();
+	const {
+		authenticateUpgrade,
+		makeWsMessage,
+		registerDevice,
+		unregisterDevice,
+		connectedDeviceCount,
+	} = await import("./cloud-transport");
 
 	const server = Bun.serve<WsClientData>({
 		port,
@@ -34,7 +37,7 @@ export async function startHttpServer(
 					JSON.stringify({
 						status: "ok",
 						uptime: Math.floor(process.uptime()),
-						devices: connectedDevices.size,
+						devices: connectedDeviceCount(),
 						ts: Date.now(),
 					}),
 					{ headers: { "Content-Type": "application/json" } }
@@ -74,8 +77,8 @@ export async function startHttpServer(
 		websocket: {
 			open(ws) {
 				const { deviceId } = ws.data;
-				connectedDevices.set(deviceId, ws);
-				edithLog.info("device_connected", { deviceId, total: connectedDevices.size });
+				registerDevice(deviceId, ws);
+				edithLog.info("device_connected", { deviceId, total: connectedDeviceCount() });
 				ws.send(
 					JSON.stringify(
 						makeWsMessage<WsConnectedMessage>({
@@ -87,7 +90,7 @@ export async function startHttpServer(
 				);
 			},
 
-			message(ws, raw) {
+			async message(ws, raw) {
 				ws.data.lastPingAt = Date.now();
 				const { deviceId } = ws.data;
 				let msg: Record<string, unknown>;
@@ -126,17 +129,29 @@ export async function startHttpServer(
 					return;
 				}
 
+				// Capability response from companion device
+				if (msg.type === "capability_response") {
+					const { getCloudRouter } = await import("./capability-router");
+					const router = getCloudRouter();
+					if (router) {
+						router.handleResponse(
+							msg as unknown as import("./capability-router").CapabilityResponse
+						);
+					}
+					return;
+				}
+
 				edithLog.warn("ws_unhandled_message", { deviceId, messageType: msg.type });
 			},
 
 			close(ws, code, reason) {
 				const { deviceId } = ws.data;
-				connectedDevices.delete(deviceId);
+				unregisterDevice(deviceId);
 				edithLog.info("device_disconnected", {
 					deviceId,
 					code,
 					reason: reason?.toString(),
-					remaining: connectedDevices.size,
+					remaining: connectedDeviceCount(),
 				});
 			},
 		},
