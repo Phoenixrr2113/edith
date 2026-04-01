@@ -87,6 +87,7 @@ import { fmtErr } from "./lib/util";
 let paused = false;
 
 if (!BOT_TOKEN) {
+	console.error("FATAL: TELEGRAM_BOT_TOKEN not set. Check your .env file.");
 	edithLog.fatal("config_missing", { key: "TELEGRAM_BOT_TOKEN" });
 	process.exit(1);
 }

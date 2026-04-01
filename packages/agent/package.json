@@ -3,8 +3,8 @@
 	"version": "3.0.0",
 	"type": "module",
 	"scripts": {
-		"start": "bun edith.ts",
-		"dev": "bun --watch --no-clear-screen edith.ts",
+		"start": "bun --env-file=../../.env edith.ts",
+		"dev": "bun --env-file=../../.env --watch --no-clear-screen edith.ts",
 		"test": "bun test tests/",
 		"test:coverage": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts",
 		"test:e2e": "bash test-e2e.sh",
