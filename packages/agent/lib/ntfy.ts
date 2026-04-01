@@ -7,10 +7,8 @@
  * Self-hostable: docker run -p 80:80 binwiederhier/ntfy
  */
 
+import { NTFY_SERVER, NTFY_TOPIC } from "./config";
 import { edithLog } from "./edith-logger";
-
-const NTFY_SERVER = process.env.NTFY_SERVER ?? "https://ntfy.sh";
-const NTFY_TOPIC = process.env.NTFY_TOPIC ?? "";
 
 export interface NtfyAction {
 	action: "view" | "http" | "broadcast";
