@@ -22,9 +22,12 @@ export function registerMessagingTools(server: McpServer): void {
 		"send_message",
 		{
 			description:
-				"Send a message to Randy via Telegram. Supports text, images, emoji reactions, or text+image together.",
+				"Send a message to Randy via Telegram. Supports text, images, emoji reactions, or text+image together. chat_id is optional — defaults to Randy's chat.",
 			inputSchema: {
-				chat_id: z.coerce.number().describe("Telegram chat ID"),
+				chat_id: z.coerce
+					.number()
+					.optional()
+					.describe("Telegram chat ID (optional — defaults to Randy's chat)"),
 				text: z.string().optional().describe("Message text to send"),
 				image: z
 					.string()
@@ -34,7 +37,9 @@ export function registerMessagingTools(server: McpServer): void {
 				message_id: z.number().optional().describe("Message ID to react to (required with emoji)"),
 			},
 		},
-		async ({ chat_id, text, image, emoji, message_id }) => {
+		async ({ chat_id: rawChatId, text, image, emoji, message_id }) => {
+			const chat_id = rawChatId ?? CHAT_ID;
+			if (!chat_id) return textResponse("No chat_id provided and TELEGRAM_CHAT_ID not set.");
 			if (ALLOWED_CHAT && chat_id !== ALLOWED_CHAT)
 				return textResponse(`Blocked: chat_id ${chat_id} not authorized.`);
 

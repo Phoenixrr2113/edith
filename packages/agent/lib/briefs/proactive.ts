@@ -5,7 +5,6 @@
 
 import { appendActivity } from "../activity";
 import { processAudioTranscripts } from "../audio-extract";
-import { CHAT_ID } from "../config";
 import { edithLog } from "../edith-logger";
 import { summarizeScreenContext } from "../gemini";
 import { canIntervene, recordIntervention } from "../proactive";
@@ -153,7 +152,7 @@ export async function buildProactiveBrief(): Promise<string> {
 		``,
 		`**Step 3 — Act or stay silent.** If you have something genuinely useful, reach out:`,
 		`- Quick heads-up or suggestion → send_notification channel=desktop`,
-		`- Something that needs a real response → send_message (chat_id: ${CHAT_ID})`,
+		`- Something that needs a real response → send_message`,
 		`- After acting: call record_intervention so you don't repeat yourself`,
 		`- If you have nothing useful to add right now — exit silently. No "nothing to report."`,
 	];

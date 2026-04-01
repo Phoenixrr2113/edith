@@ -105,9 +105,10 @@ describe("buildMessageBrief", () => {
 		expect(result).toContain("What's the weather?");
 	});
 
-	test("includes the chat ID in reply instruction", () => {
+	test("does not include chat_id in prompt (defaults via env)", () => {
 		const result = buildMessageBrief("Hello", "99999");
-		expect(result).toContain("99999");
+		expect(result).not.toContain("99999");
+		expect(result).toContain("send_message");
 	});
 
 	test("instructs to use send_message", () => {
@@ -148,9 +149,10 @@ describe("buildLocationBrief", () => {
 		expect(result).toContain("-74.0060");
 	});
 
-	test("includes chat ID", () => {
+	test("does not include chat_id in location brief", () => {
 		const result = buildLocationBrief("Home", "25.0", "-80.0", "99999");
-		expect(result).toContain("99999");
+		expect(result).not.toContain("99999");
+		expect(result).toContain("Home");
 	});
 
 	test("returns a string", () => {
@@ -516,12 +518,13 @@ describe("buildBrief routing", () => {
 	test("message type passes message text through", async () => {
 		const result = await buildBriefIsolated("message", { message: "hello edith", chatId: "12345" });
 		expect(result).toContain("hello edith");
-		expect(result).toContain("12345");
+		expect(result).toContain("send_message");
 	});
 
-	test("message type defaults chatId to CHAT_ID when omitted", async () => {
+	test("message type does not embed chat_id in prompt", async () => {
 		const result = await buildBriefIsolated("message", { message: "test" });
-		expect(result).toContain(String(CHAT_ID));
+		expect(result).toContain("send_message");
+		expect(result).not.toContain("chat_id");
 	});
 
 	test("location type passes description and coordinates through", async () => {
