@@ -207,12 +207,6 @@ export async function dispatchToClaude(
 			});
 		}
 
-		// Save session ID
-		if (resume && newSessionId && newSessionId !== sessionId) {
-			saveSession(newSessionId);
-			edithLog.info("session_new", { label, sessionId: newSessionId.slice(0, 8) });
-		}
-
 		// Log completion
 		const durationMs = Date.now() - startTime;
 		edithLog.info("dispatch_end", {
@@ -237,7 +231,7 @@ export async function dispatchToClaude(
 			toolCallCount: toolCalls.length,
 			toolCallDetails: toolCalls,
 			prompt: prompt.slice(0, 1000),
-			result: lastResult?.replace(/\n/g, " ").slice(0, 1000),
+			result: lastResult?.replace(/\n/g, " "),
 			session: newSessionId?.slice(0, 8) ?? "ephemeral",
 		});
 
@@ -255,10 +249,6 @@ export async function dispatchToClaude(
 					}
 				})
 				.catch(() => {}); // fire-and-forget
-		}
-
-		if (totalCost) {
-			edithLog.info("cost", { label, usd: totalCost });
 		}
 
 		// Reset circuit breaker on success

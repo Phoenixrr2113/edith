@@ -157,6 +157,6 @@ export async function startHttpServer(
 		},
 	});
 
-	edithLog.info("http_server_listening", { port });
+	// Logged via startup event in edith.ts — no separate log needed
 	return server;
 }

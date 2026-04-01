@@ -146,8 +146,6 @@ async function bootstrap(): Promise<void> {
 			});
 			edithLog.info("bootstrap_complete", {});
 		}
-	} else {
-		edithLog.info("session_resume", { sessionId });
 	}
 
 	const deadLetters = loadDeadLetters();
@@ -172,10 +170,6 @@ async function bootstrap(): Promise<void> {
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────────
-edithLog.info("startup_begin", {
-	mode: IS_CLOUD ? "cloud" : "local",
-	betterstack: !!process.env.BETTERSTACK_SOURCE_TOKEN,
-});
 rotateEvents();
 
 import { rotateTranscripts } from "./lib/transcript";
@@ -192,8 +186,8 @@ try {
 
 edithLog.info("startup", {
 	pid: process.pid,
-	sessionId: sessionId || "new",
 	mode: IS_CLOUD ? "cloud" : "local",
+	betterstack: !!process.env.BETTERSTACK_SOURCE_TOKEN,
 });
 if (!IS_CLOUD) startCaffeinate();
 await bootstrap();
