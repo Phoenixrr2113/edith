@@ -5,6 +5,7 @@ import { edithLog } from "../../lib/edith-logger";
 import { sendEmail } from "../../lib/gmail";
 import { textResponse } from "../../lib/mcp-helpers";
 import { showDialog, showNotification } from "../../lib/notify";
+import { pushNotification } from "../../lib/ntfy";
 import { evaluateOutboundMessage } from "../../lib/sentinel";
 import { sendMessage, sendPhoto, tgCall } from "../../lib/telegram";
 import { sendTwilio } from "../../lib/twilio";
@@ -81,10 +82,20 @@ export function registerMessagingTools(server: McpServer): void {
 		"send_notification",
 		{
 			description:
-				"Send a notification via any channel. Channels: telegram, whatsapp, sms, email, slack, discord (remote), desktop (macOS toast), dialog (macOS modal that blocks and returns which button was clicked).",
+				"Send a notification via any channel. Channels: push (ntfy.sh — any device), telegram, whatsapp, sms, email, slack, discord (remote), desktop (macOS toast), dialog (macOS modal that blocks and returns which button was clicked).",
 			inputSchema: {
 				channel: z
-					.enum(["whatsapp", "sms", "slack", "email", "discord", "telegram", "desktop", "dialog"])
+					.enum([
+						"push",
+						"whatsapp",
+						"sms",
+						"slack",
+						"email",
+						"discord",
+						"telegram",
+						"desktop",
+						"dialog",
+					])
 					.describe("Delivery channel"),
 				recipient: z
 					.string()
@@ -110,6 +121,16 @@ export function registerMessagingTools(server: McpServer): void {
 					recipient: recipient?.slice(0, 30),
 					text: text.slice(0, 100),
 				});
+
+			// Push notification via ntfy.sh (works on any device)
+			if (channel === "push") {
+				const ok = await pushNotification(title ?? "Edith", text, { priority: 3 });
+				if (ok) {
+					log();
+					return textResponse("Push notification sent via ntfy");
+				}
+				return textResponse("Push notification failed — is NTFY_TOPIC configured?");
+			}
 
 			// Desktop toast notification
 			if (channel === "desktop") {

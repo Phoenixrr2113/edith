@@ -3,11 +3,15 @@
  */
 
 import { BRIEF_TYPE_MAP, buildBrief } from "./briefs";
+import { IS_CLOUD } from "./config";
 import { kvGet, kvSet } from "./db";
 import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import { isUserIdle } from "./screenpipe";
 import { loadSchedule } from "./storage";
+
+/** Tasks that require local machine access and should not run in cloud mode. */
+const CLOUD_SKIPPED_TASKS = new Set(["proactive-check"]);
 
 export interface ScheduleState {
 	lastFired: Record<string, string>;
@@ -112,6 +116,9 @@ export async function runScheduler(): Promise<void> {
 	let userIdle: boolean | null = null;
 
 	for (const entry of schedule) {
+		// Skip tasks that require local machine access in cloud mode
+		if (IS_CLOUD && CLOUD_SKIPPED_TASKS.has(entry.name)) continue;
+
 		if (!shouldFire(entry, now, state)) continue;
 
 		// Skip interval tasks when user is idle — no point running proactive/reminder

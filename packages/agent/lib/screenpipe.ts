@@ -3,6 +3,7 @@
  * Screenpipe runs on localhost:3030 and captures everything on screen + microphone.
  */
 
+import { IS_CLOUD } from "./config";
 import { edithLog } from "./edith-logger";
 import { fmtErr } from "./util";
 
@@ -33,8 +34,10 @@ export interface AudioTranscript {
 /**
  * Get macOS system idle time (seconds since last keyboard/mouse input).
  * Uses IOKit's HIDIdleTime which is the most reliable signal.
+ * Returns 0 in cloud mode (assumes active — idle detection handled by companion).
  */
 export async function getSystemIdleSeconds(): Promise<number> {
+	if (IS_CLOUD) return 0;
 	try {
 		const proc = Bun.spawn(["ioreg", "-c", "IOHIDSystem"], { stdout: "pipe", stderr: "ignore" });
 		const text = await new Response(proc.stdout).text();

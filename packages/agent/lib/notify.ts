@@ -2,7 +2,12 @@
  * Desktop notifications and dialogs.
  * Notifications use terminal-notifier (click opens dashboard).
  * Dialogs use osascript (modal, blocks until button clicked).
+ *
+ * In cloud mode, these are no-ops — notifications route through ntfy.sh
+ * or Telegram instead (see capability-router.ts).
  */
+
+import { IS_CLOUD } from "./config";
 
 const DASHBOARD_URL = `http://localhost:${process.env.DASHBOARD_PORT ?? 3456}`;
 
@@ -17,8 +22,13 @@ function sanitize(s: string): string {
 /**
  * Show a macOS Notification Center toast (non-blocking).
  * Clicking opens the Edith dashboard.
+ * No-op in cloud mode.
  */
 export async function showNotification(title: string, body: string): Promise<void> {
+	if (IS_CLOUD) {
+		console.log(`[notify] skipped desktop notification (cloud mode): ${title}`);
+		return;
+	}
 	const proc = Bun.spawn([
 		"terminal-notifier",
 		"-title",
@@ -33,6 +43,7 @@ export async function showNotification(title: string, body: string): Promise<voi
 
 /**
  * Show a modal dialog with buttons. Returns the button text that was clicked.
+ * Returns first button text in cloud mode (no dialog shown).
  */
 export async function showDialog(
 	title: string,
@@ -40,6 +51,10 @@ export async function showDialog(
 	buttons: string[] = ["OK"]
 ): Promise<string> {
 	if (!buttons.length) buttons = ["OK"];
+	if (IS_CLOUD) {
+		console.log(`[notify] skipped dialog (cloud mode): ${title}`);
+		return buttons[0];
+	}
 	const safeBody = sanitize(body);
 	const safeTitle = sanitize(title);
 	const buttonList = buttons.map((b) => `"${sanitize(b)}"`).join(", ");
@@ -59,8 +74,13 @@ export async function showDialog(
 
 /**
  * Show a simple alert (modal, single OK button).
+ * No-op in cloud mode.
  */
 export async function showAlert(message: string): Promise<void> {
+	if (IS_CLOUD) {
+		console.log(`[notify] skipped alert (cloud mode): ${message.slice(0, 80)}`);
+		return;
+	}
 	const safeMsg = sanitize(message);
 	const proc = Bun.spawn(["osascript", "-e", `display alert "${safeMsg}"`]);
 	await proc.exited;

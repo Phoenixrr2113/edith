@@ -11,6 +11,7 @@ import type {
 	SpawnOptions,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { BriefType } from "./briefs";
+import { IS_CLOUD } from "./config";
 import { assembleSystemPrompt } from "./context";
 import { PROJECT_ROOT, sessionId } from "./state";
 import { loadJson } from "./storage";
@@ -71,11 +72,27 @@ export function spawnWithStderrCapture(options: SpawnOptions): SpawnedProcess {
 }
 
 // --- MCP config ---
+
+/** Servers that require local machine access and cannot run in cloud. */
+const CLOUD_EXCLUDED_SERVERS = new Set(["computer-use", "cognee"]);
+
 function loadMcpConfig(): Record<string, McpServerConfig> {
 	try {
 		const config = loadJson<Record<string, unknown>>(`${PROJECT_ROOT}/.mcp.json`, {});
-		// JSON is loaded as unknown; cast to the SDK's expected shape
-		return (config.mcpServers as Record<string, McpServerConfig>) ?? {};
+		const servers = (config.mcpServers as Record<string, McpServerConfig>) ?? {};
+
+		if (!IS_CLOUD) return servers;
+
+		// Filter out cloud-incompatible servers
+		const filtered: Record<string, McpServerConfig> = {};
+		for (const [name, cfg] of Object.entries(servers)) {
+			if (CLOUD_EXCLUDED_SERVERS.has(name)) {
+				console.log(`[mcp] skipping ${name} — not compatible with cloud mode`);
+				continue;
+			}
+			filtered[name] = cfg;
+		}
+		return filtered;
 	} catch {
 		return {};
 	}

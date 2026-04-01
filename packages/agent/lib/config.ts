@@ -54,6 +54,10 @@ export const GOOGLE_ACCESS_TOKEN = process.env.GOOGLE_ACCESS_TOKEN ?? "";
 // --- OpenRouter ---
 export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 
+// --- ntfy.sh push notifications ---
+export const NTFY_SERVER = process.env.NTFY_SERVER ?? "https://ntfy.sh";
+export const NTFY_TOPIC = process.env.NTFY_TOPIC ?? "";
+
 // --- Misc ---
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 export const DOWNLOADS_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
