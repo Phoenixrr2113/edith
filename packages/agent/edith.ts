@@ -131,15 +131,21 @@ async function bootstrap(): Promise<void> {
 	}
 
 	if (!sessionId) {
-		edithLog.info("bootstrap_start", {});
-		const bootBrief = await buildBrief("boot");
-		await dispatchToClaude(bootBrief, {
-			resume: true,
-			label: "bootstrap",
-			briefType: "boot",
-			priority: Priority.P0_CRITICAL,
-		});
-		edithLog.info("bootstrap_complete", {});
+		if (IS_CLOUD) {
+			// Cloud: skip heavy bootstrap — morning brief runs on its own schedule.
+			// Boot dispatch blocks incoming messages for 5+ min on Railway.
+			edithLog.info("bootstrap_skipped_cloud", {});
+		} else {
+			edithLog.info("bootstrap_start", {});
+			const bootBrief = await buildBrief("boot");
+			await dispatchToClaude(bootBrief, {
+				resume: true,
+				label: "bootstrap",
+				briefType: "boot",
+				priority: Priority.P0_CRITICAL,
+			});
+			edithLog.info("bootstrap_complete", {});
+		}
 	} else {
 		edithLog.info("session_resume", { sessionId });
 	}
