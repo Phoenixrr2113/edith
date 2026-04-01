@@ -23,7 +23,7 @@ import { edithLog } from "./edith-logger";
 import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { getActiveQuery, injectMessage, setActiveQuery } from "./session";
-import { saveSession, sessionId } from "./state";
+import { clearSession, saveSession, sessionId } from "./state";
 import { sendTyping } from "./telegram";
 import { startTranscript } from "./transcript";
 import { fmtErr } from "./util";
@@ -285,6 +285,16 @@ export async function dispatchToClaude(
 		});
 
 		emitState("idle");
+
+		// Stale session — SDK throws "No conversation found with session ID"
+		// Clear session and retry once (the try block's needsRetry path doesn't
+		// reach here because the SDK throws before processMessageStream completes)
+		if (errMsg.includes("No conversation found") && sessionId && !opts._sessionRetried) {
+			edithLog.warn("session_reset_catch", { label, sessionId: sessionId.slice(0, 8) });
+			clearSession();
+			consecutiveFailures = 0;
+			return dispatchToClaude(prompt, { ...opts, resume: false, _sessionRetried: true });
+		}
 
 		// Circuit breaker
 		consecutiveFailures++;
