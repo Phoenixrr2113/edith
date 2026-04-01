@@ -70,7 +70,8 @@ export const REFLECTOR_TOOL_CALL_FREQUENCY = Number(process.env.REFLECTOR_FREQUE
 export const REFLECTOR_EVAL_ONLY_RATIO = Number(process.env.REFLECTOR_EVAL_ONLY_RATIO ?? "0.3"); // 30% sessions get eval-only (no injections)
 
 // --- Sentinel (post-message quality evaluation) ---
-export const SENTINEL_ENABLED = process.env.SENTINEL_ENABLED !== "false"; // on by default
+// Disabled in cloud — spawns a Claude subprocess that OOMs on Railway (same as reflector)
+export const SENTINEL_ENABLED = IS_CLOUD ? false : process.env.SENTINEL_ENABLED !== "false";
 
 // --- Dispatch / circuit breaker ---
 export const MAX_CONSECUTIVE_FAILURES = 5;
