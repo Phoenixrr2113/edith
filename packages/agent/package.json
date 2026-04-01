@@ -3,13 +3,12 @@
 	"version": "3.0.0",
 	"type": "module",
 	"scripts": {
-		"start": "./launch-edith.sh",
-		"dashboard": "bun dashboard.ts",
+		"start": "bun edith.ts",
+		"dev": "bun --watch --no-clear-screen edith.ts",
 		"test": "bun test tests/",
 		"test:coverage": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts",
 		"test:e2e": "bash test-e2e.sh",
 		"setup": "bash setup.sh",
-		"stop": "bash -c 'PID=$(cat ~/.edith/edith.pid 2>/dev/null) && kill $PID 2>/dev/null && echo \"Edith stopped (PID $PID)\" || echo \"Edith not running\"'",
 		"lint": "biome check .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit"

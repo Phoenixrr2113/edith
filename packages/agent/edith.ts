@@ -10,52 +10,13 @@
 import {
 	appendFileSync,
 	chmodSync,
-	closeSync,
 	existsSync,
-	openSync,
 	readdirSync,
 	statSync,
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-
-// =============================================================================
-// LAYER 2: TypeScript-level singleton lock
-// openSync with 'wx' (O_CREAT | O_EXCL) is atomic — only one process succeeds.
-// Catches direct `bun edith.ts` calls that bypass launch-edith.sh.
-// =============================================================================
-const LOCK_FILE = join(process.env.HOME ?? "/tmp", ".edith", "edith.ts.lock");
-let lockFd: number | null = null;
-try {
-	lockFd = openSync(LOCK_FILE, "wx");
-} catch {
-	// Lock exists — check if stale (process died without cleanup)
-	try {
-		const lockAge = Date.now() - statSync(LOCK_FILE).mtimeMs;
-		if (lockAge > 300_000) {
-			// Older than 5 min — stale, reclaim it
-			unlinkSync(LOCK_FILE);
-			lockFd = openSync(LOCK_FILE, "wx");
-		} else {
-			console.error("[edith] Another instance is already running. Exiting.");
-			process.exit(0); // exit 0 so launchd doesn't restart
-		}
-	} catch {
-		console.error("[edith] Another instance is already running. Exiting.");
-		process.exit(0);
-	}
-}
-
-function releaseLock() {
-	try {
-		if (lockFd !== null) closeSync(lockFd);
-	} catch {}
-	try {
-		unlinkSync(LOCK_FILE);
-	} catch {}
-}
-process.on("exit", releaseLock);
 
 // --- Log to file + console ---
 const LOG_FILE = process.env.EDITH_LOG_FILE;
@@ -95,7 +56,6 @@ import {
 	CHAT_ID,
 	INBOX_DIR,
 	INBOX_MAX_AGE_MS,
-	PID_FILE,
 	POLL_INTERVAL_MS,
 	SCHEDULE_CHECK_MS,
 	SMS_BOT_ID,
@@ -141,9 +101,6 @@ if (existsSync(ENV_FILE)) {
 		}
 	}
 }
-
-// Write PID file so dashboard can check if we're alive
-writeFileSync(PID_FILE, String(process.pid), "utf-8");
 
 // ============================================================
 // Telegram polling loop
@@ -312,9 +269,6 @@ async function gracefulShutdown(): Promise<void> {
 	stopCaffeinate();
 	// Flush buffered logs before exit
 	await edithLog.flush();
-	try {
-		unlinkSync(PID_FILE);
-	} catch {}
 	process.exit(0);
 }
 
