@@ -268,7 +268,7 @@ export function broadcastToDevices(msg: AnyWsMessage): void {
 			void json; // placeholder until Bun types wired
 			edithLog.debug("ws_broadcast", { deviceId, messageType: msg.type });
 		} catch (err) {
-			edithLog.error("ws_send_failed", { deviceId, message: String(err) });
+			edithLog.error("ws_send_failed", { deviceId, error: String(err), messageType: msg.type });
 			connectedDevices.delete(deviceId);
 		}
 	}

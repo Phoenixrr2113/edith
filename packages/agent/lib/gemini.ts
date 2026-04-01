@@ -109,7 +109,10 @@ ${rawFormatted}`,
 		if (text?.trim()) return text.trim();
 		return rawFormatted;
 	} catch (err) {
-		edithLog.warn("gemini_summarization_failed", { message: fmtErr(err) });
+		edithLog.warn("gemini_summarization_failed", {
+			error: fmtErr(err),
+			inputLength: rawFormatted.length,
+		});
 		return rawFormatted;
 	}
 }

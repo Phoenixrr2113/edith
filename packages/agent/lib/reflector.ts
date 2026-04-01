@@ -190,7 +190,11 @@ export class ReflectorSession {
 			});
 			return `<reflection source="edith-reflector" trigger="${trigger}">\n${reflection}\n</reflection>`;
 		} catch (err) {
-			edithLog.error("reflector_generation_failed", { label: this.label, message: String(err) });
+			edithLog.error("reflector_generation_failed", {
+				label: this.label,
+				trigger,
+				error: String(err),
+			});
 			return null;
 		}
 	}
@@ -229,7 +233,11 @@ export class ReflectorSession {
 
 			return { score, assessment };
 		} catch (err) {
-			edithLog.error("reflector_eval_failed", { label: this.label, message: String(err) });
+			edithLog.error("reflector_eval_failed", {
+				label: this.label,
+				error: String(err),
+				toolCalls: this.toolCallCount,
+			});
 			return null;
 		}
 	}

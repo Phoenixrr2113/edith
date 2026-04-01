@@ -124,7 +124,9 @@ export async function generateDeviceToken(deviceId: string, secret: string): Pro
  */
 export async function verifyDeviceToken(token: string, secret: string): Promise<VerifyResult> {
 	if (!secret) {
-		edithLog.error("auth_device_secret_missing", { message: "rejecting all tokens" });
+		edithLog.error("auth_device_secret_missing", {
+			message: "rejecting all tokens — set DEVICE_SECRET env var",
+		});
 		return { valid: false, reason: "invalid" };
 	}
 

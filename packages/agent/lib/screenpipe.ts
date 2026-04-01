@@ -102,7 +102,7 @@ export async function getContext(minutes: number = 15): Promise<ScreenContext> {
 			empty: false,
 		};
 	} catch (err) {
-		edithLog.warn("screenpipe_get_context_failed", { message: fmtErr(err) });
+		edithLog.warn("screenpipe_get_context_failed", { error: fmtErr(err), timeRange });
 		return { timeRange, apps: [], audioTranscripts: [], continuousActivityMinutes: 0, empty: true };
 	}
 }

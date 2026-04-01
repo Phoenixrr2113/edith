@@ -41,7 +41,7 @@ async function getCalendarEvents(): Promise<string> {
 			})
 			.join("\n");
 	} catch (err) {
-		edithLog.error("prewake_calendar_failed", { message: fmtErr(err) });
+		edithLog.error("prewake_calendar_failed", { error: fmtErr(err) });
 		return "";
 	}
 }
@@ -69,7 +69,7 @@ async function getRecentEmails(): Promise<string> {
 			})
 			.join("\n");
 	} catch (err) {
-		edithLog.error("prewake_email_failed", { message: fmtErr(err) });
+		edithLog.error("prewake_email_failed", { error: fmtErr(err) });
 		return "";
 	}
 }

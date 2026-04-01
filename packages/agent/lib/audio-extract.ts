@@ -82,7 +82,10 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 		});
 
 		if (!res.ok) {
-			edithLog.warn("audio_extract_openrouter_error", { status: res.status });
+			edithLog.warn("audio_extract_openrouter_error", {
+				status: res.status,
+				statusText: res.statusText,
+			});
 			return null;
 		}
 
@@ -105,7 +108,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 
 		return parsed;
 	} catch (err) {
-		edithLog.warn("audio_extract_failed", { message: fmtErr(err) });
+		edithLog.warn("audio_extract_failed", { error: fmtErr(err) });
 		return null;
 	}
 }
@@ -160,7 +163,7 @@ export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<bool
 		});
 		return true;
 	} catch (err) {
-		edithLog.warn("audio_extract_queue_failed", { message: fmtErr(err) });
+		edithLog.warn("audio_extract_queue_failed", { error: fmtErr(err) });
 		return false;
 	}
 }
