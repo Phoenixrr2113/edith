@@ -6,6 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerActivityTools } from "./tools/activity";
 import { registerCalendarTools } from "./tools/calendar";
+import { registerComputerUseTools } from "./tools/computer-use";
 import { registerDocsTools } from "./tools/docs";
 import { registerEmailTools } from "./tools/email";
 import { registerLocationTools } from "./tools/location";
@@ -33,6 +34,7 @@ registerCalendarTools(server);
 registerDocsTools(server);
 registerProactiveTools(server);
 registerActivityTools(server);
+registerComputerUseTools(server);
 registerLogTools(server);
 
 // ============================================================

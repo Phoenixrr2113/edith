@@ -61,8 +61,13 @@ export async function isUserIdle(
 
 /**
  * Check if Screenpipe is running.
+ * In cloud mode, checks if a companion device is connected instead.
  */
 export async function isAvailable(): Promise<boolean> {
+	if (IS_CLOUD) {
+		const { capabilityRouter } = await import("./capability-router");
+		return capabilityRouter.isDeviceConnected();
+	}
 	try {
 		const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(TIMEOUT) });
 		if (!res.ok) return false;
@@ -75,8 +80,14 @@ export async function isAvailable(): Promise<boolean> {
 
 /**
  * Get screen + audio context for the last N minutes.
+ * In cloud mode, routes through capability router to companion app.
  */
 export async function getContext(minutes: number = 15): Promise<ScreenContext> {
+	if (IS_CLOUD) {
+		const { capabilityRouter } = await import("./capability-router");
+		return capabilityRouter.getScreenContext(minutes);
+	}
+
 	const now = new Date();
 	const start = new Date(now.getTime() - minutes * 60 * 1000);
 	const timeRange = { start: start.toISOString(), end: now.toISOString() };

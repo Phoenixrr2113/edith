@@ -20,13 +20,14 @@ function sanitize(s: string): string {
 }
 
 /**
- * Show a macOS Notification Center toast (non-blocking).
- * Clicking opens the Edith dashboard.
- * No-op in cloud mode.
+ * Show a notification toast.
+ * Local: macOS Notification Center via terminal-notifier.
+ * Cloud: ntfy.sh push notification (reaches any device).
  */
 export async function showNotification(title: string, body: string): Promise<void> {
 	if (IS_CLOUD) {
-		console.log(`[notify] skipped desktop notification (cloud mode): ${title}`);
+		const { pushNotification } = await import("./ntfy");
+		await pushNotification(title, body, { priority: 3 });
 		return;
 	}
 	const proc = Bun.spawn([
@@ -52,7 +53,9 @@ export async function showDialog(
 ): Promise<string> {
 	if (!buttons.length) buttons = ["OK"];
 	if (IS_CLOUD) {
-		console.log(`[notify] skipped dialog (cloud mode): ${title}`);
+		// Dialogs need interaction — send high-priority push + return default button
+		const { pushNotification } = await import("./ntfy");
+		await pushNotification(title, body, { priority: 5, tags: ["question"] });
 		return buttons[0];
 	}
 	const safeBody = sanitize(body);
@@ -78,7 +81,8 @@ export async function showDialog(
  */
 export async function showAlert(message: string): Promise<void> {
 	if (IS_CLOUD) {
-		console.log(`[notify] skipped alert (cloud mode): ${message.slice(0, 80)}`);
+		const { pushNotification } = await import("./ntfy");
+		await pushNotification("Edith Alert", message, { priority: 4, tags: ["warning"] });
 		return;
 	}
 	const safeMsg = sanitize(message);
