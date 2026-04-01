@@ -13,12 +13,13 @@
 import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, relative } from "node:path";
 import { Logtail } from "@logtail/node";
-import { EVENTS_FILE, EVENTS_MAX_AGE_MS } from "./config";
+import { EVENTS_FILE, EVENTS_MAX_AGE_MS, IS_CLOUD } from "./config";
 
 // --- BetterStack / Logtail (optional remote sink) ---
 const bsToken = process.env.BETTERSTACK_SOURCE_TOKEN;
 const heartbeatUrl = process.env.BETTERSTACK_HEARTBEAT_URL;
 const logtail = bsToken ? new Logtail(bsToken) : null;
+const EDITH_MODE = IS_CLOUD ? "cloud" : "local";
 
 // --- Types ---
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
@@ -92,9 +93,11 @@ function writeEvent(entry: LogEntry): void {
 			// Add runtime context so BetterStack doesn't show "undefined"
 			const ctx = {
 				...entry,
+				mode: EDITH_MODE,
 				context: {
 					runtime: {
 						type: "edith-agent",
+						mode: EDITH_MODE,
 						file: entry.caller.file,
 						function: entry.caller.fn,
 						line: entry.caller.line,
