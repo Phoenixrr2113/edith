@@ -91,7 +91,7 @@ export async function processTriggers(): Promise<void> {
 					} catch {}
 				})
 				.catch((err) => {
-					edithLog.error("trigger_dispatch_error", { message: fmtErr(err) });
+					edithLog.error("trigger_dispatch_error", { task: f, error: fmtErr(err) });
 					try {
 						unlinkSync(fp);
 					} catch {}

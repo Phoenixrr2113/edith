@@ -68,6 +68,8 @@ export interface DispatchOptions {
 // --- Circuit breaker ---
 let consecutiveFailures = 0;
 let circuitBreakerUntil = 0;
+let lastFailureError = "";
+let activeLabel = "";
 
 // --- Unique ID counter ---
 let pidCounter = 0;
@@ -180,7 +182,8 @@ export async function processMessageStream(
 	opts: DispatchOptions,
 	_pseudoPid: number,
 	reflector: ReflectorSession | null,
-	_abortController?: AbortController
+	_abortController?: AbortController,
+	promptPreview?: string
 ): Promise<StreamResult> {
 	let turns = 0;
 	let lastResult = "";
@@ -220,7 +223,12 @@ export async function processMessageStream(
 				}
 			}
 		} catch (err) {
-			edithLog.error("reflector_inject_failed", { label, trigger, error: fmtErr(err) });
+			edithLog.error("reflector_inject_failed", {
+				label,
+				trigger,
+				error: fmtErr(err),
+				prompt: promptPreview,
+			});
 		}
 	};
 
@@ -358,11 +366,24 @@ export async function processMessageStream(
 				// Check for errors
 				if (resultMsg.is_error) {
 					const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
-					edithLog.error("sdk_result_error", { label, errorSubtype });
+					edithLog.error("sdk_result_error", {
+						label,
+						errorSubtype,
+						result: lastResult.slice(0, 500),
+						turns,
+						cost: totalCost,
+						prompt: promptPreview,
+					});
 
 					// Detect corrupted session — flag for retry after cleanup
 					if (errorSubtype === "error_during_execution" && sessionId && !opts._sessionRetried) {
-						edithLog.warn("session_reset", { label, reason: errorSubtype });
+						edithLog.warn("session_reset", {
+							label,
+							reason: errorSubtype,
+							sessionId: sessionId.slice(0, 8),
+							errorResult: lastResult.slice(0, 300),
+							prompt: promptPreview,
+						});
 						clearSession();
 						needsRetry = true;
 					}
@@ -398,7 +419,14 @@ export async function dispatchToClaude(
 
 	// Circuit breaker check
 	if (Date.now() < circuitBreakerUntil) {
-		edithLog.warn("dispatch_skipped", { label, reason: "circuit_breaker" });
+		edithLog.warn("dispatch_skipped", {
+			label,
+			reason: "circuit_breaker",
+			consecutiveFailures,
+			expiresInSec: Math.round((circuitBreakerUntil - Date.now()) / 1000),
+			lastError: lastFailureError,
+			prompt: prompt.slice(0, 300),
+		});
 		return "";
 	}
 
@@ -415,16 +443,29 @@ export async function dispatchToClaude(
 		}
 
 		if (opts.skipIfBusy) {
-			edithLog.info("dispatch_skipped", { label, reason: "busy" });
+			edithLog.info("dispatch_skipped", {
+				label,
+				reason: "busy",
+				activeLabel,
+				queueDepth: dispatchQueue.length,
+				prompt: prompt.slice(0, 200),
+			});
 			return "";
 		}
-		edithLog.info("dispatch_queued", { label, priority, queueSize: dispatchQueue.length + 1 });
+		edithLog.info("dispatch_queued", {
+			label,
+			priority,
+			queueSize: dispatchQueue.length + 1,
+			activeLabel,
+			prompt: prompt.slice(0, 200),
+		});
 		return new Promise((resolve) => {
 			dispatchQueue.enqueue({ prompt, opts, resolve, priority, enqueuedAt: Date.now() });
 		});
 	}
 
 	busy = true;
+	activeLabel = label;
 	const startTime = Date.now();
 	let typingInterval: ReturnType<typeof setInterval> | null = null;
 	const wakeId = `${label}-${Date.now()}`;
@@ -434,7 +475,12 @@ export async function dispatchToClaude(
 	const abortController = new AbortController();
 	const timeoutMs = LIGHTWEIGHT_TASKS.has(label) ? LIGHTWEIGHT_TIMEOUT_MS : QUERY_TIMEOUT_MS;
 	const timeoutHandle = setTimeout(() => {
-		edithLog.error("dispatch_timeout", { label, timeoutMs });
+		edithLog.error("dispatch_timeout", {
+			label,
+			timeoutMs,
+			elapsedMs: Date.now() - startTime,
+			prompt: prompt.slice(0, 300),
+		});
 		abortController.abort();
 	}, timeoutMs);
 
@@ -492,7 +538,8 @@ export async function dispatchToClaude(
 			opts,
 			pseudoPid,
 			reflector,
-			abortController
+			abortController,
+			prompt.slice(0, 300)
 		);
 
 		// Handle session retry — push to front of queue so finally block drains it
@@ -568,7 +615,17 @@ export async function dispatchToClaude(
 		return lastResult;
 	} catch (err) {
 		const errMsg = fmtErr(err);
-		edithLog.error("dispatch_error", { label, error: errMsg });
+		lastFailureError = errMsg;
+		edithLog.error("dispatch_error", {
+			label,
+			error: errMsg,
+			consecutiveFailures: consecutiveFailures + 1,
+			elapsedMs: Date.now() - startTime,
+			prompt: prompt.slice(0, 300),
+			hint: errMsg.includes("exited with code")
+				? "Claude Code subprocess failed — check auth (CLAUDE_CODE_OAUTH_TOKEN), permissions (non-root required), or container setup"
+				: undefined,
+		});
 
 		// Circuit breaker
 		consecutiveFailures++;
@@ -577,6 +634,9 @@ export async function dispatchToClaude(
 			edithLog.error("circuit_breaker", {
 				failures: consecutiveFailures,
 				cooldownMs: CIRCUIT_BREAKER_COOLDOWN_MS,
+				cooldownUntil: new Date(circuitBreakerUntil).toISOString(),
+				lastError: errMsg,
+				label,
 			});
 		}
 
@@ -587,6 +647,7 @@ export async function dispatchToClaude(
 		clearTimeout(timeoutHandle);
 		if (typingInterval) clearInterval(typingInterval);
 		busy = false;
+		activeLabel = "";
 
 		if (dispatchQueue.length > 0) {
 			// Delay to allow MCP servers from previous dispatch to shut down (prevents Kuzu lock contention)
@@ -596,6 +657,8 @@ export async function dispatchToClaude(
 				edithLog.info("dispatch_queue_drain", {
 					remaining: dispatchQueue.length,
 					priority: next.priority,
+					nextLabel: next.opts.label ?? "unknown",
+					nextPrompt: next.prompt.slice(0, 200),
 				});
 				dispatchToClaude(next.prompt, next.opts)
 					.then(next.resolve)

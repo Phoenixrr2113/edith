@@ -310,10 +310,14 @@ async function poll(): Promise<void> {
 			consecutiveErrors++;
 			const backoff =
 				BACKOFF_SCHEDULE[Math.min(consecutiveErrors - 1, BACKOFF_SCHEDULE.length - 1)];
+			const errStr = fmtErr(err);
 			edithLog.error("poll_error", {
-				error: fmtErr(err),
+				error: errStr,
 				consecutiveErrors,
 				backoffMs: backoff,
+				hint: errStr.includes("Conflict")
+					? "Another bot instance is polling — check for duplicate local/cloud processes"
+					: undefined,
 			});
 			await Bun.sleep(backoff);
 			continue;
@@ -359,7 +363,11 @@ async function bootstrap(): Promise<void> {
 			try {
 				await dispatchToConversation(dl.chatId, 0, dl.message);
 			} catch (err) {
-				edithLog.error("dead_letter_replay_failed", { error: fmtErr(err) });
+				edithLog.error("dead_letter_replay_failed", {
+					error: fmtErr(err),
+					chatId: dl.chatId,
+					messagePreview: dl.message.slice(0, 200),
+				});
 				saveDeadLetter(dl.chatId, dl.message, `replay failed: ${err}`);
 			}
 		}

@@ -84,7 +84,12 @@ export async function injectMessage(text: string, _chatId?: number): Promise<boo
 		edithLog.info("session_message_injected", { preview: text.slice(0, 80) });
 		return true;
 	} catch (err) {
-		edithLog.error("session_stream_input_failed", { message: fmtErr(err) });
+		edithLog.error("session_stream_input_failed", {
+			error: fmtErr(err),
+			inputPreview: text.slice(0, 200),
+			hasActiveQuery: !!activeQuery,
+			sessionId: activeSessionId?.slice(0, 8),
+		});
 		return false;
 	}
 }

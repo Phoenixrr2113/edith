@@ -80,7 +80,7 @@ export async function handleVoice(
 		});
 		await dispatchToConversation(chatId, messageId, content);
 	} catch (err) {
-		edithLog.error("voice_processing_failed", { message: fmtErr(err) });
+		edithLog.error("voice_processing_failed", { error: fmtErr(err), chatId, fileId });
 		await dispatchToConversation(
 			chatId,
 			messageId,
@@ -104,7 +104,7 @@ export async function handlePhoto(
 			`[Photo from Randy]${caption ? ` Caption: ${caption}.` : ""} Image saved at: ${localPath}.`
 		);
 	} catch (err) {
-		edithLog.error("photo_processing_failed", { message: fmtErr(err) });
+		edithLog.error("photo_processing_failed", { error: fmtErr(err), chatId, fileId, caption });
 		await dispatchToConversation(
 			chatId,
 			messageId,

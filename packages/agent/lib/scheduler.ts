@@ -120,13 +120,21 @@ export async function runScheduler(): Promise<void> {
 		if (entry.intervalMinutes) {
 			if (userIdle === null) userIdle = await isUserIdle();
 			if (userIdle) {
-				edithLog.info("scheduler_skipped_idle", { task: entry.name });
+				edithLog.info("scheduler_skipped_idle", {
+					task: entry.name,
+					intervalMinutes: entry.intervalMinutes,
+				});
 				continue;
 			}
 		}
 
-		edithLog.info("scheduler_firing", { task: entry.name });
-		edithLog.info("schedule_fire", { task: entry.name, prompt: entry.prompt });
+		const lastFired = state.lastFired[entry.name];
+		edithLog.info("scheduler_firing", {
+			task: entry.name,
+			briefType: BRIEF_TYPE_MAP[entry.name] ?? "scheduled",
+			lastFired: lastFired ?? "never",
+			sinceLastMs: lastFired ? Date.now() - new Date(lastFired).getTime() : null,
+		});
 
 		// Use brief types for known tasks, generic scheduled brief for custom ones
 		const briefType = BRIEF_TYPE_MAP[entry.name];
@@ -140,7 +148,10 @@ export async function runScheduler(): Promise<void> {
 
 		// Empty brief = heuristics decided to skip (e.g. proactive-check with no triggers)
 		if (!prompt.trim()) {
-			edithLog.info("scheduler_skipped_no_triggers", { task: entry.name });
+			edithLog.info("scheduler_skipped_no_triggers", {
+				task: entry.name,
+				briefType: briefType ?? "scheduled",
+			});
 			state.lastFired[entry.name] = now.toISOString();
 			saveScheduleState(state);
 			continue;
