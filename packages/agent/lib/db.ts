@@ -157,7 +157,11 @@ function createNeonDB(): EdithDB {
 	};
 }
 
-/** Synchronous fetch helper using Bun's subprocess. */
+/**
+ * Synchronous HTTP POST using Bun subprocess with native fetch.
+ * Spawns a tiny Bun script that does the async fetch and prints the result.
+ * No external dependencies (curl, wget) needed.
+ */
 function fetchSync(
 	url: string,
 	opts: { method: string; headers: Record<string, string>; body: string }
@@ -166,29 +170,30 @@ function fetchSync(
 	status: number;
 	body: string;
 } {
+	// Build a self-contained script that Bun can execute
+	const script = `
+		const r = await fetch(${JSON.stringify(url)}, {
+			method: ${JSON.stringify(opts.method)},
+			headers: ${JSON.stringify(opts.headers)},
+			body: ${JSON.stringify(opts.body)},
+		});
+		const t = await r.text();
+		process.stdout.write(JSON.stringify({ s: r.status, b: t }));
+	`;
+
 	const proc = Bun.spawnSync({
-		cmd: [
-			"curl",
-			"-s",
-			"-w",
-			"\n%{http_code}",
-			"-X",
-			opts.method,
-			...Object.entries(opts.headers).flatMap(([k, v]) => ["-H", `${k}: ${v}`]),
-			"-d",
-			opts.body,
-			url,
-		],
+		cmd: ["bun", "-e", script],
 		stdout: "pipe",
 		stderr: "pipe",
 	});
 
-	const output = proc.stdout.toString();
-	const lastNewline = output.lastIndexOf("\n");
-	const body = output.slice(0, lastNewline);
-	const status = parseInt(output.slice(lastNewline + 1), 10);
+	if (proc.exitCode !== 0) {
+		const stderr = proc.stderr.toString();
+		throw new Error(`Neon fetch failed: ${stderr}`);
+	}
 
-	return { ok: status >= 200 && status < 300, status, body };
+	const result = JSON.parse(proc.stdout.toString()) as { s: number; b: string };
+	return { ok: result.s >= 200 && result.s < 300, status: result.s, body: result.b };
 }
 
 // --- Public API ---
