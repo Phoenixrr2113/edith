@@ -24,7 +24,7 @@ export function registerMessagingTools(server: McpServer): void {
 			description:
 				"Send a message to Randy via Telegram. Supports text, images, emoji reactions, or text+image together.",
 			inputSchema: {
-				chat_id: z.number().describe("Telegram chat ID"),
+				chat_id: z.coerce.number().describe("Telegram chat ID"),
 				text: z.string().optional().describe("Message text to send"),
 				image: z
 					.string()
