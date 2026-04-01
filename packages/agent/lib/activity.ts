@@ -4,7 +4,7 @@
  * L1 snapshots: appended every 10 min by proactive-check / midday-check.
  * L2 daily summary: appended by evening-wrap at end of day.
  *
- * Files live at ~/.edith/activity/YYYY-MM-DD.md and are never rotated.
+ * Files live at .state/activity/YYYY-MM-DD.md and are never rotated.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

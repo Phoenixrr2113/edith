@@ -13,7 +13,7 @@ Every external API call (Gmail, GCal, Telegram, Docs) routes through MCP tools i
 Claude (SDK) → MCP tool → lib/g*.ts → Google REST API
 ```
 
-`lib/prewake.ts` calls `lib/gcal.ts` and `lib/gmail.ts` directly before Claude wakes up, bypassing the MCP layer to pre-load context.
+Calendar and email context is now fetched by Claude via MCP tools (manage_calendar, gmail_search_messages) during skill execution.
 
 ---
 
@@ -48,7 +48,7 @@ Claude (SDK) → MCP tool → lib/g*.ts → Google REST API
 
 | Operation | Pattern | Rationale |
 |---|---|---|
-| Pre-brief context (calendar, email read) | Direct `lib/gcal/gmail` in brief builders | Saves 2 tool turns per brief; prewake.ts already does this |
+| Pre-brief context (calendar, email read) | Direct `lib/gcal/gmail` in brief builders | Saves 2 tool turns per brief; Claude fetches this via MCP tools during skill execution |
 | Local state reads (reminders, locations, schedule) | Direct `lib/storage.*` | Already done; no reason to go through MCP |
 | All write/send operations (email, calendar create, Telegram) | Always MCP | Needs logging, auth, rate limiting |
 | Dashboard data display | Direct `lib/` imports in dashboard.ts | Never through Claude SDK |

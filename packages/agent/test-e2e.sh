@@ -130,7 +130,7 @@ echo "========================================"
 if [ "$FAIL" -gt 0 ]; then
   echo ""
   echo "Check Telegram for test messages."
-  echo "Check ~/.edith/taskboard.md for taskboard entries."
+  echo "Check packages/agent/.state/taskboard.md for taskboard entries."
   exit 1
 fi
 

@@ -85,7 +85,7 @@ export interface WsSyncMessage extends WsMessage {
 
 export interface SyncPayload {
 	schedule: ScheduleEntry[];
-	taskboard: string; // raw markdown from ~/.edith/taskboard.md
+	taskboard: string; // raw markdown from .state/taskboard.md
 	contacts: ContactEntry[]; // first 50 by recency
 	settings: Partial<AppSettings>;
 	syncedAt: number; // unix ms

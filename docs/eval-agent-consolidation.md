@@ -80,7 +80,7 @@ Skills live at `.claude/skills/<name>/SKILL.md` and are injected as a workflow o
 
 ### 3. Cost Per Dispatch
 
-Observed patterns (from `~/.edith/events.jsonl` log structure, costs tracked per label):
+Observed patterns (from `packages/agent/.state/events.jsonl` log structure, costs tracked per label):
 
 - `reminder-checker` uses haiku: lowest cost by far, ~$0.0001-0.0003 per run.
 - Daily briefs (morning/midday/evening) are the largest cost driver — they use sonnet and do web search, email, calendar, and doc creation.

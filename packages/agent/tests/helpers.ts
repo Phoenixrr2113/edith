@@ -3,7 +3,7 @@
  *
  * Usage: call `setupTestDir()` in beforeAll, `cleanupTestDir()` in afterAll.
  * This creates a temp dir and patches the config module so all state files
- * point to the temp dir instead of ~/.edith/.
+ * point to the temp dir instead of .state/.
  */
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

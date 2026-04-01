@@ -46,13 +46,13 @@ What Edith can access, how far back, and what's missing.
 - **Can do:** Create Google Docs with content, set folder location
 - **Returns:** `{ docId, docUrl }`
 
-### Events Log (`~/.edith/events.jsonl`)
+### Events Log (`packages/agent/.state/events.jsonl`)
 - **Content:** Every dispatch, cost, error, schedule fire, location update — timestamped JSONL
 - **Can do:** Cost analysis by label, error rate tracking, dispatch count, reliability metrics
 - **How far back:** Since Edith started (March 28, 2026). Grows daily.
 - **Useful for reviews:** Monthly cost breakdown, task frequency, error trends
 
-### Taskboard (`~/.edith/taskboard.md`)
+### Taskboard (`packages/agent/.state/taskboard.md`)
 - **Content:** Timestamped entries from every agent run — findings, actions taken, open loops
 - **Rotated:** Every 24 hours (old entries pruned)
 - **Useful for reviews:** Acts as the daily diary. Each morning/midday/evening brief writes what it found and did. Reviews should read the taskboard for the period.
@@ -67,7 +67,7 @@ What Edith can access, how far back, and what's missing.
 - **Not directly queryable** — Edith sends messages but can't search her own sent history
 - **Workaround:** Taskboard entries and events log capture what was sent
 
-### Location (`~/.edith/locations.json`, `~/.claude/location-latest.json`)
+### Location (`packages/agent/.state/locations.json`, `~/.claude/location-latest.json`)
 - **Can do:** Current GPS coordinates, saved locations (home, school, Diana's work), geofence triggers
 - **Useful for reviews:** Could track "days at home vs out" if location events are logged
 

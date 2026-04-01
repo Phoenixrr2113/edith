@@ -12,10 +12,10 @@ Edith has a custom dashboard at `http://localhost:3456` (`dashboard.ts` + `dashb
 
 **What it does:**
 - **Service health** — live status dots for edith, n8n, cognee, screenpipe
-- **Event stats** — today's dispatch count, error rate, avg latency, cost (from `~/.edith/events.jsonl`)
-- **Live log stream** — SSE tail of `~/.edith/edith.log`
+- **Event stats** — today's dispatch count, error rate, avg latency, cost (from `packages/agent/.state/events.jsonl`)
+- **Live log stream** — SSE tail of `packages/agent/.state/edith.log`
 - **Schedule viewer** — shows `schedule.json` and last-fire state
-- **Taskboard** — renders `~/.edith/taskboard.md`
+- **Taskboard** — renders `packages/agent/.state/taskboard.md`
 - **Transcript viewer** — browse + read session transcripts
 - **Task triggers** — fire any scheduled task on demand
 - **Message bar** — send messages directly to Edith

@@ -153,7 +153,7 @@ interface WsSyncMessage extends WsMessage {
 
 interface SyncPayload {
   schedule: ScheduleEntry[];
-  taskboard: string;           // raw markdown from ~/.edith/taskboard.md
+  taskboard: string;           // raw markdown from packages/agent/.state/taskboard.md
   contacts: ContactEntry[];    // first 50 by recency
   settings: Partial<AppSettings>;
   syncedAt: number;            // unix ms

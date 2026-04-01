@@ -5,7 +5,7 @@
  */
 
 import { getActivityFile, readActivity } from "../activity";
-import { CHAT_ID, TASKBOARD_FILE } from "../config";
+import { CHAT_ID, TASKBOARD_ARCHIVE_DIR, TASKBOARD_FILE } from "../config";
 import { getRecentTaskboardEntries, readTaskboard } from "../taskboard";
 import { gatherScreenContext } from "./proactive";
 
@@ -136,7 +136,7 @@ export async function buildWeeklyReviewBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the weekly-review skill. Gather data: read taskboard archive at ~/.edith/taskboard-archive/, use get_activity with days=7, search Cognee for this week's decisions and people.`,
+		`\nRun the weekly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/, use get_activity with days=7, search Cognee for this week's decisions and people.`,
 		`Look back at this week: what shipped, key meetings, family time with Phoenix/Diana, health signals, patterns.`,
 		`Look ahead at next week: calendar (manage_calendar action=get, hoursAhead=168, includeAllDay=true), deadlines, meeting prep needed.`,
 		`Create a Google Doc (manage_docs) titled "Week of [DATE] — Weekly Review" with full review.`,
@@ -158,8 +158,8 @@ export async function buildMonthlyReviewBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the monthly-review skill. Gather data: read taskboard archive at ~/.edith/taskboard-archive/YYYY-MM.md for this month, use get_activity with days=30, search Cognee for this month's decisions and patterns.`,
-		`Pull cost data from ~/.edith/events.jsonl — sum Edith costs by label for the month.`,
+		`\nRun the monthly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/YYYY-MM.md for this month, use get_activity with days=30, search Cognee for this month's decisions and patterns.`,
+		`Pull cost data from BetterStack logs or query edith.db — sum Edith costs by label for the month.`,
 		`Look at the life scorecard: Work, Family (Phoenix, Diana+Phoenix), Health/Fitness, Finances, Learning, Fun, Mental Health. Use ⬆️➡️⬇️ trend arrows.`,
 		`Create a Google Doc (manage_docs) titled "Monthly Review — [MONTH YEAR]" with full review.`,
 		`Send Randy a Telegram summary (scorecard on one line, win, gap, month focus, Phoenix note + Doc link). Chat ID: ${CHAT_ID}.`,

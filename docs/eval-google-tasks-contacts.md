@@ -11,7 +11,7 @@
 ### Task/Reminder Management
 Edith has a native reminder system (`mcp/tools/location.ts`) with:
 - `save_reminder` — time-based (`fireAt`) or location-based reminders
-- `list_reminders` / `mark_reminder_fired` — stored in `~/.edith/reminders.json`
+- `list_reminders` / `mark_reminder_fired` — stored in `packages/agent/.state/reminders.json`
 - `add_scheduled_task` / `remove_scheduled_task` — recurring agent tasks
 
 Edith does NOT currently read or write Google Tasks. There is no `lib/gtasks.ts` or equivalent.
@@ -43,7 +43,7 @@ Google Tasks adds value only if:
 1. Randy actively maintains tasks in Google Tasks, OR
 2. Edith needs to create tasks that sync to Randy's phone outside of Edith
 
-The current architecture stores reminders locally in `~/.edith/reminders.json`. These don't sync to Google Tasks or any mobile app. If Randy checks Google Tasks on his phone, Edith-created reminders are invisible there.
+The current architecture stores reminders locally in `packages/agent/.state/reminders.json`. These don't sync to Google Tasks or any mobile app. If Randy checks Google Tasks on his phone, Edith-created reminders are invisible there.
 
 ### Verdict: DEFER
 

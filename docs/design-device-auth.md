@@ -56,7 +56,7 @@ interface DeviceRegistration {
 }
 ```
 
-In v1, device registration is implicit — any device with a valid token (signed with `DEVICE_SECRET`) is authorized. A future `~/.edith/devices.json` registry can be added if per-device revocation is needed.
+In v1, device registration is implicit — any device with a valid token (signed with `DEVICE_SECRET`) is authorized. A future `packages/agent/.state/devices.json` registry can be added if per-device revocation is needed.
 
 ---
 

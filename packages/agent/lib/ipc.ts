@@ -2,8 +2,8 @@
  * IPC mechanisms — signal files and trigger files.
  *
  * Edith uses two file-based IPC channels:
- *   1. Signal files  (~/.edith/.signal-*)  — presence triggers a lifecycle action
- *   2. Trigger files (~/.edith/triggers/)  — presence fires a named scheduled task
+ *   1. Signal files  (.state/.signal-*)  — presence triggers a lifecycle action
+ *   2. Trigger files (.state/triggers/)  — presence fires a named scheduled task
  *
  * A third IPC channel (in-process streamInput injection) lives in lib/session.ts
  * as it is tightly coupled to the Agent SDK query handle.

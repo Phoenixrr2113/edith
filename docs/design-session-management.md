@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 Access pattern: single row with `key = 'session_id'`.
 
-`saveSession()`, `clearSession()`, and the startup load in `state.ts` all use this table. File fallback (`~/.edith/session-id`) is kept for backward compatibility.
+`saveSession()`, `clearSession()`, and the startup load in `state.ts` all use this table. File fallback (`packages/agent/.state/session-id`) is kept for backward compatibility.
 
 ---
 

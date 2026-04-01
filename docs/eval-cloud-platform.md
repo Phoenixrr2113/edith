@@ -10,7 +10,7 @@
 
 Edith's cloud deployment needs:
 - Bun daemon (`edith.ts`) — long-running, always-on, Telegram polling
-- SQLite at `~/.edith/edith.db` — persistent across deploys
+- SQLite at `packages/agent/.state/edith.db` — persistent across deploys
 - WebSocket server — Tauri desktop app ↔ cloud bidirectional comms
 - Cognee (Docker: LanceDB + Kuzu graph DB + ML embedding model)
 - Langfuse (Docker: Postgres + Next.js)
