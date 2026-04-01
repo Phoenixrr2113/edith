@@ -39,5 +39,9 @@ docs/
 packages/agent/dashboard.html
 architecture.html
 
+# Claude Code local files (not needed in cloud)
+.claude/plans/
+.claude/settings.local.json
+
 # Bun cache
 .bun/

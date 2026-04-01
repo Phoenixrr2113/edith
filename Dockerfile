@@ -25,6 +25,16 @@ RUN bun install --ignore-scripts
 # Copy agent source (desktop excluded via .dockerignore)
 COPY packages/agent/ ./packages/agent/
 
+# Copy root-level config files needed by Claude Code / Agent SDK
+# These live at repo root but Claude Code cwd is /app/packages/agent.
+# Claude Code walks up the directory tree, so placing at /app/ works.
+COPY .mcp.json ./
+COPY CLAUDE.md ./
+COPY .claude/ ./.claude/
+
+# Also copy into packages/agent/ for direct cwd access (MCP config, etc.)
+COPY .mcp.json ./packages/agent/
+
 # Persistent state directory
 RUN mkdir -p /data/.state
 ENV EDITH_STATE_DIR=/data/.state
