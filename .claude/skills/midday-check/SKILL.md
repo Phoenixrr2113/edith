@@ -58,22 +58,29 @@ Do NOT message "nothing to report" or "just checking in."
 
 ## Step 4: Telegram message (only if messaging)
 
-**Format — drop any section with nothing:**
+**Format — drop any section with nothing to report:**
 ```
-📬 Midday
+📬 Midday · [temp]°F [conditions]
 
-• **[Actionable item]** — what you did or need from Randy
-• **[Meeting in Xh]** — prepped [link]
-• DECIDE: **[decision needed]**
-• 👨‍👦 Tonight: [activity idea if open evening]
+🔥 DO THIS
+• **[deadline/decision]** — what you prepped
+• REPLY: **[person]** re: [topic]
+• DECIDE: **[one-line decision needed]**
 
-[Google Doc link if created]
+📅 COMING UP
+• [time] — [meeting in Xh] — prepped [link]
+
+👨‍👦 TONIGHT
+• [activity idea if open evening]
+
+Full brief → [Google Doc link if created]
 ```
 
 **Rules:**
-- Max 3-4 bullets. Under 100 words.
-- Bold one anchor word per line
-- Clear call-to-action: what does Randy need to do?
+- Same section markers as morning brief (📅 🔥 👨‍👦) for consistency
+- Max 3-4 bullets per section. Under 100 words total.
+- Max 10-12 words per bullet. Bold one anchor word per line.
+- Drop entire sections with nothing — never show empty sections
 - Family suggestion only if evening is open and you found something good
 
 ## Step 5: Taskboard + Cognee

@@ -59,7 +59,7 @@ if [ -n "$MISSING" ]; then
 fi
 # Optional tools — warn but continue
 command -v terminal-notifier >/dev/null 2>&1 || echo "[launch] NOTE: terminal-notifier not installed — desktop notifications disabled"
-command -v fswatch >/dev/null 2>&1 || echo "[launch] NOTE: fswatch not installed — auto-restart on file changes disabled"
+# fswatch no longer needed — bun --watch handles auto-restart
 
 # --- Start Docker services (Cognee) ---
 if command -v docker >/dev/null 2>&1; then
@@ -136,74 +136,21 @@ cleanup() {
     rm -f "$STATE_DIR/edith-launch.pid"
   fi
   kill $DASHBOARD_PID 2>/dev/null
-  [ -n "$WATCHER_PID" ] && kill $WATCHER_PID 2>/dev/null
   rm -f "$PID_FILE"
   exit 0
 }
 trap 'cleanup; release_lock' SIGINT SIGTERM
 
-# --- Start Edith (foreground-style with fswatch support) ---
-echo "[launch] Starting Edith..."
+# --- Start Edith with bun --watch (auto-restarts on imported file changes) ---
+echo "[launch] Starting Edith with --watch..."
 LOG_FILE="$STATE_DIR/edith.log"
 EDITH_PIDFILE="$STATE_DIR/edith-launch.pid"
 
-start_edith() {
-  EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
-  EDITH_PID=$!
-  echo "$EDITH_PID" > "$EDITH_PIDFILE"
-  echo "[launch] Edith started (PID $EDITH_PID)"
-  echo "[launch] Logs: tail -f $LOG_FILE"
-}
-
-start_edith
-
-# --- File watcher: restart Edith on .ts/md changes ---
-if command -v fswatch >/dev/null 2>&1; then
-  RESTART_LOCK="$STATE_DIR/restart.lock"
-  (
-    fswatch -o -l 5 -e "node_modules" -e ".git" -e "logs" -e ".env" -e "tests" -i "\\.ts$" -i "\\.md$" \
-      "$DIR/edith.ts" "$DIR/lib/" "$DIR/mcp/" "$DIR/prompts/" | while read -r _count; do
-      # Debounce: use mkdir as atomic lock to prevent concurrent restarts
-      DEBOUNCE_DIR="$STATE_DIR/restart-debounce.lock"
-      if ! mkdir "$DEBOUNCE_DIR" 2>/dev/null; then
-        continue  # Another restart is already in progress
-      fi
-
-      # Also check time-based debounce (in case lock was stale)
-      if [ -f "$RESTART_LOCK" ]; then
-        LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$RESTART_LOCK" 2>/dev/null || echo 0) ))
-        if [ "$LOCK_AGE" -lt 5 ]; then
-          rm -rf "$DEBOUNCE_DIR"
-          continue
-        fi
-      fi
-      touch "$RESTART_LOCK"
-
-      echo "[launch] File change detected, restarting Edith..."
-
-      # Kill old process and WAIT for it to fully exit
-      if [ -f "$EDITH_PIDFILE" ]; then
-        OLD_PID=$(cat "$EDITH_PIDFILE")
-        kill "$OLD_PID" 2>/dev/null
-        for i in $(seq 1 20); do
-          kill -0 "$OLD_PID" 2>/dev/null || break
-          sleep 0.5
-        done
-        kill -9 "$OLD_PID" 2>/dev/null
-      fi
-
-      sleep 2
-      EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
-      echo "$!" > "$EDITH_PIDFILE"
-      echo "[launch] Edith restarted (PID $!)"
-
-      # Release debounce lock after a delay so rapid changes are coalesced
-      (sleep 5 && rm -rf "$DEBOUNCE_DIR") &
-    done
-  ) &
-  WATCHER_PID=$!
-  echo "[launch] File watcher active (fswatch PID $WATCHER_PID)"
-fi
+EDITH_LOG_FILE="$LOG_FILE" bun --watch --no-clear-screen "$DIR/edith.ts" &
+EDITH_PID=$!
+echo "$EDITH_PID" > "$EDITH_PIDFILE"
+echo "[launch] Edith started (PID $EDITH_PID) — bun --watch handles restarts"
+echo "[launch] Logs: tail -f $LOG_FILE"
 
 # Wait for the main Edith process. If it exits cleanly (0), we exit cleanly too
 # (launchd won't restart on exit 0). If it crashes, we exit non-zero (launchd restarts).

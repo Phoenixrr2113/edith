@@ -76,35 +76,78 @@ mock.module("../lib/telegram", () => ({
 	},
 }));
 
-mock.module("../lib/dispatch", () => ({
-	dispatchToClaude: async (prompt: string, opts: object) => {
-		calls.dispatchToClaude.push([prompt, opts]);
-	},
-	dispatchToConversation: async (chatId: number, messageId: number, content: string) => {
-		calls.dispatchToConversation.push([chatId, messageId, content]);
-	},
-	Priority: { P0_CRITICAL: 0, P1_USER: 1, P2_INTERACTIVE: 2, P3_BACKGROUND: 3 },
+mock.module("../lib/dispatch", () => {
+	const { DispatchQueue, Priority } = require("../lib/queue");
+	return {
+		dispatchToClaude: async (prompt: string, opts: object) => {
+			calls.dispatchToClaude.push([prompt, opts]);
+		},
+		dispatchToConversation: async (chatId: number, messageId: number, content: string) => {
+			calls.dispatchToConversation.push([chatId, messageId, content]);
+		},
+		processMessageStream: async () => ({
+			lastResult: "",
+			totalCost: 0,
+			turns: 0,
+			needsRetry: false,
+			newSessionId: "",
+		}),
+		dispatchQueue: new DispatchQueue(),
+		Priority,
+	};
+});
+
+mock.module("../lib/sms", () => ({
+	processSmsRelay: (raw: string) => raw, // Pass through for tests — sms.ts has its own tests
 }));
 
-mock.module("../lib/geo", () => ({
-	checkLocationReminders: (_lat: number, _lon: number) => {
-		return checkLocationRemindersResult;
-	},
-	checkTimeReminders: () => {
-		return checkTimeRemindersResult;
-	},
-	checkLocationTransitions: (_lat: number, _lon: number) => {
-		return checkLocationTransitionsResult;
-	},
-	markFired: (ids: string[]) => {
-		calls.markFired.push(ids);
-	},
-}));
+mock.module("../lib/geo", () => {
+	// Include real haversineMeters implementation so geo.test.ts isn't broken
+	// by this mock leaking (Bun shares mock.module across test files).
+	const R = 6_371_000;
+	function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+		const toRad = (d: number) => (d * Math.PI) / 180;
+		const dLat = toRad(lat2 - lat1);
+		const dLon = toRad(lon2 - lon1);
+		const a =
+			Math.sin(dLat / 2) ** 2 +
+			Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+		return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	}
+
+	return {
+		checkLocationReminders: (_lat: number, _lon: number) => {
+			return checkLocationRemindersResult;
+		},
+		checkTimeReminders: () => {
+			return checkTimeRemindersResult;
+		},
+		checkLocationTransitions: (_lat: number, _lon: number) => {
+			return checkLocationTransitionsResult;
+		},
+		markFired: (ids: string[]) => {
+			calls.markFired.push(ids);
+		},
+		haversineMeters,
+	};
+});
 
 mock.module("../lib/briefs", () => ({
 	buildBrief: async (type: string, context: object) => {
 		calls.buildBrief.push([type, context]);
 		return buildBriefResult;
+	},
+	BRIEF_TYPE_MAP: {
+		"morning-brief": "morning",
+		"midday-check": "midday",
+		"evening-wrap": "evening",
+		"weekend-brief": "weekend",
+		"weekly-review": "weekly",
+		"monthly-review": "monthly",
+		"quarterly-review": "quarterly",
+		"email-triage": "email",
+		"check-reminders": "scheduled",
+		"proactive-check": "proactive",
 	},
 }));
 
@@ -114,11 +157,33 @@ mock.module("../lib/proactive", () => ({
 	},
 }));
 
-mock.module("../lib/state", () => ({
-	logEvent: (type: string, data: object) => {
-		calls.logEvent.push([type, data]);
-	},
-}));
+mock.module("../lib/state", () => {
+	const { join } = require("node:path");
+	const STATE_DIR = "/tmp/test-state";
+	return {
+		logEvent: (type: string, data: object) => {
+			calls.logEvent.push([type, data]);
+		},
+		ALLOWED_CHATS: new Set([12345]),
+		OFFSET_FILE: join(STATE_DIR, "tg-offset"),
+		SCHEDULE_STATE_FILE: join(STATE_DIR, "schedule-state.json"),
+		PROJECT_ROOT: join(__dirname, ".."),
+		PROMPTS_DIR: join(__dirname, "..", "prompts"),
+		SYSTEM_PROMPT_FILE: join(__dirname, "..", "prompts", "system.md"),
+		MCP_CONFIG: join(__dirname, "..", ".mcp.json"),
+		offset: 0,
+		sessionId: "",
+		saveOffset: () => {},
+		saveSession: () => {},
+		clearSession: () => {},
+		rotateEvents: () => {},
+		activeProcesses: new Map(),
+		writeActiveProcesses: () => {},
+		saveDeadLetter: () => {},
+		loadDeadLetters: () => [],
+		clearDeadLetters: () => {},
+	};
+});
 
 // edith-logger — used directly by handlers.ts; capture calls for assertions
 mock.module("../lib/edith-logger", () => ({
@@ -137,13 +202,61 @@ mock.module("../lib/edith-logger", () => ({
 	},
 }));
 
-// Config — provide a stable CHAT_ID for the SMS handler
-mock.module("../lib/config", () => ({
-	CHAT_ID: 12345,
-	EVENTS_FILE: "/tmp/test-events.jsonl",
-	EVENTS_MAX_AGE_MS: 48 * 60 * 60 * 1000,
-	STATE_DIR: "/tmp/test-state",
-}));
+// Config — provide a stable CHAT_ID and ALL exports other modules may need.
+// mock.module leaks across test files in Bun, so we must export everything.
+mock.module("../lib/config", () => {
+	const { join } = require("node:path");
+	const STATE_DIR = "/tmp/test-state";
+	return {
+		STATE_DIR,
+		DB_FILE: join(STATE_DIR, "edith.db"),
+		SCHEDULE_FILE: join(STATE_DIR, "schedule.json"),
+		LOCATIONS_FILE: join(STATE_DIR, "locations.json"),
+		REMINDERS_FILE: join(STATE_DIR, "reminders.json"),
+		EVENTS_FILE: join(STATE_DIR, "events.jsonl"),
+		TASKBOARD_FILE: join(STATE_DIR, "taskboard.md"),
+		TASKBOARD_ARCHIVE_DIR: join(STATE_DIR, "taskboard-archive"),
+		SESSION_FILE: join(STATE_DIR, "session-id"),
+		PID_FILE: join(STATE_DIR, "edith.pid"),
+		DEAD_LETTER_FILE: join(STATE_DIR, "dead-letters.json"),
+		INBOX_DIR: join(STATE_DIR, "inbox"),
+		CHAT_ID: 12345,
+		TELEGRAM_BOT_TOKEN: "",
+		TELEGRAM_USER_ID: "",
+		SMS_BOT_ID: "",
+		TWILIO_SID: "",
+		TWILIO_TOKEN: "",
+		TWILIO_WA_FROM: "",
+		TWILIO_SMS_FROM: "",
+		GOOGLE_API_KEY: "",
+		GOOGLE_CLIENT_ID: "",
+		GOOGLE_CLIENT_SECRET: "",
+		GOOGLE_REFRESH_TOKEN: "",
+		GOOGLE_REFRESH_TOKEN_2: "",
+		GOOGLE_ACCOUNTS: [],
+		GOOGLE_ACCESS_TOKEN: "",
+		OPENROUTER_API_KEY: "",
+		GROQ_API_KEY: "",
+		INBOX_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000,
+		BACKOFF_SCHEDULE: [5_000, 15_000, 30_000, 60_000, 120_000, 300_000],
+		REFLECTOR_ENABLED: false,
+		REFLECTOR_TOOL_CALL_FREQUENCY: 4,
+		REFLECTOR_EVAL_ONLY_RATIO: 0.3,
+		MAX_CONSECUTIVE_FAILURES: 5,
+		CIRCUIT_BREAKER_COOLDOWN_MS: 10 * 60 * 1000,
+		QUERY_TIMEOUT_MS: 5 * 60 * 1000,
+		LIGHTWEIGHT_TIMEOUT_MS: 90 * 1000,
+		INTER_DISPATCH_DELAY_MS: 3_000,
+		PROACTIVE_MAX_PER_HOUR: 2,
+		PROACTIVE_COOLDOWN_MINUTES: 60,
+		PROACTIVE_QUIET_START: 22,
+		PROACTIVE_QUIET_END: 8,
+		DEVICE_SECRET: "",
+		POLL_INTERVAL_MS: 3_000,
+		SCHEDULE_CHECK_MS: 60_000,
+		EVENTS_MAX_AGE_MS: 48 * 60 * 60 * 1000,
+	};
+});
 
 mock.module("../lib/util", () => ({
 	fmtErr: (err: unknown) => (err instanceof Error ? err.message : String(err)),
@@ -448,9 +561,9 @@ describe("handleText", () => {
 
 		expect(calls.dispatchToConversation).toHaveLength(1);
 		const content = calls.dispatchToConversation[0][2];
-		expect(content).toContain("[Incoming SMS forwarded by relay bot]");
+		expect(content).toContain("[Incoming SMS]");
 		expect(content).toContain("Your verification code is 123456");
-		expect(content).toContain("[Triage this:");
+		expect(content).toContain("[Triage:");
 	});
 
 	test("SMS triage includes store/ignore/forward instructions", async () => {
@@ -459,7 +572,7 @@ describe("handleText", () => {
 		const content = calls.dispatchToConversation[0][2];
 		expect(content).toContain("Cognee");
 		expect(content).toContain("send_message");
-		expect(content).toContain("spam");
+		expect(content).toContain("ignore silently");
 	});
 
 	test("SMS triage includes Chat ID in instructions", async () => {

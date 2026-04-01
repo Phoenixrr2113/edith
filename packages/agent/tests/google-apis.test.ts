@@ -13,10 +13,31 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 const FAKE_TOKEN = "fake-access-token-xyz";
 
-// ── Mock lib/google-auth before importing the libs ────────────────────────────
+// ── Mock lib/db so getAccessToken works without real SQLite ──────────────────
+//
+// Previous approach mocked ../lib/google-auth entirely, which poisoned the
+// module cache for google-auth.test.ts and gmail.test.ts running in the same
+// Bun worker.  Now we mock the DB layer and seed a fresh token instead.
 
-mock.module("../lib/google-auth", () => ({
-	getAccessToken: async () => FAKE_TOKEN,
+const _tokenStore = new Map<
+	string,
+	{ provider: string; access_token: string; refresh_token: string; expires_at: string }
+>();
+
+mock.module("../lib/db", () => ({
+	openDatabase: () => ({
+		exec: () => {},
+		query: (_sql: string) => ({
+			get: (provider: string) => _tokenStore.get(provider) ?? null,
+		}),
+		run: (
+			_sql: string,
+			[provider, access_token, refresh_token, expires_at]: [string, string, string, string]
+		) => {
+			_tokenStore.set(provider, { provider, access_token, refresh_token, expires_at });
+		},
+	}),
+	closeDb: () => {},
 }));
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
@@ -24,6 +45,7 @@ mock.module("../lib/google-auth", () => ({
 import { createEvent, deleteEvent, getEvents, updateEvent } from "../lib/gcal";
 import { createDoc, getDoc } from "../lib/gdocs";
 import { downloadFile, getFile, searchFiles, uploadFile } from "../lib/gdrive";
+import { clearTokenCache } from "../lib/google-auth";
 
 // ── fetch mock helpers ────────────────────────────────────────────────────────
 
@@ -54,6 +76,16 @@ function noContent(): Response {
 
 beforeEach(() => {
 	fetchCalls.length = 0;
+	_tokenStore.clear();
+	clearTokenCache();
+	// Seed a fresh, non-expired token so getAccessToken returns FAKE_TOKEN
+	const futureExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+	_tokenStore.set("google", {
+		provider: "google",
+		access_token: FAKE_TOKEN,
+		refresh_token: "rt-test",
+		expires_at: futureExpiry,
+	});
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

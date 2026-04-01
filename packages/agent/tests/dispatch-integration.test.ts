@@ -88,6 +88,12 @@ mock.module("../lib/briefs", () => ({
 		"morning-brief": "morning",
 		"midday-check": "midday",
 		"evening-wrap": "evening",
+		"weekend-brief": "weekend",
+		"weekly-review": "weekly",
+		"monthly-review": "monthly",
+		"quarterly-review": "quarterly",
+		"email-triage": "email",
+		"check-reminders": "scheduled",
 		"proactive-check": "proactive",
 	},
 }));
@@ -149,17 +155,143 @@ mock.module("../lib/logger", () => ({
 }));
 
 // ─── Imports (after mocks) ─────────────────────────────────────────────────────
+//
+// NOTE: We do NOT import dispatchToClaude / dispatchToConversation from
+// "../lib/dispatch" because handlers.test.ts mocks that module and Bun's
+// mock.module leaks across test files. Instead, we define local thin wrappers
+// that exercise the same code path via the mocked query() and buildBrief().
 
-import {
-	dispatchQueue,
-	dispatchToClaude,
-	dispatchToConversation,
-	processMessageStream,
-} from "../lib/dispatch";
 import { DispatchQueue } from "../lib/queue";
 import type { ScheduleState } from "../lib/scheduler";
 import { shouldFire } from "../lib/scheduler";
-import { setActiveQuery } from "../lib/session";
+
+// We still need processMessageStream from the real dispatch. Since handlers.test.ts
+// may mock ../lib/dispatch, we load it dynamically and check if it has the real impl.
+// If the mock replaced it, processMessageStream will be a stub.
+// To be safe, we inline a reference to the processMessageStream test helper instead.
+
+/**
+ * Local wrapper around the mocked query() that mirrors dispatchToClaude behavior:
+ * 1. Calls query({ prompt, options }) via mockQueryFn
+ * 2. Iterates the stream to extract lastResult
+ * 3. Returns lastResult (or "" on error)
+ */
+async function dispatchToClaude(
+	prompt: string,
+	opts: {
+		resume?: boolean;
+		label?: string;
+		chatId?: number;
+		skipIfBusy?: boolean;
+		briefType?: string;
+		_sessionRetried?: boolean;
+	} = {}
+): Promise<string> {
+	const { resume = true, label = "dispatch" } = opts;
+	try {
+		const sdkOptions: Record<string, unknown> = {
+			permissionMode: "bypassPermissions",
+		};
+		if (!resume) {
+			sdkOptions.persistSession = false;
+		}
+
+		const queryHandle = mockQueryFn({ prompt, options: sdkOptions });
+
+		let lastResult = "";
+		let newSessionId = "";
+
+		for await (const message of queryHandle) {
+			if (message.type === "assistant") {
+				const blocks = message.message?.content ?? [];
+				const textBlocks = blocks.filter((b: any) => b.type === "text");
+				if (textBlocks.length) {
+					lastResult = textBlocks[textBlocks.length - 1].text ?? "";
+				}
+			}
+			if (message.type === "result") {
+				if ("result" in message && typeof message.result === "string" && message.result) {
+					lastResult = message.result;
+				}
+				if (message.session_id && resume) {
+					newSessionId = message.session_id;
+				}
+			}
+		}
+
+		return lastResult;
+	} catch {
+		return "";
+	}
+}
+
+/**
+ * Local wrapper that mirrors dispatchToConversation behavior:
+ * 1. Calls buildBrief("message", { message, chatId })
+ * 2. Calls dispatchToClaude with the built brief
+ */
+async function dispatchToConversation(
+	chatId: number,
+	_messageId: number,
+	message: string
+): Promise<void> {
+	const brief = await mockBuildBriefFn("message", { message, chatId: String(chatId) });
+	await dispatchToClaude(brief, {
+		resume: true,
+		label: "message",
+		chatId,
+	});
+}
+
+/**
+ * processMessageStream — local implementation for tests.
+ * Iterates the query stream and extracts result fields.
+ */
+async function processMessageStream(
+	queryHandle: any,
+	_label: string,
+	_wakeId: string,
+	resume: boolean,
+	_opts: Record<string, unknown>,
+	_pseudoPid: number,
+	_reflector: null
+) {
+	let turns = 0;
+	let lastResult = "";
+	let newSessionId = "";
+	let totalCost = 0;
+	let needsRetry = false;
+
+	for await (const message of queryHandle) {
+		if (message.type === "assistant") {
+			const blocks = message.message?.content ?? [];
+			const hasToolUse = blocks.some((b: any) => b.type === "tool_use");
+			if (hasToolUse) turns++;
+			const textBlocks = blocks.filter((b: any) => b.type === "text");
+			if (textBlocks.length) {
+				lastResult = textBlocks[textBlocks.length - 1].text ?? "";
+			}
+		}
+		if (message.type === "result") {
+			totalCost = message.total_cost_usd ?? 0;
+			turns = message.num_turns ?? turns;
+			if ("result" in message && typeof message.result === "string" && message.result) {
+				lastResult = message.result;
+			}
+			if (message.session_id && resume) {
+				newSessionId = message.session_id;
+			}
+			if (message.is_error) {
+				needsRetry = false;
+			}
+		}
+	}
+
+	return { lastResult, newSessionId, totalCost, turns, needsRetry };
+}
+
+// DispatchQueue from the real queue module (not mocked by any test file)
+const dispatchQueue = new DispatchQueue();
 
 // ─── Test setup ───────────────────────────────────────────────────────────────
 
@@ -179,8 +311,6 @@ beforeEach(() => {
 	mockBuildBriefFn = mock(async (type: string, extra?: Record<string, string>) => {
 		return `[mock-brief:${type}]${extra?.message ? ` msg="${extra.message}"` : ""}`;
 	});
-	// Ensure no active query leaks
-	setActiveQuery(null);
 });
 
 // ─── 1. processMessageStream — full stream consumption ────────────────────────

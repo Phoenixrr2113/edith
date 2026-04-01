@@ -58,21 +58,29 @@ This is family time (4-8pm). Keep it tight. Only message if tomorrow needs atten
 
 Only message if tomorrow needs attention tonight. If nothing urgent → write taskboard, stay silent.
 
-**Format — drop any section with nothing:**
+**Format — drop any section with nothing to report:**
 ```
-🌙 Evening wrap
+🌙 Evening · [temp]°F tomorrow
 
-• **[What got done today]** — one line summary
-• **[Tomorrow heads-up]** — prepped [link if created]
+✅ TODAY
+• **[What got done]** — one line summary
+• **[Key outcome]** — result
+
+🔥 TOMORROW
+• [time] — [meeting/deadline] — prepped [link]
 • DECIDE: **[anything needed tonight]**
-• 👨‍👦 Tomorrow: [family idea if weekend/open time]
+
+👨‍👦 TOMORROW
+• [family idea if weekend/open time]
 
 Full prep → [Google Doc link]
 ```
 
 **Rules:**
-- Max 4 bullets. Under 100 words.
-- Bold one anchor word per line
+- Same section markers pattern as morning/midday for consistency (✅ 🔥 👨‍👦)
+- Max 3-4 bullets per section. Under 100 words total.
+- Max 10-12 words per bullet. Bold one anchor word per line.
+- Drop entire sections with nothing — never show empty sections
 - Lead with accomplishments (what got done), then what's next
 - Family suggestion only if relevant (weekend coming, open evening tomorrow)
 - Do NOT message "wrapping up" or "have a good evening"

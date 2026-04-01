@@ -62,7 +62,7 @@ export function registerMessagingTools(server: McpServer): void {
 
 			// Text only
 			if (!text) return textResponse("Missing text, image, or emoji");
-			await sendMessage(chat_id, `🤖 *EDITH*\n\n${text}`);
+			await sendMessage(chat_id, text);
 			edithLog.info("message_sent", { chatId: chat_id, text: text.slice(0, 200) });
 			return textResponse("Sent");
 		}

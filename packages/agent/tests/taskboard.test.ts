@@ -256,7 +256,8 @@ describe("rotateTaskboard", () => {
 		expect(taskboardResult).toContain("Recent entry");
 
 		// Old entry written to archive
-		const archiveContent = getTaskboardArchive();
+		const oldMonth = old.slice(0, 7); // e.g. "2026-03"
+		const archiveContent = getTaskboardArchive(oldMonth);
 		expect(archiveContent).toContain("Old archived entry");
 	});
 
@@ -277,7 +278,8 @@ describe("rotateTaskboard", () => {
 
 		rotateTaskboard();
 
-		const archiveContent = getTaskboardArchive();
+		const oldMonth = old.slice(0, 7);
+		const archiveContent = getTaskboardArchive(oldMonth);
 		expect(archiveContent).toContain("Timestamped old entry");
 		expect(archiveContent).not.toContain("Header-only section stays");
 	});

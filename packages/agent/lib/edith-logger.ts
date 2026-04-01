@@ -47,29 +47,35 @@ const PROJECT_ROOT = new URL("../../", import.meta.url).pathname.replace(/\/$/, 
 
 /**
  * Parse the call stack to find the actual caller.
- * depth = number of internal frames to skip (getCaller + log method + edithLog wrapper).
+ * Walks up the stack past edith-logger internals to find the first external frame.
  */
-function getCaller(depth = 3): CallerInfo {
+function getCaller(_depth = 3): CallerInfo {
 	const stack = new Error().stack;
 	if (!stack) return { fn: "unknown", file: "unknown", line: 0 };
 
 	const lines = stack.split("\n");
-	// Skip "Error" line + `depth` internal frames
-	const targetLine = lines[1 + depth] ?? lines[lines.length - 1];
-	const match = FRAME_RE.exec(targetLine ?? "");
 
-	if (!match) return { fn: "unknown", file: "unknown", line: 0 };
+	// Walk past the "Error" line and any frames inside edith-logger.ts
+	for (let i = 1; i < lines.length; i++) {
+		const line = lines[i];
+		if (!line || line.includes("edith-logger")) continue;
 
-	const fn = match[1] ?? "<anonymous>";
-	const absPath = match[2] ?? "unknown";
-	const line = Number.parseInt(match[3] ?? "0", 10);
+		const match = FRAME_RE.exec(line);
+		if (!match) continue;
 
-	// Make path relative to project root for readability
-	const file = absPath.startsWith(PROJECT_ROOT)
-		? relative(PROJECT_ROOT, absPath)
-		: basename(absPath);
+		const fn = match[1] ?? "<anonymous>";
+		const absPath = match[2] ?? "unknown";
+		const lineNum = Number.parseInt(match[3] ?? "0", 10);
 
-	return { fn, file, line };
+		// Make path relative to project root for readability
+		const file = absPath.startsWith(PROJECT_ROOT)
+			? relative(PROJECT_ROOT, absPath)
+			: basename(absPath);
+
+		return { fn, file, line: lineNum };
+	}
+
+	return { fn: "unknown", file: "unknown", line: 0 };
 }
 
 // --- Core write ---
@@ -83,12 +89,24 @@ function writeEvent(entry: LogEntry): void {
 	if (logtail) {
 		try {
 			const { level } = entry;
+			// Add runtime context so BetterStack doesn't show "undefined"
+			const ctx = {
+				...entry,
+				context: {
+					runtime: {
+						type: "edith-agent",
+						file: entry.caller.file,
+						function: entry.caller.fn,
+						line: entry.caller.line,
+					},
+				},
+			} as Record<string, unknown>;
 			if (level === "error" || level === "fatal") {
-				logtail.error(entry.message ?? entry.type, entry as Record<string, unknown>);
+				logtail.error(entry.message ?? entry.type, ctx);
 			} else if (level === "warn") {
-				logtail.warn(entry.message ?? entry.type, entry as Record<string, unknown>);
+				logtail.warn(entry.message ?? entry.type, ctx);
 			} else {
-				logtail.info(entry.message ?? entry.type, entry as Record<string, unknown>);
+				logtail.info(entry.message ?? entry.type, ctx);
 			}
 		} catch {}
 	}
@@ -99,9 +117,9 @@ function log(
 	level: LogLevel,
 	type: string,
 	data: Record<string, unknown> = {},
-	callerDepth = 4
+	_callerDepth = 4 // Deprecated — getCaller now auto-walks past logger frames
 ): void {
-	const caller = getCaller(callerDepth);
+	const caller = getCaller();
 	const { message, stackTrace, ...rest } = data;
 
 	const entry: LogEntry = {

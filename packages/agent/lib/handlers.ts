@@ -13,6 +13,7 @@ import {
 	markFired,
 } from "./geo";
 import { canIntervene } from "./proactive";
+import { processSmsRelay } from "./sms";
 import { downloadFile, sendMessage, transcribeAudio } from "./telegram";
 import { fmtErr } from "./util";
 
@@ -120,10 +121,14 @@ export async function handleText(
 	isSmsBot: boolean
 ): Promise<void> {
 	if (isSmsBot) {
+		// Parse and filter SMS before dispatching to Claude
+		const cleanSms = processSmsRelay(text);
+		if (!cleanSms) return; // Spam filtered — silent drop, no Claude dispatch
+
 		await dispatchToConversation(
 			chatId,
 			messageId,
-			`[Incoming SMS forwarded by relay bot]\n${text}\n\n[Triage this: store any new contacts/context in Cognee. If it needs Randy's attention, summarize and forward via send_message. If it's spam/verification codes, ignore silently. Chat ID: ${CHAT_ID}]`
+			`[Incoming SMS]\n${cleanSms}\n\n[Triage: store new contacts/context in Cognee. If it needs Randy's attention, summarize and forward via send_message. If not actionable, ignore silently. Chat ID: ${CHAT_ID}]`
 		);
 	} else {
 		await dispatchToConversation(chatId, messageId, `[Message from Randy via Telegram] ${text}`);
