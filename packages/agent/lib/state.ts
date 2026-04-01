@@ -6,7 +6,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { CHAT_ID, STATE_DIR } from "./config";
-import { kvGet, kvSet, openDatabase } from "./db";
+import { kvGet, kvSet, openDatabase, upsertSql } from "./db";
 
 const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
 export const ALLOWED_CHATS = new Set([CHAT_ID, USER_ID].filter(Boolean));
@@ -29,9 +29,7 @@ export let offset = 0;
 export let sessionId = "";
 try {
 	const db = openDatabase();
-	const row = db
-		.query<{ value: string }, [string]>("SELECT value FROM sessions WHERE key = ?")
-		.get("session_id");
+	const row = db.get<{ value: string }>("SELECT value FROM sessions WHERE key = ?", ["session_id"]);
 	if (row) sessionId = row.value;
 } catch {}
 
@@ -43,7 +41,7 @@ export function saveOffset(newOffset: number): void {
 export function saveSession(id: string): void {
 	sessionId = id;
 	const db = openDatabase();
-	db.run("INSERT OR REPLACE INTO sessions (key, value) VALUES (?, ?)", ["session_id", id]);
+	db.run(upsertSql("sessions", "key", ["key", "value"]), ["session_id", id]);
 }
 
 export function clearSession(): void {
@@ -89,8 +87,7 @@ export function loadDeadLetters(): DeadLetter[] {
 	const db = openDatabase();
 	type DLRow = { ts: string; chat_id: number; message: string; error: string };
 	return db
-		.query<DLRow, []>("SELECT ts, chat_id, message, error FROM dead_letters ORDER BY id")
-		.all()
+		.all<DLRow>("SELECT ts, chat_id, message, error FROM dead_letters ORDER BY id")
 		.map((r) => ({ ts: r.ts, chatId: r.chat_id, message: r.message, error: r.error }));
 }
 

@@ -36,10 +36,9 @@ function loadInterventions(): Intervention[] {
 		type Row = { ts: string; category: string; message: string };
 		const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 		return db
-			.query<Row, [string]>(
-				"SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts"
-			)
-			.all(cutoff)
+			.all<Row>("SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts", [
+				cutoff,
+			])
 			.map((r) => ({ timestamp: r.ts, category: r.category, message: r.message }));
 	} catch {
 		return [];
@@ -132,10 +131,9 @@ export function getInterventionHistory(hours: number = 4): Intervention[] {
 		type Row = { ts: string; category: string; message: string };
 		const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 		return db
-			.query<Row, [string]>(
-				"SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts DESC"
-			)
-			.all(cutoff)
+			.all<Row>("SELECT ts, category, message FROM proactive_state WHERE ts > ? ORDER BY ts DESC", [
+				cutoff,
+			])
 			.map((r) => ({ timestamp: r.ts, category: r.category, message: r.message }));
 	} catch {
 		return [];

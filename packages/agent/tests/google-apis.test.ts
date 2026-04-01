@@ -26,17 +26,29 @@ const _tokenStore = new Map<
 
 mock.module("../lib/db", () => ({
 	openDatabase: () => ({
+		dialect: "sqlite",
 		exec: () => {},
-		query: (_sql: string) => ({
-			get: (provider: string) => _tokenStore.get(provider) ?? null,
-		}),
-		run: (
-			_sql: string,
-			[provider, access_token, refresh_token, expires_at]: [string, string, string, string]
-		) => {
-			_tokenStore.set(provider, { provider, access_token, refresh_token, expires_at });
+		get: (sql: string, params?: unknown[]) => {
+			const provider = params?.[0] as string;
+			return _tokenStore.get(provider) ?? null;
 		},
+		all: () => [],
+		run: (sql: string, params?: unknown[]) => {
+			if (params && params.length >= 4) {
+				const [provider, access_token, refresh_token, expires_at] = params as [
+					string,
+					string,
+					string,
+					string,
+				];
+				_tokenStore.set(provider, { provider, access_token, refresh_token, expires_at });
+			}
+		},
+		transaction: <T>(fn: () => T) => fn(),
+		close: () => {},
 	}),
+	upsertSql: () =>
+		"INSERT OR REPLACE INTO oauth_tokens (provider, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?)",
 	closeDb: () => {},
 }));
 

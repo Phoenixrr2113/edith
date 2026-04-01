@@ -3,7 +3,7 @@
  */
 
 import type { LocationEntry, Reminder } from "../mcp/types";
-import { openDatabase } from "./db";
+import { openDatabase, upsertSql } from "./db";
 import { loadLocations, loadReminders, saveReminders } from "./storage";
 
 export type { LocationEntry, Reminder };
@@ -70,9 +70,9 @@ export function markFired(ids: string[]): void {
 function _loadGeoState(): string | null {
 	try {
 		const db = openDatabase();
-		const row = db
-			.query<{ value: string | null }, [string]>("SELECT value FROM geo_state WHERE key = ?")
-			.get("current_location");
+		const row = db.get<{ value: string | null }>("SELECT value FROM geo_state WHERE key = ?", [
+			"current_location",
+		]);
 		return row?.value ?? null;
 	} catch {
 		return null;
@@ -82,10 +82,7 @@ function _loadGeoState(): string | null {
 function _saveGeoState(name: string | null): void {
 	try {
 		const db = openDatabase();
-		db.run("INSERT OR REPLACE INTO geo_state (key, value) VALUES (?, ?)", [
-			"current_location",
-			name,
-		]);
+		db.run(upsertSql("geo_state", "key", ["key", "value"]), ["current_location", name]);
 	} catch {}
 }
 

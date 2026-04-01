@@ -17,7 +17,7 @@
  *   GOOGLE_ACCESS_TOKEN (static token fallback, skips DB — useful in tests)
  */
 
-import { openDatabase } from "./db";
+import { openDatabase, upsertSql } from "./db";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -60,11 +60,10 @@ interface TokenRow {
 export function loadTokens(provider = PROVIDER): TokenRow | null {
 	ensureSchema();
 	const db = openDatabase();
-	const row = db
-		.query<TokenRow, [string]>(
-			"SELECT provider, access_token, refresh_token, expires_at FROM oauth_tokens WHERE provider = ?"
-		)
-		.get(provider);
+	const row = db.get<TokenRow>(
+		"SELECT provider, access_token, refresh_token, expires_at FROM oauth_tokens WHERE provider = ?",
+		[provider]
+	);
 	return row ?? null;
 }
 
@@ -76,8 +75,12 @@ export function storeTokens(
 	ensureSchema();
 	const db = openDatabase();
 	db.run(
-		`INSERT OR REPLACE INTO oauth_tokens (provider, access_token, refresh_token, expires_at)
-     VALUES (?, ?, ?, ?)`,
+		upsertSql("oauth_tokens", "provider", [
+			"provider",
+			"access_token",
+			"refresh_token",
+			"expires_at",
+		]),
 		[provider, tokens.access_token, tokens.refresh_token, tokens.expires_at]
 	);
 }
