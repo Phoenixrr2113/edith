@@ -5,6 +5,7 @@ import { edithLog } from "../../lib/edith-logger";
 import { sendEmail } from "../../lib/gmail";
 import { textResponse } from "../../lib/mcp-helpers";
 import { showDialog, showNotification } from "../../lib/notify";
+import { evaluateOutboundMessage } from "../../lib/sentinel";
 import { sendMessage, sendPhoto, tgCall } from "../../lib/telegram";
 import { sendTwilio } from "../../lib/twilio";
 import { fmtErr } from "../../lib/util";
@@ -64,6 +65,10 @@ export function registerMessagingTools(server: McpServer): void {
 			if (!text) return textResponse("Missing text, image, or emoji");
 			await sendMessage(chat_id, text);
 			edithLog.info("message_sent", { chatId: chat_id, text: text.slice(0, 200) });
+
+			// Sentinel: fire-and-forget quality evaluation
+			evaluateOutboundMessage(text, "message", { chatId: chat_id }).catch(() => {});
+
 			return textResponse("Sent");
 		}
 	);
