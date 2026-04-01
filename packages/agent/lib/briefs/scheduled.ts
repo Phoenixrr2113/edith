@@ -1,27 +1,22 @@
 /**
  * Scheduled brief builders — morning, midday, evening, and generic scheduled.
- * All depend on taskboard, prewake, screenpipe/gemini for context gathering.
+ * Context gathering (calendar, email) is handled by Claude via MCP tools
+ * as instructed by each skill's SKILL.md — no pre-fetching needed.
  */
 
 import { getActivityFile, readActivity } from "../activity";
 import { CHAT_ID, TASKBOARD_FILE } from "../config";
-import { gatherPrewakeContext } from "../prewake";
 import { getRecentTaskboardEntries, readTaskboard } from "../taskboard";
 import { gatherScreenContext } from "./proactive";
 
 export async function buildFullBrief(type: "boot" | "morning"): Promise<string> {
 	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 	const taskboard = readTaskboard();
-	const prewake = await gatherPrewakeContext();
 
 	const sections: string[] = [
 		`You are Edith. This is a ${type === "boot" ? "fresh startup" : "morning"} session.`,
 		`Current time: ${time}`,
 	];
-
-	if (prewake) {
-		sections.push(`\n## Pre-gathered Context\n${prewake}`);
-	}
 
 	if (taskboard.trim()) {
 		sections.push(`\n## Prior Taskboard\n${taskboard}`);

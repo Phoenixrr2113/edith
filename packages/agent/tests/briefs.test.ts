@@ -24,10 +24,6 @@ mock.module("../lib/taskboard", () => ({
 	getRecentTaskboardEntries: () => "",
 }));
 
-mock.module("../lib/prewake", () => ({
-	gatherPrewakeContext: async () => "",
-}));
-
 mock.module("../lib/proactive", () => ({
 	canIntervene: () => ({ allowed: false, reason: "mocked" }),
 	recordIntervention: () => {},
