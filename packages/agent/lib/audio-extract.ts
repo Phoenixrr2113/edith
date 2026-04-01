@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { OPENROUTER_API_KEY, STATE_DIR } from "./config";
 import { edithLog } from "./edith-logger";
 import type { AudioTranscript } from "./screenpipe";
-import { logEvent } from "./state";
 import { fmtErr } from "./util";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -98,7 +97,7 @@ Be strict — only extract facts that are clearly stated. Do not infer or guess.
 		const parsed = JSON.parse(jsonMatch[0]) as ExtractedKnowledge;
 		if (parsed.type === "noise" || !parsed.summary) return null;
 
-		logEvent("audio_extracted", {
+		edithLog.info("audio_extracted", {
 			type: parsed.type,
 			topics: parsed.topics?.join(", "),
 			participants: parsed.participants?.join(", "),
@@ -150,7 +149,7 @@ export async function storeInCognee(knowledge: ExtractedKnowledge): Promise<bool
 			"utf-8"
 		);
 
-		logEvent("audio_pending", {
+		edithLog.info("audio_pending", {
 			type: knowledge.type,
 			summary: knowledge.summary.slice(0, 100),
 			file: filename,

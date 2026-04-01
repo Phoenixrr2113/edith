@@ -35,6 +35,7 @@ import {
 } from "./config";
 import { assembleSystemPrompt } from "./context";
 import { edithLog } from "./edith-logger";
+import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { getActiveQuery, injectMessage, setActiveQuery, setActiveSessionId } from "./session";
 import {
@@ -50,16 +51,15 @@ import { sendTyping } from "./telegram";
 import { appendTranscript, startTranscript } from "./transcript";
 import { fmtErr } from "./util";
 
+// Re-export Priority so callers can import from dispatch instead of queue directly
+export { Priority };
+
 // --- Queue ---
 let busy = false;
+export const dispatchQueue = new DispatchQueue();
 
-export interface DispatchJob {
-	prompt: string;
-	opts: DispatchOptions;
-	resolve: (result: string) => void;
-}
-
-export const dispatchQueue: DispatchJob[] = [];
+/** @deprecated Use QueuedJob from ./queue instead */
+export type DispatchJob = Pick<QueuedJob, "prompt" | "opts" | "resolve">;
 
 export interface DispatchOptions {
 	resume?: boolean;
@@ -68,6 +68,7 @@ export interface DispatchOptions {
 	skipIfBusy?: boolean;
 	briefType?: BriefType;
 	maxTurns?: number;
+	priority?: Priority;
 	_sessionRetried?: boolean;
 }
 
@@ -411,10 +412,10 @@ export async function dispatchToClaude(
 	}
 
 	if (busy) {
-		// Only inject user messages into active sessions — never scheduled/background tasks.
-		// Scheduled tasks (skipIfBusy=true) either skip or retry next tick.
-		const allowInjection = !opts.skipIfBusy && getActiveQuery();
-		if (allowInjection) {
+		const priority = opts.priority ?? Priority.P2_INTERACTIVE;
+
+		// Only inject user messages (P0/P1) into active sessions — never background tasks.
+		if (priority <= Priority.P1_USER && getActiveQuery()) {
 			const injected = await injectMessage(prompt, opts.chatId);
 			if (injected) {
 				edithLog.info("message_injected", { label, prompt: prompt.slice(0, 200) });
@@ -426,9 +427,9 @@ export async function dispatchToClaude(
 			edithLog.info("dispatch_skipped", { label, reason: "busy" });
 			return "";
 		}
-		edithLog.info("dispatch_queued", { label, queueSize: dispatchQueue.length + 1 });
+		edithLog.info("dispatch_queued", { label, priority, queueSize: dispatchQueue.length + 1 });
 		return new Promise((resolve) => {
-			dispatchQueue.push({ prompt, opts, resolve });
+			dispatchQueue.enqueue({ prompt, opts, resolve, priority, enqueuedAt: Date.now() });
 		});
 	}
 
@@ -514,10 +515,12 @@ export async function dispatchToClaude(
 		// Handle session retry — push to front of queue so finally block drains it
 		if (needsRetry) {
 			return new Promise<string>((retryResolve) => {
-				dispatchQueue.unshift({
+				dispatchQueue.pushFront({
 					prompt,
 					opts: { ...opts, resume: true, label, _sessionRetried: true },
 					resolve: retryResolve,
+					priority: opts.priority ?? Priority.P0_CRITICAL,
+					enqueuedAt: Date.now(),
 				});
 			});
 		}
@@ -607,9 +610,12 @@ export async function dispatchToClaude(
 		if (dispatchQueue.length > 0) {
 			// Delay to allow MCP servers from previous dispatch to shut down (prevents Kuzu lock contention)
 			await Bun.sleep(INTER_DISPATCH_DELAY_MS);
-			const next = dispatchQueue.shift();
+			const next = dispatchQueue.dequeue();
 			if (next) {
-				edithLog.info("dispatch_queue_drain", { remaining: dispatchQueue.length });
+				edithLog.info("dispatch_queue_drain", {
+					remaining: dispatchQueue.length,
+					priority: next.priority,
+				});
 				dispatchToClaude(next.prompt, next.opts)
 					.then(next.resolve)
 					.catch(() => next.resolve(""));
@@ -627,7 +633,12 @@ export async function dispatchToConversation(
 	message: string
 ): Promise<void> {
 	const brief = await buildBrief("message", { message, chatId: String(chatId) });
-	const result = await dispatchToClaude(brief, { resume: true, label: "message", chatId });
+	const result = await dispatchToClaude(brief, {
+		resume: true,
+		label: "message",
+		chatId,
+		priority: Priority.P1_USER,
+	});
 
 	// "injected" means streamInput was used — no need to check for errors
 	if (result === "injected") return;

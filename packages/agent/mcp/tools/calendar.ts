@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { edithLog } from "../../lib/edith-logger";
 import { createEvent, deleteEvent, getEvents, updateEvent } from "../../lib/gcal";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { logEvent } from "../../lib/state";
 
 export function registerCalendarTools(server: McpServer): void {
 	// ============================================================
@@ -110,7 +110,7 @@ export function registerCalendarTools(server: McpServer): void {
 						location,
 						allDay,
 					});
-					logEvent("calendar_created", { summary, start });
+					edithLog.info("calendar_created", { summary, start });
 					return jsonResponse(event);
 				} catch (err) {
 					return textResponse(
@@ -132,7 +132,7 @@ export function registerCalendarTools(server: McpServer): void {
 						description,
 						location,
 					});
-					logEvent("calendar_updated", { eventId, summary });
+					edithLog.info("calendar_updated", { eventId, summary });
 					return jsonResponse(event);
 				} catch (err) {
 					return textResponse(
@@ -146,7 +146,7 @@ export function registerCalendarTools(server: McpServer): void {
 				if (!eventId) return textResponse("delete requires an eventId");
 				try {
 					await deleteEvent({ calendarId: calendar, eventId });
-					logEvent("calendar_deleted", { eventId });
+					edithLog.info("calendar_deleted", { eventId });
 					return textResponse(`Deleted event: ${eventId}`);
 				} catch (err) {
 					return textResponse(

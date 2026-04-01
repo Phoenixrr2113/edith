@@ -87,15 +87,10 @@ export function clearSession(): void {
 	} catch {}
 }
 
-// --- Event logging (delegated to edith-logger for stack trace capture) ---
-export { edithLog, rotateEvents } from "./edith-logger";
+// --- Event logging (delegated to edith-logger) ---
+export { rotateEvents } from "./edith-logger";
 
 import { edithLog } from "./edith-logger";
-
-// biome-ignore lint/suspicious/noExplicitAny: logEvent data values are untyped by design
-export function logEvent(type: string, data: Record<string, any> = {}): void {
-	edithLog.event(type, data);
-}
 
 // --- Active processes (for dashboard) ---
 export interface ActiveProcess {
@@ -138,8 +133,11 @@ export function saveDeadLetter(chatId: number, message: string, error: string): 
 		const entry: DeadLetter = { ts, chatId, message: msg, error: err };
 		appendFileSync(DEAD_LETTER_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
 	}
-	logEvent("dead_letter", { chatId, message: message.slice(0, 100), error: error.slice(0, 200) });
-	edithLog.warn("dead_letter_saved", { chatId, preview: message.slice(0, 80) });
+	edithLog.warn("dead_letter", {
+		chatId,
+		message: message.slice(0, 100),
+		error: error.slice(0, 200),
+	});
 }
 
 export function loadDeadLetters(): DeadLetter[] {

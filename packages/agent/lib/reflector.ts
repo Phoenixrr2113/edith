@@ -16,7 +16,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { REFLECTOR_ENABLED, REFLECTOR_TOOL_CALL_FREQUENCY } from "./config";
 import { edithLog } from "./edith-logger";
-import { logEvent, PROJECT_ROOT } from "./state";
+import { PROJECT_ROOT } from "./state";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -172,7 +172,7 @@ export class ReflectorSession {
 		try {
 			const reflection = await callReflectorModel(reflectorPrompt);
 			if (!reflection || reflection.trim().toLowerCase().includes("no injection needed")) {
-				logEvent("reflector_silent", {
+				edithLog.info("reflector_silent", {
 					label: this.label,
 					trigger,
 					toolCalls: this.toolCallCount,
@@ -181,7 +181,7 @@ export class ReflectorSession {
 				return null;
 			}
 
-			logEvent("reflector_injection", {
+			edithLog.info("reflector_injection", {
 				label: this.label,
 				trigger,
 				toolCalls: this.toolCallCount,
@@ -219,7 +219,7 @@ export class ReflectorSession {
 			const score = scoreMatch ? Math.min(10, Math.max(0, parseInt(scoreMatch[1], 10))) : 5;
 			const assessment = raw.replace(/SCORE:\s*\d+\/?\d*/i, "").trim();
 
-			logEvent("reflector_evaluation", {
+			edithLog.info("reflector_evaluation", {
 				label: this.label,
 				toolCalls: this.toolCallCount,
 				score,

@@ -4,7 +4,7 @@
 
 import { buildBrief } from "./briefs";
 import { CHAT_ID } from "./config";
-import { dispatchToClaude, dispatchToConversation } from "./dispatch";
+import { dispatchToClaude, dispatchToConversation, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import {
 	checkLocationReminders,
@@ -13,7 +13,6 @@ import {
 	markFired,
 } from "./geo";
 import { canIntervene } from "./proactive";
-import { logEvent } from "./state";
 import { downloadFile, sendMessage, transcribeAudio } from "./telegram";
 import { fmtErr } from "./util";
 
@@ -51,7 +50,11 @@ export async function handleLocation(chatId: number, lat: number, lon: number): 
 				lon: String(lon),
 				chatId: String(chatId),
 			});
-			await dispatchToClaude(brief, { label: "location", briefType: "location" });
+			await dispatchToClaude(brief, {
+				label: "location",
+				briefType: "location",
+				priority: Priority.P1_USER,
+			});
 		} else {
 			edithLog.info("location_transition_skipped", { reason: gate.reason });
 		}
@@ -70,7 +73,10 @@ export async function handleVoice(
 		const content = transcription
 			? `[Voice note from Randy] "${transcription}"`
 			: `[Voice note from Randy] Audio file saved at: ${localPath}. Could not transcribe.`;
-		logEvent("voice_transcribed", { path: localPath, text: (transcription ?? "").slice(0, 200) });
+		edithLog.info("voice_transcribed", {
+			path: localPath,
+			text: (transcription ?? "").slice(0, 200),
+		});
 		await dispatchToConversation(chatId, messageId, content);
 	} catch (err) {
 		edithLog.error("voice_processing_failed", { message: fmtErr(err) });

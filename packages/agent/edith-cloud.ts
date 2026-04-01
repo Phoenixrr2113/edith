@@ -74,7 +74,7 @@ import {
 	SCHEDULE_CHECK_MS,
 	SMS_BOT_ID,
 } from "./lib/config";
-import { dispatchQueue, dispatchToClaude, dispatchToConversation } from "./lib/dispatch";
+import { dispatchQueue, dispatchToClaude, dispatchToConversation, Priority } from "./lib/dispatch";
 import { edithLog, pingHeartbeat, rotateEvents } from "./lib/edith-logger";
 import { handleLocation, handlePhoto, handleText, handleVoice } from "./lib/handlers";
 import { SIGNAL_FRESH } from "./lib/ipc";
@@ -372,7 +372,12 @@ async function bootstrap(): Promise<void> {
 	if (!sessionId) {
 		edithLog.info("bootstrap_start", {});
 		const bootBrief = await buildBrief("boot");
-		await dispatchToClaude(bootBrief, { resume: true, label: "bootstrap", briefType: "boot" });
+		await dispatchToClaude(bootBrief, {
+			resume: true,
+			label: "bootstrap",
+			briefType: "boot",
+			priority: Priority.P0_CRITICAL,
+		});
 		edithLog.info("bootstrap_complete", {});
 	} else {
 		edithLog.info("session_resume", { sessionId });
@@ -407,10 +412,9 @@ async function gracefulShutdown(): Promise<void> {
 
 	if (dispatchQueue.length > 0) {
 		edithLog.info("shutdown_drain", { count: dispatchQueue.length });
-		for (const job of dispatchQueue) {
-			saveDeadLetter(job.opts.chatId ?? CHAT_ID, job.prompt, "shutdown_drain");
+		for (const job of dispatchQueue.drainAll()) {
+			saveDeadLetter((job.opts.chatId as number) ?? CHAT_ID, job.prompt, "shutdown_drain");
 		}
-		dispatchQueue.length = 0;
 	}
 
 	server.stop();

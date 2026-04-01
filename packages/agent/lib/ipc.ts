@@ -16,9 +16,8 @@ import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from
 import { join } from "node:path";
 import { BRIEF_TYPE_MAP, type BriefType, buildBrief } from "./briefs";
 import { CHAT_ID, INBOX_DIR, STATE_DIR } from "./config";
-import { dispatchToClaude } from "./dispatch";
+import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
-import { logEvent } from "./state";
 import { fmtErr } from "./util";
 
 // ── Signal file paths ──────────────────────────────────────────────────────────
@@ -49,7 +48,7 @@ export function checkSignals(state: TickState): "restart" | "pause" | null {
 		try {
 			unlinkSync(SIGNAL_RESTART);
 		} catch {}
-		logEvent("signal_restart", {});
+		edithLog.info("signal_restart", {});
 		return "restart";
 	}
 
@@ -58,7 +57,7 @@ export function checkSignals(state: TickState): "restart" | "pause" | null {
 		try {
 			unlinkSync(SIGNAL_PAUSE);
 		} catch {}
-		logEvent("signal_pause", {});
+		edithLog.info("signal_pause", {});
 		state.paused = true;
 		return "pause";
 	}
@@ -78,7 +77,7 @@ export async function processTriggers(): Promise<void> {
 		for (const f of readdirSync(TRIGGERS_DIR)) {
 			const fp = join(TRIGGERS_DIR, f);
 			edithLog.info("dashboard_trigger_received", { task: f });
-			logEvent("dashboard_trigger", { task: f });
+			edithLog.info("dashboard_trigger", { task: f });
 			const briefType: BriefType | undefined = BRIEF_TYPE_MAP[f];
 			const prompt = briefType
 				? await buildBrief(briefType)
@@ -88,6 +87,7 @@ export async function processTriggers(): Promise<void> {
 				label: f,
 				skipIfBusy: false,
 				briefType: briefType ?? "scheduled",
+				priority: Priority.P2_INTERACTIVE,
 			})
 				.then(() => {
 					try {
@@ -118,10 +118,14 @@ export async function processInbox(): Promise<void> {
 			try {
 				const msg = JSON.parse(readFileSync(fp, "utf-8"));
 				if (msg.text?.trim()) {
-					edithLog.info("dashboard_message_received", { preview: msg.text.slice(0, 80) });
-					logEvent("dashboard_message", { text: msg.text.slice(0, 200) });
+					edithLog.info("dashboard_message", { text: msg.text.slice(0, 200) });
 					const brief = await buildBrief("message", { message: msg.text, chatId: String(CHAT_ID) });
-					dispatchToClaude(brief, { resume: true, label: "dashboard-msg", chatId: CHAT_ID })
+					dispatchToClaude(brief, {
+						resume: true,
+						label: "dashboard-msg",
+						chatId: CHAT_ID,
+						priority: Priority.P2_INTERACTIVE,
+					})
 						.then(() => {
 							try {
 								unlinkSync(fp);
@@ -153,5 +157,5 @@ export async function sendIpc(message: string): Promise<void> {
 	const fname = `dashboard-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
 	const fp = join(INBOX_DIR, fname);
 	writeFileSync(fp, JSON.stringify({ text: message, ts: new Date().toISOString() }), "utf-8");
-	logEvent("ipc_send", { text: message.slice(0, 200) });
+	edithLog.info("ipc_send", { text: message.slice(0, 200) });
 }

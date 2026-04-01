@@ -83,6 +83,7 @@ mock.module("../lib/dispatch", () => ({
 	dispatchToConversation: async (chatId: number, messageId: number, content: string) => {
 		calls.dispatchToConversation.push([chatId, messageId, content]);
 	},
+	Priority: { P0_CRITICAL: 0, P1_USER: 1, P2_INTERACTIVE: 2, P3_BACKGROUND: 3 },
 }));
 
 mock.module("../lib/geo", () => ({
@@ -119,12 +120,18 @@ mock.module("../lib/state", () => ({
 	},
 }));
 
-// edith-logger — used directly by handlers.ts
+// edith-logger — used directly by handlers.ts; capture calls for assertions
 mock.module("../lib/edith-logger", () => ({
 	edithLog: {
-		info: () => {},
-		warn: () => {},
-		error: () => {},
+		info: (type: string, data: object) => {
+			calls.logEvent.push([type, data]);
+		},
+		warn: (type: string, data: object) => {
+			calls.logEvent.push([type, data]);
+		},
+		error: (type: string, data: object) => {
+			calls.logEvent.push([type, data]);
+		},
 		debug: () => {},
 		event: () => {},
 	},
@@ -345,12 +352,13 @@ describe("handleVoice", () => {
 		expect(calls.logEvent[0][0]).toBe("voice_transcribed");
 	});
 
-	test("does not log event when downloadFile throws", async () => {
+	test("logs error event when downloadFile throws", async () => {
 		downloadFileError = new Error("fail");
 
 		await handleVoice(999, 11, "file-fail");
 
-		expect(calls.logEvent).toHaveLength(0);
+		expect(calls.logEvent).toHaveLength(1);
+		expect(calls.logEvent[0][0]).toBe("voice_processing_failed");
 	});
 
 	test("passes correct chatId and messageId to dispatchToConversation", async () => {

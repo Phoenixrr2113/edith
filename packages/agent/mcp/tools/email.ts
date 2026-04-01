@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { edithLog } from "../../lib/edith-logger";
 import { batchManage, manageEmail, searchAllAccounts } from "../../lib/gmail";
 import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { logEvent } from "../../lib/state";
 
 // ============================================================
 // Email — manage_emails (get + manage + batch, one tool)
@@ -60,7 +60,7 @@ export function registerEmailTools(server: McpServer): void {
 							label?: string;
 						}>
 					);
-					logEvent("email_managed_batch", {
+					edithLog.info("email_managed_batch", {
 						count: operations.length,
 						actions: [...new Set(operations.map((o) => o.action))].join(","),
 					});
@@ -98,7 +98,7 @@ export function registerEmailTools(server: McpServer): void {
 					action as "archive" | "trash" | "markAsRead" | "addLabel" | "removeLabel",
 					label
 				);
-				logEvent("email_managed", { messageId, action, label });
+				edithLog.info("email_managed", { messageId, action, label });
 				return textResponse(`Done: ${action} on ${messageId}`);
 			} catch (err) {
 				return textResponse(

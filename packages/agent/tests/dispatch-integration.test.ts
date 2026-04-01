@@ -156,6 +156,7 @@ import {
 	dispatchToConversation,
 	processMessageStream,
 } from "../lib/dispatch";
+import { DispatchQueue } from "../lib/queue";
 import type { ScheduleState } from "../lib/scheduler";
 import { shouldFire } from "../lib/scheduler";
 import { setActiveQuery } from "../lib/session";
@@ -636,8 +637,8 @@ describe("queue behavior under concurrent dispatches", () => {
 
 	test("dispatchQueue is exported and starts empty (or drains between tests)", () => {
 		// The queue length may be 0 (idle) or have pending items from concurrent test scenarios.
-		// Verify the export is an array.
-		expect(Array.isArray(dispatchQueue)).toBe(true);
+		// Verify the export is a DispatchQueue instance.
+		expect(dispatchQueue).toBeInstanceOf(DispatchQueue);
 	});
 });
 

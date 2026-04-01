@@ -3,10 +3,10 @@
  */
 
 import { BRIEF_TYPE_MAP, buildBrief } from "./briefs";
-import { dispatchToClaude } from "./dispatch";
+import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import { isUserIdle } from "./screenpipe";
-import { logEvent, SCHEDULE_STATE_FILE } from "./state";
+import { SCHEDULE_STATE_FILE } from "./state";
 import { loadJson, loadSchedule, saveJson } from "./storage";
 
 export interface ScheduleState {
@@ -120,7 +120,7 @@ export async function runScheduler(): Promise<void> {
 		}
 
 		edithLog.info("scheduler_firing", { task: entry.name });
-		logEvent("schedule_fire", { task: entry.name, prompt: entry.prompt });
+		edithLog.info("schedule_fire", { task: entry.name, prompt: entry.prompt });
 
 		// Use brief types for known tasks, generic scheduled brief for custom ones
 		const briefType = BRIEF_TYPE_MAP[entry.name];
@@ -145,6 +145,7 @@ export async function runScheduler(): Promise<void> {
 			label: entry.name,
 			skipIfBusy: true,
 			briefType: briefType ?? "scheduled",
+			priority: Priority.P3_BACKGROUND,
 		});
 
 		// Save state after dispatch so failed/skipped tasks can retry next tick

@@ -100,7 +100,7 @@ import {
 	SCHEDULE_CHECK_MS,
 	SMS_BOT_ID,
 } from "./lib/config";
-import { dispatchQueue, dispatchToClaude, dispatchToConversation } from "./lib/dispatch";
+import { dispatchQueue, dispatchToClaude, dispatchToConversation, Priority } from "./lib/dispatch";
 import { edithLog, pingHeartbeat, rotateEvents } from "./lib/edith-logger";
 import { handleLocation, handlePhoto, handleText, handleVoice } from "./lib/handlers";
 import { SIGNAL_FRESH } from "./lib/ipc";
@@ -111,7 +111,6 @@ import {
 	clearDeadLetters,
 	clearSession,
 	loadDeadLetters,
-	logEvent,
 	offset,
 	saveDeadLetter,
 	saveOffset,
@@ -197,13 +196,9 @@ async function poll(): Promise<void> {
 					const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
 					const msgPreview = msg.text?.slice(0, 80) ?? msg.caption?.slice(0, 80) ?? "";
 					edithLog.info("message_received", {
+						chatId,
 						type: msgType,
 						source: isSmsBot ? "sms_relay" : "randy",
-						preview: msgPreview || "(no text)",
-					});
-					logEvent("message_received", {
-						chatId,
-						type: msg.voice ? "voice" : msg.photo ? "photo" : "text",
 						text: (msg.text ?? "").slice(0, 200),
 					});
 				}
@@ -240,7 +235,6 @@ async function poll(): Promise<void> {
 				consecutiveErrors,
 				backoffMs: backoff,
 			});
-			logEvent("poll_error", { error: fmtErr(err), consecutiveErrors, backoffMs: backoff });
 			await Bun.sleep(backoff);
 			continue;
 		}
@@ -267,7 +261,12 @@ async function bootstrap(): Promise<void> {
 	if (!sessionId) {
 		edithLog.info("bootstrap_start", {});
 		const bootBrief = await buildBrief("boot");
-		await dispatchToClaude(bootBrief, { resume: true, label: "bootstrap", briefType: "boot" });
+		await dispatchToClaude(bootBrief, {
+			resume: true,
+			label: "bootstrap",
+			briefType: "boot",
+			priority: Priority.P0_CRITICAL,
+		});
 		edithLog.info("bootstrap_complete", {});
 	} else {
 		edithLog.info("session_resume", { sessionId });
@@ -276,8 +275,7 @@ async function bootstrap(): Promise<void> {
 	// Replay dead-lettered messages
 	const deadLetters = loadDeadLetters();
 	if (deadLetters.length > 0) {
-		edithLog.info("dead_letter_replay_start", { count: deadLetters.length });
-		logEvent("dead_letter_replay", { count: deadLetters.length });
+		edithLog.info("dead_letter_replay", { count: deadLetters.length });
 		for (const dl of deadLetters) {
 			edithLog.info("dead_letter_replaying", { preview: dl.message.slice(0, 60) });
 			try {
@@ -307,10 +305,9 @@ async function gracefulShutdown(): Promise<void> {
 
 	if (dispatchQueue.length > 0) {
 		edithLog.info("shutdown_draining_queue", { count: dispatchQueue.length });
-		for (const job of dispatchQueue) {
-			saveDeadLetter(job.opts.chatId ?? CHAT_ID, job.prompt, "shutdown_drain");
+		for (const job of dispatchQueue.drainAll()) {
+			saveDeadLetter((job.opts.chatId as number) ?? CHAT_ID, job.prompt, "shutdown_drain");
 		}
-		dispatchQueue.length = 0;
 	}
 	stopCaffeinate();
 	// Flush buffered logs before exit
@@ -369,7 +366,7 @@ try {
 	}
 } catch {}
 
-logEvent("startup", { pid: process.pid, sessionId: sessionId || "new" });
+edithLog.info("startup", { pid: process.pid, sessionId: sessionId || "new" });
 startCaffeinate();
 await bootstrap();
 

@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { CHAT_ID, TWILIO_SMS_FROM, TWILIO_WA_FROM } from "../../lib/config";
+import { edithLog } from "../../lib/edith-logger";
 import { sendEmail } from "../../lib/gmail";
 import { textResponse } from "../../lib/mcp-helpers";
 import { showDialog, showNotification } from "../../lib/notify";
-import { logEvent } from "../../lib/state";
 import { sendMessage, sendPhoto, tgCall } from "../../lib/telegram";
 import { sendTwilio } from "../../lib/twilio";
 import { fmtErr } from "../../lib/util";
@@ -53,7 +53,7 @@ export function registerMessagingTools(server: McpServer): void {
 			if (image) {
 				try {
 					await sendPhoto(chat_id, image, text);
-					logEvent("image_sent", { chatId: chat_id, caption: text?.slice(0, 100) });
+					edithLog.info("image_sent", { chatId: chat_id, caption: text?.slice(0, 100) });
 					return textResponse("Image sent");
 				} catch (err) {
 					return textResponse(`Failed to send image: ${fmtErr(err)}`);
@@ -63,7 +63,7 @@ export function registerMessagingTools(server: McpServer): void {
 			// Text only
 			if (!text) return textResponse("Missing text, image, or emoji");
 			await sendMessage(chat_id, `🤖 *EDITH*\n\n${text}`);
-			logEvent("message_sent", { chatId: chat_id, text: text.slice(0, 200) });
+			edithLog.info("message_sent", { chatId: chat_id, text: text.slice(0, 200) });
 			return textResponse("Sent");
 		}
 	);
@@ -100,7 +100,7 @@ export function registerMessagingTools(server: McpServer): void {
 		},
 		async ({ channel, recipient, text, title, subject, buttons }) => {
 			const log = () =>
-				logEvent("notification_sent", {
+				edithLog.info("notification_sent", {
 					channel,
 					recipient: recipient?.slice(0, 30),
 					text: text.slice(0, 100),
@@ -110,7 +110,7 @@ export function registerMessagingTools(server: McpServer): void {
 			if (channel === "desktop") {
 				try {
 					await showNotification(title ?? "Edith", text);
-					logEvent("desktop_notification", { title, body: text.slice(0, 100) });
+					edithLog.info("desktop_notification", { title, body: text.slice(0, 100) });
 					return textResponse("Notification shown");
 				} catch (err) {
 					return textResponse(`Notification failed: ${fmtErr(err)}`);
@@ -121,7 +121,7 @@ export function registerMessagingTools(server: McpServer): void {
 			if (channel === "dialog") {
 				try {
 					const clicked = await showDialog(title ?? "Edith", text, buttons ?? ["OK"]);
-					logEvent("desktop_dialog", { title, clicked });
+					edithLog.info("desktop_dialog", { title, clicked });
 					return textResponse(`Button clicked: ${clicked}`);
 				} catch (err) {
 					return textResponse(`Dialog failed: ${fmtErr(err)}`);

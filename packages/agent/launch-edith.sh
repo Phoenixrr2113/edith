@@ -161,12 +161,19 @@ start_edith
 if command -v fswatch >/dev/null 2>&1; then
   RESTART_LOCK="$STATE_DIR/restart.lock"
   (
-    fswatch -o -l 3 -e "node_modules" -e ".git" -e "logs" -e ".env" -i "\\.ts$" -i "\\.md$" \
-      "$DIR/edith.ts" "$DIR/lib/" "$DIR/mcp/" "$DIR/prompts/" | while read -r; do
-      # Debounce: skip if a restart happened in the last 5 seconds
+    fswatch -o -l 5 -e "node_modules" -e ".git" -e "logs" -e ".env" -e "tests" -i "\\.ts$" -i "\\.md$" \
+      "$DIR/edith.ts" "$DIR/lib/" "$DIR/mcp/" "$DIR/prompts/" | while read -r _count; do
+      # Debounce: use mkdir as atomic lock to prevent concurrent restarts
+      DEBOUNCE_DIR="$STATE_DIR/restart-debounce.lock"
+      if ! mkdir "$DEBOUNCE_DIR" 2>/dev/null; then
+        continue  # Another restart is already in progress
+      fi
+
+      # Also check time-based debounce (in case lock was stale)
       if [ -f "$RESTART_LOCK" ]; then
         LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$RESTART_LOCK" 2>/dev/null || echo 0) ))
         if [ "$LOCK_AGE" -lt 5 ]; then
+          rm -rf "$DEBOUNCE_DIR"
           continue
         fi
       fi
@@ -185,10 +192,13 @@ if command -v fswatch >/dev/null 2>&1; then
         kill -9 "$OLD_PID" 2>/dev/null
       fi
 
-      sleep 1
+      sleep 2
       EDITH_LOG_FILE="$LOG_FILE" bun "$DIR/edith.ts" &
       echo "$!" > "$EDITH_PIDFILE"
       echo "[launch] Edith restarted (PID $!)"
+
+      # Release debounce lock after a delay so rapid changes are coalesced
+      (sleep 5 && rm -rf "$DEBOUNCE_DIR") &
     done
   ) &
   WATCHER_PID=$!
