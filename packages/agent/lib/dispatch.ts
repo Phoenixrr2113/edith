@@ -1,29 +1,13 @@
 /**
  * Claude dispatch engine — Agent SDK query() with session management, queue, and retries.
  *
- * Replaces the old spawn("claude -p") approach with the Claude Agent SDK.
- * Key improvements:
- *   - streamInput() for real-time message injection mid-session
- *   - Session continuity via continue/resume
- *   - Streaming message observation (turn counting, transcript logging)
- *   - Circuit breaker for repeated failures
- *   - AbortController timeout to prevent hangs
+ * Core orchestration: dispatchToClaude(), dispatchToConversation(), circuit breaker, queue.
+ * SDK options live in dispatch-options.ts; stream processing in dispatch-stream.ts.
  */
 
-import type {
-	McpServerConfig,
-	Options,
-	Query,
-	SDKAssistantMessage,
-	SDKCompactBoundaryMessage,
-	SDKResultMessage,
-	SDKTaskNotificationMessage,
-	SDKTaskProgressMessage,
-	SDKTaskStartedMessage,
-} from "@anthropic-ai/claude-agent-sdk";
 // Import query from instrument.ts — uses the Langfuse-patched version when available
 import { query } from "../instrument";
-import { type BriefType, buildBrief } from "./briefs";
+import { buildBrief } from "./briefs";
 import {
 	CHAT_ID,
 	CIRCUIT_BREAKER_COOLDOWN_MS,
@@ -33,37 +17,33 @@ import {
 	QUERY_TIMEOUT_MS,
 	REFLECTOR_EVAL_ONLY_RATIO,
 } from "./config";
-import { assembleSystemPrompt } from "./context";
+import { buildSdkOptions, getLastStderr, LIGHTWEIGHT_TASKS } from "./dispatch-options";
+import { processMessageStream } from "./dispatch-stream";
 import { edithLog } from "./edith-logger";
 import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
-import { getActiveQuery, injectMessage, setActiveQuery, setActiveSessionId } from "./session";
-import { clearSession, PROJECT_ROOT, saveSession, sessionId } from "./state";
-import { loadJson } from "./storage";
+import { getActiveQuery, injectMessage, setActiveQuery } from "./session";
+import { saveSession, sessionId } from "./state";
 import { sendTyping } from "./telegram";
-import { appendTranscript, startTranscript } from "./transcript";
+import { startTranscript } from "./transcript";
 import { fmtErr } from "./util";
 
-// Re-export Priority so callers can import from dispatch instead of queue directly
+// --- Re-exports (preserve public API for tests and consumers) ---
+export type { DispatchOptions } from "./dispatch-options";
+export { buildSdkOptions } from "./dispatch-options";
+export type { StreamResult, ToolCallRecord } from "./dispatch-stream";
+export { processMessageStream } from "./dispatch-stream";
 export { Priority };
-
-// --- Queue ---
-let busy = false;
-export const dispatchQueue = new DispatchQueue();
 
 /** @deprecated Use QueuedJob from ./queue instead */
 export type DispatchJob = Pick<QueuedJob, "prompt" | "opts" | "resolve">;
 
-export interface DispatchOptions {
-	resume?: boolean;
-	label?: string;
-	chatId?: number;
-	skipIfBusy?: boolean;
-	briefType?: BriefType;
-	maxTurns?: number;
-	priority?: Priority;
-	_sessionRetried?: boolean;
-}
+// Re-import DispatchOptions for local use (the export above is type-only)
+import type { DispatchOptions } from "./dispatch-options";
+
+// --- Queue ---
+let busy = false;
+export const dispatchQueue = new DispatchQueue();
 
 // --- Circuit breaker ---
 let consecutiveFailures = 0;
@@ -73,374 +53,6 @@ let activeLabel = "";
 
 // --- Unique ID counter ---
 let pidCounter = 0;
-
-// --- Lightweight task set (uses shorter timeout) ---
-const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
-
-// --- Stderr capture from Claude Code subprocess ---
-// The Agent SDK swallows stderr — we never see why claude exits with code 1.
-// This buffer captures the last stderr output for inclusion in error logs.
-let lastStderr = "";
-
-/**
- * Custom spawn function that wraps child_process.spawn to capture stderr.
- * The SDK's SpawnedProcess interface doesn't expose stderr, but ChildProcess does.
- * We intercept the spawn, capture stderr into a buffer, and return the process.
- */
-function spawnWithStderrCapture(
-	options: import("@anthropic-ai/claude-agent-sdk").SpawnOptions
-): import("@anthropic-ai/claude-agent-sdk").SpawnedProcess {
-	const { spawn } = require("node:child_process") as typeof import("node:child_process");
-	lastStderr = "";
-
-	const proc = spawn(options.command, options.args, {
-		cwd: options.cwd,
-		env: options.env as NodeJS.ProcessEnv,
-		signal: options.signal,
-		stdio: ["pipe", "pipe", "pipe"],
-	});
-
-	// Capture stderr into buffer for error reporting
-	proc.stderr?.on("data", (chunk: Buffer) => {
-		const text = chunk.toString();
-		// Keep last 2KB of stderr (enough for error messages, not too much for logs)
-		lastStderr = (lastStderr + text).slice(-2048);
-	});
-
-	return proc;
-}
-
-// --- Content block types matching BetaMessage.content shape ---
-interface ToolUseBlock {
-	type: "tool_use";
-	name: string;
-	input: Record<string, unknown>;
-}
-
-interface TextBlock {
-	type: "text";
-	text: string;
-}
-
-type ContentBlock = ToolUseBlock | TextBlock | { type: string };
-
-// --- MCP config ---
-function loadMcpConfig(): Record<string, McpServerConfig> {
-	try {
-		const config = loadJson<Record<string, unknown>>(`${PROJECT_ROOT}/.mcp.json`, {});
-		// JSON is loaded as unknown; cast to the SDK's expected shape
-		return (config.mcpServers as Record<string, McpServerConfig>) ?? {};
-	} catch {
-		return {};
-	}
-}
-
-/** Builds the Agent SDK Options object from dispatch config. */
-export function buildSdkOptions(opts: DispatchOptions, abortController: AbortController): Options {
-	const { resume = true } = opts;
-	const systemPrompt = assembleSystemPrompt();
-
-	const sdkOptions: Options = {
-		abortController,
-		spawnClaudeCodeProcess: spawnWithStderrCapture,
-		systemPrompt: {
-			type: "preset",
-			preset: "claude_code",
-			append: systemPrompt,
-		},
-		permissionMode: "bypassPermissions",
-		allowDangerouslySkipPermissions: true,
-		cwd: PROJECT_ROOT,
-		mcpServers: loadMcpConfig(),
-		maxTurns: opts.maxTurns ?? 50,
-		settingSources: ["project"],
-		allowedTools: [
-			"Read",
-			"Write",
-			"Edit",
-			"Bash",
-			"Glob",
-			"Grep",
-			"WebFetch",
-			"WebSearch",
-			"Agent",
-			"Skill",
-		],
-	};
-
-	// Session handling
-	if (resume) {
-		if (sessionId) {
-			sdkOptions.resume = sessionId;
-		}
-	} else {
-		// Ephemeral sessions for scheduled tasks
-		sdkOptions.persistSession = false;
-	}
-
-	return sdkOptions;
-}
-
-export interface ToolCallRecord {
-	name: string;
-	input: string; // JSON preview, max 500 chars
-	durationMs?: number;
-}
-
-export interface StreamResult {
-	lastResult: string;
-	newSessionId: string;
-	totalCost: number;
-	turns: number;
-	needsRetry: boolean;
-	modelUsage: Record<
-		string,
-		{
-			inputTokens: number;
-			outputTokens: number;
-			cacheReadInputTokens?: number;
-			cacheCreationInputTokens?: number;
-		}
-	>;
-	durationApiMs: number;
-	stopReason: string | null;
-	toolCalls: ToolCallRecord[];
-}
-
-/** Consumes the Agent SDK query stream, tracking turns, cost, and session. */
-export async function processMessageStream(
-	queryHandle: Query,
-	label: string,
-	wakeId: string,
-	resume: boolean,
-	opts: DispatchOptions,
-	_pseudoPid: number,
-	reflector: ReflectorSession | null,
-	_abortController?: AbortController,
-	promptPreview?: string
-): Promise<StreamResult> {
-	let turns = 0;
-	let lastResult = "";
-	let newSessionId = "";
-	let totalCost = 0;
-	let needsRetry = false;
-	let modelUsage: Record<
-		string,
-		{
-			inputTokens: number;
-			outputTokens: number;
-			cacheReadInputTokens?: number;
-			cacheCreationInputTokens?: number;
-		}
-	> = {};
-	let durationApiMs = 0;
-	let stopReason: string | null = null;
-	const toolCalls: ToolCallRecord[] = [];
-
-	/** Inject a reflection into the running session (non-blocking). */
-	const maybeInject = async (
-		trigger: "periodic" | "compaction" | "guard",
-		guardCtx?: { toolName: string; toolInput: Record<string, unknown> }
-	) => {
-		if (!reflector) return;
-		try {
-			const reflection = await reflector.buildReflection(trigger, guardCtx);
-			if (reflection) {
-				const injected = await injectMessage(reflection);
-				if (injected) {
-					reflector.recordUserMessage(`[reflector:${trigger}] ${reflection.slice(0, 100)}`);
-					edithLog.debug("reflector_injected", {
-						label,
-						trigger,
-						reflection: reflection.slice(0, 80),
-					});
-				}
-			}
-		} catch (err) {
-			edithLog.error("reflector_inject_failed", {
-				label,
-				trigger,
-				error: fmtErr(err),
-				prompt: promptPreview,
-			});
-		}
-	};
-
-	try {
-		for await (const message of queryHandle) {
-			appendTranscript(wakeId, message);
-
-			// Track session ID
-			if ("session_id" in message && message.session_id && resume) {
-				if (message.session_id !== newSessionId) {
-					newSessionId = message.session_id;
-					setActiveSessionId(newSessionId);
-				}
-			}
-
-			// --- Reflector: detect compaction ---
-			if (
-				message.type === "system" &&
-				"subtype" in message &&
-				message.subtype === "compact_boundary"
-			) {
-				const boundary = message as SDKCompactBoundaryMessage;
-				const preTokens = boundary.compact_metadata.pre_tokens;
-				const trigger = boundary.compact_metadata.trigger;
-				edithLog.info("compaction", { label, preTokens, trigger });
-
-				if (reflector) {
-					reflector.recordCompaction(preTokens, trigger);
-					// Compaction reflection is critical — always fire
-					await maybeInject("compaction");
-				}
-			}
-
-			// --- Background agent task events ---
-			if (message.type === "system" && "subtype" in message) {
-				const subtype = message.subtype;
-
-				if (subtype === "task_started") {
-					const m = message as SDKTaskStartedMessage;
-					edithLog.info("task_started", { label, taskId: m.task_id, description: m.description });
-				}
-
-				if (subtype === "task_progress") {
-					const m = message as SDKTaskProgressMessage;
-					edithLog.debug("task_progress", {
-						label,
-						taskId: m.task_id,
-						tool: m.last_tool_name ?? "working",
-						durationSecs: Math.round((m.usage?.duration_ms ?? 0) / 1000),
-						toolUses: m.usage?.tool_uses ?? 0,
-					});
-				}
-
-				if (subtype === "task_notification") {
-					const m = message as SDKTaskNotificationMessage;
-					const durSecs = m.usage?.duration_ms ? Math.round(m.usage.duration_ms / 1000) : 0;
-					edithLog.info("task_complete", {
-						label,
-						taskId: m.task_id,
-						status: m.status,
-						summary: m.summary,
-						duration: durSecs,
-						toolUses: m.usage?.tool_uses,
-					});
-				}
-			}
-
-			// Count turns on assistant messages with tool use
-			if (message.type === "assistant") {
-				const assistantMsg = message as SDKAssistantMessage;
-				const content = assistantMsg.message?.content;
-				const blocks = (content as ContentBlock[] | undefined) ?? [];
-				const toolUseBlocks = blocks.filter(
-					(block): block is ToolUseBlock => block.type === "tool_use"
-				);
-				const hasToolUse = toolUseBlocks.length > 0;
-				if (hasToolUse) turns++;
-
-				// Record all tool calls for edithLog
-				if (hasToolUse) {
-					for (const block of toolUseBlocks) {
-						const toolName = block.name ?? "";
-						const toolInput = block.input ?? {};
-						const inputPreview = JSON.stringify(toolInput).slice(0, 500);
-						toolCalls.push({ name: toolName, input: inputPreview });
-					}
-				}
-
-				// --- Reflector: feed tool uses + check triggers ---
-				if (reflector && hasToolUse) {
-					for (const block of toolUseBlocks) {
-						const toolName = block.name ?? "";
-						const toolInput = block.input ?? {};
-						const inputPreview = JSON.stringify(toolInput).slice(0, 500);
-
-						reflector.recordToolUse(toolName, inputPreview);
-
-						// Guard irreversible actions
-						if (reflector.shouldGuardTool(toolName, toolInput)) {
-							await maybeInject("guard", { toolName, toolInput });
-						}
-					}
-
-					// Periodic reflection on Nth tool call
-					if (reflector.shouldReflectOnToolCall()) {
-						await maybeInject("periodic");
-					}
-				}
-
-				// Extract text for logging + reflector
-				const textBlocks = blocks.filter((block): block is TextBlock => block.type === "text");
-				if (textBlocks.length) {
-					lastResult = textBlocks[textBlocks.length - 1].text ?? "";
-					if (reflector) {
-						reflector.recordText(lastResult);
-					}
-				}
-			}
-
-			// Extract result info
-			if (message.type === "result") {
-				const resultMsg = message as SDKResultMessage;
-				totalCost = resultMsg.total_cost_usd ?? 0;
-				turns = resultMsg.num_turns ?? turns;
-				if ("modelUsage" in resultMsg) modelUsage = resultMsg.modelUsage ?? {};
-				if ("duration_api_ms" in resultMsg)
-					durationApiMs = ((resultMsg as Record<string, unknown>).duration_api_ms as number) ?? 0;
-				if ("stop_reason" in resultMsg)
-					stopReason = (resultMsg as Record<string, unknown>).stop_reason as string | null;
-
-				if ("result" in resultMsg && typeof resultMsg.result === "string") {
-					lastResult = resultMsg.result ?? lastResult;
-				}
-
-				// Check for errors
-				if (resultMsg.is_error) {
-					const errorSubtype = "subtype" in resultMsg ? resultMsg.subtype : "unknown";
-					edithLog.error("sdk_result_error", {
-						label,
-						errorSubtype,
-						result: lastResult.slice(0, 500),
-						turns,
-						cost: totalCost,
-						prompt: promptPreview,
-					});
-
-					// Detect corrupted session — flag for retry after cleanup
-					if (errorSubtype === "error_during_execution" && sessionId && !opts._sessionRetried) {
-						edithLog.warn("session_reset", {
-							label,
-							reason: errorSubtype,
-							sessionId: sessionId.slice(0, 8),
-							errorResult: lastResult.slice(0, 300),
-							prompt: promptPreview,
-						});
-						clearSession();
-						needsRetry = true;
-					}
-				}
-			}
-		}
-	} finally {
-		setActiveQuery(null);
-		setActiveSessionId("");
-	}
-
-	return {
-		lastResult,
-		newSessionId,
-		totalCost,
-		turns,
-		needsRetry,
-		modelUsage,
-		durationApiMs,
-		stopReason,
-		toolCalls,
-	};
-}
 
 /**
  * Core dispatch — spawns Agent SDK query() and processes the message stream.
@@ -503,7 +115,6 @@ export async function dispatchToClaude(
 	const startTime = Date.now();
 	let typingInterval: ReturnType<typeof setInterval> | null = null;
 	const wakeId = `${label}-${Date.now()}`;
-	let pseudoPid = 0;
 
 	// AbortController for timeout — use shorter timeout for lightweight tasks
 	const abortController = new AbortController();
@@ -541,7 +152,7 @@ export async function dispatchToClaude(
 		const queryHandle = query({ prompt, options: sdkOptions });
 		setActiveQuery(queryHandle);
 
-		pseudoPid = ++pidCounter;
+		const pseudoPid = ++pidCounter;
 
 		// Start reflector for this session — randomly assign A/B mode
 		const reflectorMode: ReflectorMode =
@@ -650,7 +261,7 @@ export async function dispatchToClaude(
 	} catch (err) {
 		const errMsg = fmtErr(err);
 		lastFailureError = errMsg;
-		const stderr = lastStderr.trim();
+		const stderr = getLastStderr().trim();
 		edithLog.error("dispatch_error", {
 			label,
 			error: errMsg,
@@ -674,7 +285,6 @@ export async function dispatchToClaude(
 		}
 
 		setActiveQuery(null);
-		setActiveSessionId("");
 		return "";
 	} finally {
 		clearTimeout(timeoutHandle);
