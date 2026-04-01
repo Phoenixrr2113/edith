@@ -22,7 +22,7 @@ import { processMessageStream } from "./dispatch-stream";
 import { edithLog } from "./edith-logger";
 import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
-import { getActiveQuery, injectMessage, setActiveQuery } from "./session";
+import { setActiveQuery } from "./session";
 import { clearSession, saveSession, sessionId } from "./state";
 import { sendTyping } from "./telegram";
 import { startTranscript } from "./transcript";
@@ -89,14 +89,9 @@ export async function dispatchToClaude(
 	if (busy) {
 		const priority = opts.priority ?? Priority.P2_INTERACTIVE;
 
-		// Only inject user messages (P0/P1) into active sessions — never background tasks.
-		if (priority <= Priority.P1_USER && getActiveQuery()) {
-			const injected = await injectMessage(prompt, opts.chatId);
-			if (injected) {
-				edithLog.info("message_injected", { label, prompt: prompt.slice(0, 200) });
-				return "injected";
-			}
-		}
+		// Don't try streamInput — it's unreliable (undefined in many SDK versions).
+		// Queue the message instead. It'll dispatch with continue:true after the
+		// current task finishes, preserving conversation context.
 
 		if (opts.skipIfBusy) {
 			edithLog.info("dispatch_skipped", {
@@ -351,9 +346,6 @@ export async function dispatchToConversation(
 		chatId,
 		priority: Priority.P1_USER,
 	});
-
-	// "injected" means streamInput was used — no need to check for errors
-	if (result === "injected") return;
 
 	// Note: empty result is normal — responses sent via tool calls (send_message)
 	// produce no text output. Actual failures throw exceptions in dispatchToClaude

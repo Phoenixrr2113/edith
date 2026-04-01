@@ -132,13 +132,10 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 	};
 
 	// Session handling
-	// Sessions persist within a container lifetime for multi-turn conversation.
-	// On deploy (new container), stale session IDs trigger "No conversation found"
-	// — handled by retry logic in dispatch.ts catch block (session_reset_catch).
+	// Use continue:true for multi-turn — SDK finds the most recent session on disk.
+	// No stale session ID tracking needed. If session file is gone (deploy), starts fresh.
 	if (resume) {
-		if (sessionId) {
-			sdkOptions.resume = sessionId;
-		}
+		sdkOptions.continue = true;
 	} else {
 		// Ephemeral sessions for scheduled tasks
 		sdkOptions.persistSession = false;
