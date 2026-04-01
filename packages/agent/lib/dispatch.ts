@@ -77,6 +77,39 @@ let pidCounter = 0;
 // --- Lightweight task set (uses shorter timeout) ---
 const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
 
+// --- Stderr capture from Claude Code subprocess ---
+// The Agent SDK swallows stderr — we never see why claude exits with code 1.
+// This buffer captures the last stderr output for inclusion in error logs.
+let lastStderr = "";
+
+/**
+ * Custom spawn function that wraps child_process.spawn to capture stderr.
+ * The SDK's SpawnedProcess interface doesn't expose stderr, but ChildProcess does.
+ * We intercept the spawn, capture stderr into a buffer, and return the process.
+ */
+function spawnWithStderrCapture(
+	options: import("@anthropic-ai/claude-agent-sdk").SpawnOptions
+): import("@anthropic-ai/claude-agent-sdk").SpawnedProcess {
+	const { spawn } = require("node:child_process") as typeof import("node:child_process");
+	lastStderr = "";
+
+	const proc = spawn(options.command, options.args, {
+		cwd: options.cwd,
+		env: options.env as NodeJS.ProcessEnv,
+		signal: options.signal,
+		stdio: ["pipe", "pipe", "pipe"],
+	});
+
+	// Capture stderr into buffer for error reporting
+	proc.stderr?.on("data", (chunk: Buffer) => {
+		const text = chunk.toString();
+		// Keep last 2KB of stderr (enough for error messages, not too much for logs)
+		lastStderr = (lastStderr + text).slice(-2048);
+	});
+
+	return proc;
+}
+
 // --- Content block types matching BetaMessage.content shape ---
 interface ToolUseBlock {
 	type: "tool_use";
@@ -109,6 +142,7 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 
 	const sdkOptions: Options = {
 		abortController,
+		spawnClaudeCodeProcess: spawnWithStderrCapture,
 		systemPrompt: {
 			type: "preset",
 			preset: "claude_code",
@@ -616,15 +650,14 @@ export async function dispatchToClaude(
 	} catch (err) {
 		const errMsg = fmtErr(err);
 		lastFailureError = errMsg;
+		const stderr = lastStderr.trim();
 		edithLog.error("dispatch_error", {
 			label,
 			error: errMsg,
+			stderr: stderr || undefined,
 			consecutiveFailures: consecutiveFailures + 1,
 			elapsedMs: Date.now() - startTime,
 			prompt: prompt.slice(0, 300),
-			hint: errMsg.includes("exited with code")
-				? "Claude Code subprocess failed — check auth (CLAUDE_CODE_OAUTH_TOKEN), permissions (non-root required), or container setup"
-				: undefined,
 		});
 
 		// Circuit breaker
