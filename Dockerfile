@@ -28,4 +28,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:${PORT:-8080}/health || exit 1
 
-CMD ["bun", "run", "edith.ts"]
+# Run edith.ts directly (not via package.json "start" script which uses --env-file for local dev).
+# Railway injects env vars directly — no .env file needed.
+CMD ["bun", "edith.ts"]

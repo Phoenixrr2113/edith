@@ -82,11 +82,11 @@ function createSqliteDB(pathOverride?: string): EdithDB {
 // --- Neon Postgres backend ---
 
 /**
- * Neon HTTP driver wrapper.
+ * Neon Postgres backend via HTTP API.
  *
- * Neon's serverless driver works over HTTP — each query is a single request.
- * We use Bun's synchronous fetch capability to keep the interface sync.
- * Queries are small (CRUD on config tables), so the ~10ms overhead is fine.
+ * Uses Neon's HTTP SQL endpoint directly (same protocol as @neondatabase/serverless).
+ * Synchronous via Bun.spawnSync + curl — keeps the EdithDB interface sync.
+ * Queries are small CRUD on config tables, so ~10-20ms per query is fine.
  */
 function createNeonDB(): EdithDB {
 	// Convert SQLite ?-style params to Postgres $1-style
@@ -117,17 +117,10 @@ function createNeonDB(): EdithDB {
 		}
 
 		const data = JSON.parse(res.body);
-		// Neon HTTP response: { rows: [...], fields: [{name, dataTypeID}], ...}
+		// Neon HTTP response: { rows: [...], rowAsArray: false, fields: [...] }
+		// When rowAsArray is false (default), rows are already objects
 		if (!data.rows) return [];
-		// Convert array-of-arrays to array-of-objects using field names
-		const fields = (data.fields ?? []).map((f: { name: string }) => f.name);
-		return data.rows.map((row: unknown[]) => {
-			const obj: Record<string, unknown> = {};
-			for (let i = 0; i < fields.length; i++) {
-				obj[fields[i]] = row[i];
-			}
-			return obj;
-		});
+		return data.rows as Record<string, unknown>[];
 	}
 
 	return {
