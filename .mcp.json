@@ -12,6 +12,10 @@
 			"command": "npx",
 			"args": ["-y", "computer-use-mcp"]
 		},
+		"railway": {
+			"command": "npx",
+			"args": ["-y", "@anthropic-ai/claude-code-mcp-adapter", "npx", "-y", "@railway/mcp-server"]
+		},
 		"betterstack": {
 			"command": "npx",
 			"args": [

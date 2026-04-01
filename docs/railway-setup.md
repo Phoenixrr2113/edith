@@ -75,34 +75,56 @@ Events.jsonl, taskboard, and transcripts are ephemeral in cloud mode (acceptable
 ## Service 2: Cognee
 
 ### Deploy source
-- **Source:** `cognee-repo/` directory or Cognee's Docker image
-- **Dockerfile:** `cognee-repo/Dockerfile` (or use `topoteretes/cognee:latest`)
-- **Port:** 8001
+- **Source:** Docker image `cognee/cognee:latest` (REST API server)
+- **Port:** 8000
 
 ### Environment variables
 
 ```
-# LLM for embeddings and processing
-LLM_API_KEY=<OpenAI or compatible API key>
-LLM_MODEL=gpt-4o-mini
+# LLM (via OpenRouter)
+LLM_PROVIDER=custom
+LLM_API_KEY=<OpenRouter API key>
+LLM_MODEL=openrouter/qwen/qwen3-235b-a22b-2507
+LLM_ENDPOINT=https://openrouter.ai/api/v1
 
-# Database
+# Embeddings (via OpenRouter → OpenAI)
+EMBEDDING_PROVIDER=openai
+EMBEDDING_API_KEY=<OpenRouter API key>
+EMBEDDING_MODEL=openai/text-embedding-3-small
+EMBEDDING_ENDPOINT=https://openrouter.ai/api/v1
+EMBEDDING_DIMENSIONS=1536
+
+# Relational database (Railway Postgres)
 DB_PROVIDER=postgres
-DB_HOST=${{Postgres.PGHOST}}
-DB_PORT=${{Postgres.PGPORT}}
+DB_HOST=${{Postgres.RAILWAY_PRIVATE_DOMAIN}}
+DB_PORT=5432
 DB_NAME=${{Postgres.PGDATABASE}}
-DB_USER=${{Postgres.PGUSER}}
+DB_USERNAME=${{Postgres.PGUSER}}
 DB_PASSWORD=${{Postgres.PGPASSWORD}}
 
-# Vector store
+# Vector store (pgvector on same Postgres)
 VECTOR_DB_PROVIDER=pgvector
 VECTOR_DB_URL=${{Postgres.DATABASE_URL}}
+
+# Graph database (Neo4j Aura free tier)
+GRAPH_DATABASE_PROVIDER=neo4j
+GRAPH_DATABASE_URL=neo4j+s://<instance>.databases.neo4j.io
+GRAPH_DATABASE_USERNAME=<aura username>
+GRAPH_DATABASE_PASSWORD=<aura password>
+
+# Auth
+ENABLE_BACKEND_ACCESS_CONTROL=false
+PORT=8000
+TRANSPORT_MODE=sse
 ```
 
+### Auth for API access
+Cognee 0.5+ requires authentication. `cognee-direct.sh` handles this automatically:
+- Registers/logs in with `COGNEE_EMAIL` / `COGNEE_PASSWORD` env vars
+- Default: `edith@edith.dev` / `edith-service-2026`
+
 ### Volume
-- Mount at `/app/cognee_data` — persists LanceDB/Kuzu data across deploys
-- Required if using file-based vector store (LanceDB)
-- Not needed if using pgvector (Postgres handles it)
+- Not needed — all data in Postgres (relational + pgvector) and Neo4j Aura (graph)
 
 ### Health check
 - **Path:** `/health`
@@ -145,18 +167,18 @@ npx @railway/cli logs --service edith
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│              Railway Project                 │
-│                                              │
-│  ┌──────────┐    private DNS    ┌──────────┐ │
-│  │  edith   │ ◄──────────────► │  cognee  │ │
-│  │ (Bun)    │                   │ (Python) │ │
-│  └────┬─────┘                   └──────────┘ │
-│       │                                      │
-└───────┼──────────────────────────────────────┘
-        │
-   ┌────▼─────┐     ┌──────────────┐
-   │   Neon   │     │  BetterStack │
-   │ Postgres │     │   (logs)     │
-   └──────────┘     └──────────────┘
+┌──────────────────────────────────────────────────────┐
+│                   Railway Project                     │
+│                                                       │
+│  ┌──────────┐  private DNS  ┌──────────┐ ┌─────────┐ │
+│  │  edith   │ ◄───────────► │  cognee  │ │Postgres │ │
+│  │ (Bun)    │               │ (Python) │ │(pgvec)  │ │
+│  └────┬─────┘               └────┬─────┘ └─────────┘ │
+│       │                          │                    │
+└───────┼──────────────────────────┼────────────────────┘
+        │                          │
+   ┌────▼─────┐  ┌──────────────┐  │  ┌──────────────┐
+   │   Neon   │  │  BetterStack │  └─►│  Neo4j Aura  │
+   │ Postgres │  │   (logs)     │     │  (graph DB)  │
+   └──────────┘  └──────────────┘     └──────────────┘
 ```
