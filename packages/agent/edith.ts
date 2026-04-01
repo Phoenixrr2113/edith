@@ -3,7 +3,7 @@
  *
  * Runs in two modes:
  *   Local (macOS): Telegram polling + caffeinate + launchd process management
- *   Cloud (Railway): HTTP health endpoint + WebSocket server + optional Telegram polling
+ *   Cloud (Railway): Telegram webhook + HTTP health endpoint + WebSocket server
  *
  * Detection: RAILWAY_ENVIRONMENT env var (set automatically by Railway)
  *            or CLOUD_MODE=true for local testing of cloud mode
@@ -86,6 +86,10 @@ import { fmtErr } from "./lib/util";
 
 let paused = false;
 
+// Webhook secret — prevents unauthorized POSTs to the webhook endpoint.
+// Use a random string; Telegram includes it in the X-Telegram-Bot-Api-Secret-Token header.
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? BOT_TOKEN?.slice(-20) ?? "";
+
 if (!BOT_TOKEN) {
 	console.error("FATAL: TELEGRAM_BOT_TOKEN not set. Check your .env file.");
 	edithLog.fatal("config_missing", { key: "TELEGRAM_BOT_TOKEN" });
@@ -136,6 +140,26 @@ if (isCloud) {
 					}),
 					{ headers: { "Content-Type": "application/json" } }
 				);
+			}
+
+			// ── Telegram webhook (receives push updates from Telegram) ──────
+			if (url.pathname === `/webhook/${WEBHOOK_SECRET}` && req.method === "POST") {
+				// Verify secret token header (Telegram sends this when secret_token is set)
+				const secretHeader = req.headers.get("x-telegram-bot-api-secret-token");
+				if (secretHeader && secretHeader !== WEBHOOK_SECRET) {
+					return new Response("Forbidden", { status: 403 });
+				}
+
+				try {
+					const update = (await req.json()) as Record<string, unknown>;
+					// Process asynchronously — return 200 immediately so Telegram doesn't retry
+					processUpdate(update).catch((err) => {
+						edithLog.error("webhook_process_error", { error: fmtErr(err) });
+					});
+					return new Response("ok", { status: 200 });
+				} catch {
+					return new Response("Bad Request", { status: 400 });
+				}
 			}
 
 			if (url.pathname === "/ws") {
@@ -225,9 +249,71 @@ if (isCloud) {
 }
 
 // ============================================================
-// Telegram polling loop
+// Shared Telegram update processing (used by both polling and webhook)
 // ============================================================
 const recentlyIgnored = new Set<number>();
+
+async function processUpdate(update: Record<string, unknown>): Promise<void> {
+	const msg = (update.message ?? update.edited_message) as Record<string, unknown> | undefined;
+	if (!msg) return;
+
+	const chatId = (msg.chat as Record<string, unknown>)?.id as number | undefined;
+	if (!chatId) return;
+
+	const fromId = (msg.from as Record<string, unknown>)?.id;
+	const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
+	if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
+		if (!recentlyIgnored.has(chatId)) {
+			edithLog.warn("unauthorized_chat_ignored", { chatId });
+			recentlyIgnored.add(chatId);
+			setTimeout(() => recentlyIgnored.delete(chatId), 60_000);
+		}
+		return;
+	}
+
+	await sendTyping(chatId);
+	if (paused) {
+		paused = false;
+		edithLog.info("unpaused_by_message", {});
+	}
+	if (!msg.location) {
+		const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
+		edithLog.info("message_received", {
+			chatId,
+			type: msgType,
+			source: isSmsBot ? "sms_relay" : "randy",
+			text: String(msg.text ?? "").slice(0, 200),
+		});
+	}
+
+	const location = msg.location as Record<string, number> | undefined;
+	if (location) {
+		await handleLocation(chatId, location.latitude, location.longitude);
+		return;
+	}
+	const voice = (msg.voice ?? msg.audio) as Record<string, string> | undefined;
+	if (voice) {
+		await handleVoice(chatId, msg.message_id as number, voice.file_id);
+		return;
+	}
+	const photos = msg.photo as Array<Record<string, unknown>> | undefined;
+	if (photos && photos.length > 0) {
+		await handlePhoto(
+			chatId,
+			msg.message_id as number,
+			(photos[photos.length - 1] as Record<string, string>).file_id,
+			String(msg.caption ?? "")
+		);
+		return;
+	}
+	if (msg.text) {
+		await handleText(chatId, msg.message_id as number, msg.text as string, isSmsBot);
+	}
+}
+
+// ============================================================
+// Telegram polling loop (local mode only)
+// ============================================================
 let currentOffset = offset;
 
 async function poll(): Promise<void> {
@@ -246,64 +332,7 @@ async function poll(): Promise<void> {
 				const updateId = update.update_id as number;
 				currentOffset = updateId + 1;
 				saveOffset(currentOffset);
-
-				const msg = (update.message ?? update.edited_message) as
-					| Record<string, unknown>
-					| undefined;
-				if (!msg) continue;
-
-				const chatId = (msg.chat as Record<string, unknown>)?.id as number | undefined;
-				if (!chatId) continue;
-
-				const fromId = (msg.from as Record<string, unknown>)?.id;
-				const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
-				if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
-					if (!recentlyIgnored.has(chatId)) {
-						edithLog.warn("unauthorized_chat_ignored", { chatId });
-						recentlyIgnored.add(chatId);
-						setTimeout(() => recentlyIgnored.delete(chatId), 60_000);
-					}
-					continue;
-				}
-
-				await sendTyping(chatId);
-				if (paused) {
-					paused = false;
-					edithLog.info("unpaused_by_message", {});
-				}
-				if (!msg.location) {
-					const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
-					edithLog.info("message_received", {
-						chatId,
-						type: msgType,
-						source: isSmsBot ? "sms_relay" : "randy",
-						text: String(msg.text ?? "").slice(0, 200),
-					});
-				}
-
-				const location = msg.location as Record<string, number> | undefined;
-				if (location) {
-					await handleLocation(chatId, location.latitude, location.longitude);
-					continue;
-				}
-				const voice = (msg.voice ?? msg.audio) as Record<string, string> | undefined;
-				if (voice) {
-					await handleVoice(chatId, msg.message_id as number, voice.file_id);
-					continue;
-				}
-				const photos = msg.photo as Array<Record<string, unknown>> | undefined;
-				if (photos && photos.length > 0) {
-					await handlePhoto(
-						chatId,
-						msg.message_id as number,
-						(photos[photos.length - 1] as Record<string, string>).file_id,
-						String(msg.caption ?? "")
-					);
-					continue;
-				}
-				if (msg.text) {
-					await handleText(chatId, msg.message_id as number, msg.text as string, isSmsBot);
-				}
+				await processUpdate(update);
 			}
 			consecutiveErrors = 0;
 		} catch (err) {
@@ -324,6 +353,35 @@ async function poll(): Promise<void> {
 		}
 
 		await Bun.sleep(POLL_INTERVAL_MS);
+	}
+}
+
+// ============================================================
+// Telegram webhook helpers (cloud mode)
+// ============================================================
+
+/** Register webhook URL with Telegram. Deletes any existing webhook first. */
+async function registerWebhook(publicUrl: string): Promise<void> {
+	const webhookUrl = `${publicUrl}/webhook/${WEBHOOK_SECRET}`;
+	try {
+		await tgCall("setWebhook", {
+			url: webhookUrl,
+			allowed_updates: ["message", "edited_message"],
+			secret_token: WEBHOOK_SECRET,
+		});
+		edithLog.info("webhook_registered", { url: webhookUrl.replace(WEBHOOK_SECRET, "***") });
+	} catch (err) {
+		edithLog.error("webhook_registration_failed", { error: fmtErr(err) });
+	}
+}
+
+/** Remove webhook so polling can resume (e.g., when switching back to local). */
+async function deregisterWebhook(): Promise<void> {
+	try {
+		await tgCall("deleteWebhook", {});
+		edithLog.info("webhook_deregistered", {});
+	} catch (err) {
+		edithLog.error("webhook_deregistration_failed", { error: fmtErr(err) });
 	}
 }
 
@@ -465,16 +523,31 @@ setInterval(async () => {
 
 runScheduler().catch((err) => edithLog.error("scheduler_run_error", { error: fmtErr(err) }));
 
-// Telegram polling
-// Cloud: disabled by default (local instance handles it). Enable with CLOUD_TELEGRAM_POLLING=true.
-// Local: always enabled.
-const shouldPollTelegram = isCloud ? process.env.CLOUD_TELEGRAM_POLLING === "true" : true;
-
-if (shouldPollTelegram) {
-	poll().catch((err) => {
-		edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
-		process.exit(1);
+// Telegram: webhook (cloud) vs polling (local)
+// Cloud: uses webhook — Telegram pushes to /webhook/<secret>, no polling conflict with local.
+// Local: uses polling — getUpdates loop. Webhook is deregistered on local startup so both can coexist.
+if (isCloud) {
+	// Register webhook with Telegram — it will push updates to our HTTP server
+	const publicUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+		? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+		: `https://${process.env.RAILWAY_STATIC_URL ?? "localhost:8080"}`;
+	registerWebhook(publicUrl).catch((err) => {
+		edithLog.error("webhook_startup_failed", { error: fmtErr(err) });
 	});
 } else {
-	edithLog.info("telegram_polling_disabled", {});
+	// Local mode: deregister any webhook so polling works, then start polling
+	deregisterWebhook()
+		.then(() => {
+			poll().catch((err) => {
+				edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
+				process.exit(1);
+			});
+		})
+		.catch(() => {
+			// Even if deregister fails, start polling anyway
+			poll().catch((err) => {
+				edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
+				process.exit(1);
+			});
+		});
 }
