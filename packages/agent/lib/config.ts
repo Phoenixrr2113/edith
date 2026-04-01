@@ -3,6 +3,12 @@
  */
 import { join } from "node:path";
 
+// --- Cloud mode detection ---
+export const IS_CLOUD =
+	!!process.env.RAILWAY_ENVIRONMENT ||
+	process.env.CLOUD_MODE === "true" ||
+	process.env.CLOUD_MODE === "1";
+
 // --- Paths ---
 // State lives inside the project so the AI agent can see it when debugging.
 // Cloud mode: uses /data/.state (Railway volume) or falls back to project dir.
