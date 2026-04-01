@@ -64,7 +64,8 @@ export const DOWNLOADS_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 export const BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
 
 // --- Reflector ---
-export const REFLECTOR_ENABLED = process.env.REFLECTOR_ENABLED !== "false"; // on by default
+// Disabled in cloud — spawns a second Claude subprocess that OOMs on Railway
+export const REFLECTOR_ENABLED = IS_CLOUD ? false : process.env.REFLECTOR_ENABLED !== "false";
 export const REFLECTOR_TOOL_CALL_FREQUENCY = Number(process.env.REFLECTOR_FREQUENCY ?? "4");
 export const REFLECTOR_EVAL_ONLY_RATIO = Number(process.env.REFLECTOR_EVAL_ONLY_RATIO ?? "0.3"); // 30% sessions get eval-only (no injections)
 
@@ -74,8 +75,8 @@ export const SENTINEL_ENABLED = process.env.SENTINEL_ENABLED !== "false"; // on 
 // --- Dispatch / circuit breaker ---
 export const MAX_CONSECUTIVE_FAILURES = 5;
 export const CIRCUIT_BREAKER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
-export const QUERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max per dispatch
-export const LIGHTWEIGHT_TIMEOUT_MS = 90 * 1000; // 90 seconds for lightweight tasks
+export const QUERY_TIMEOUT_MS = IS_CLOUD ? 8 * 60 * 1000 : 5 * 60 * 1000; // cloud: 8min, local: 5min
+export const LIGHTWEIGHT_TIMEOUT_MS = IS_CLOUD ? 3 * 60 * 1000 : 90 * 1000; // cloud: 3min, local: 90s
 export const INTER_DISPATCH_DELAY_MS = 3_000;
 
 // --- Proactive limits ---
