@@ -1,7 +1,18 @@
-# ── Single-stage build (simpler, avoids workspace symlink issues) ──────────────
-FROM oven/bun:1
+# ── Single-stage build ────────────────────────────────────────────────────────
+# Use Debian-based Bun image (not Alpine) for Claude Code native binary compat
+FROM oven/bun:1-debian
 
 WORKDIR /app
+
+# Install Node.js (required by Claude Code) and curl (for healthcheck)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code globally
+RUN npm install -g @anthropic-ai/claude-code@latest
 
 # Copy workspace manifests
 COPY package.json bun.lock ./
@@ -26,8 +37,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:${PORT:-8080}/health || exit 1
+  CMD curl -sf http://localhost:${PORT:-8080}/health || exit 1
 
-# Run edith.ts directly (not via package.json "start" script which uses --env-file for local dev).
 # Railway injects env vars directly — no .env file needed.
 CMD ["bun", "edith.ts"]
