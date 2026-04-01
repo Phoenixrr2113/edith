@@ -1,9 +1,9 @@
 /**
  * Telegram API helpers — shared between edith.ts and mcp/server.ts.
  */
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { TELEGRAM_BOT_TOKEN as BOT_TOKEN, INBOX_DIR } from "./config";
+import { TELEGRAM_BOT_TOKEN as BOT_TOKEN, DOWNLOADS_DIR } from "./config";
 
 const TG = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
@@ -63,7 +63,8 @@ export async function downloadFile(fileId: string, ext: string): Promise<string>
 	const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`;
 	const res = await fetch(url);
 	const buf = await res.arrayBuffer();
-	const localPath = join(INBOX_DIR, `${Date.now()}.${ext}`);
+	mkdirSync(DOWNLOADS_DIR, { recursive: true });
+	const localPath = join(DOWNLOADS_DIR, `${Date.now()}.${ext}`);
 	writeFileSync(localPath, Buffer.from(buf));
 	return localPath;
 }

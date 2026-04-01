@@ -2,15 +2,29 @@
  * Transcript logging — saves every session's message stream to JSONL.
  * Useful for debugging and self-improvement.
  */
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_DIR } from "./config";
 
 const TRANSCRIPTS_DIR = join(STATE_DIR, "transcripts");
+const TRANSCRIPT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Ensure transcripts directory exists
 if (!existsSync(TRANSCRIPTS_DIR)) {
 	mkdirSync(TRANSCRIPTS_DIR, { recursive: true });
+}
+
+/** Remove transcript files older than 30 days. */
+export function rotateTranscripts(): void {
+	try {
+		const now = Date.now();
+		for (const f of readdirSync(TRANSCRIPTS_DIR)) {
+			const fp = join(TRANSCRIPTS_DIR, f);
+			try {
+				if (now - statSync(fp).mtimeMs > TRANSCRIPT_MAX_AGE_MS) unlinkSync(fp);
+			} catch {}
+		}
+	} catch {}
 }
 
 /**

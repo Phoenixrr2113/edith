@@ -1,21 +1,17 @@
 /**
- * IPC mechanisms — signal files, trigger files, inbox messages.
+ * IPC mechanisms — signal files and trigger files.
  *
- * Edith uses three file-based IPC channels:
+ * Edith uses two file-based IPC channels:
  *   1. Signal files  (~/.edith/.signal-*)  — presence triggers a lifecycle action
  *   2. Trigger files (~/.edith/triggers/)  — presence fires a named scheduled task
- *   3. Inbox files   (~/.edith/inbox/)     — JSON messages from the dashboard
  *
- * A fourth IPC channel (in-process streamInput injection) lives in lib/session.ts
+ * A third IPC channel (in-process streamInput injection) lives in lib/session.ts
  * as it is tightly coupled to the Agent SDK query handle.
- *
- * sendIpc() writes a dashboard-style inbox message so external tools can enqueue
- * work without touching the Telegram poll loop.
  */
-import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { BRIEF_TYPE_MAP, type BriefType, buildBrief } from "./briefs";
-import { CHAT_ID, INBOX_DIR, STATE_DIR } from "./config";
+import { STATE_DIR } from "./config";
 import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import { fmtErr } from "./util";
@@ -102,60 +98,4 @@ export async function processTriggers(): Promise<void> {
 				});
 		}
 	} catch {}
-}
-
-// ── Inbox processing ───────────────────────────────────────────────────────────
-
-/**
- * Process dashboard inbox messages (dashboard-*.json files in INBOX_DIR).
- */
-export async function processInbox(): Promise<void> {
-	try {
-		if (!existsSync(INBOX_DIR)) return;
-		for (const f of readdirSync(INBOX_DIR)) {
-			if (!f.startsWith("dashboard-")) continue;
-			const fp = join(INBOX_DIR, f);
-			try {
-				const msg = JSON.parse(readFileSync(fp, "utf-8"));
-				if (msg.text?.trim()) {
-					edithLog.info("dashboard_message", { text: msg.text.slice(0, 200) });
-					const brief = await buildBrief("message", { message: msg.text, chatId: String(CHAT_ID) });
-					dispatchToClaude(brief, {
-						resume: true,
-						label: "dashboard-msg",
-						chatId: CHAT_ID,
-						priority: Priority.P2_INTERACTIVE,
-					})
-						.then(() => {
-							try {
-								unlinkSync(fp);
-							} catch {}
-						})
-						.catch((err) => {
-							edithLog.error("dashboard_msg_dispatch_error", { message: fmtErr(err) });
-							try {
-								unlinkSync(fp);
-							} catch {}
-						});
-				} else {
-					try {
-						unlinkSync(fp);
-					} catch {}
-				}
-			} catch {}
-		}
-	} catch {}
-}
-
-// ── sendIpc ────────────────────────────────────────────────────────────────────
-
-/**
- * Write a dashboard-style inbox message so external tools can enqueue work
- * without going through the Telegram poll loop.
- */
-export async function sendIpc(message: string): Promise<void> {
-	const fname = `dashboard-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
-	const fp = join(INBOX_DIR, fname);
-	writeFileSync(fp, JSON.stringify({ text: message, ts: new Date().toISOString() }), "utf-8");
-	edithLog.info("ipc_send", { text: message.slice(0, 200) });
 }

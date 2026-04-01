@@ -1,22 +1,26 @@
 /**
  * Edith — Persistent orchestrator for a Claude-powered personal assistant.
  *
+ * Runs in two modes:
+ *   Local (macOS): Telegram polling + caffeinate + launchd process management
+ *   Cloud (Railway): HTTP health endpoint + WebSocket server + optional Telegram polling
+ *
+ * Detection: RAILWAY_ENVIRONMENT env var (set automatically by Railway)
+ *            or CLOUD_MODE=true for local testing of cloud mode
+ *
  * Architecture:
  *   Telegram ──> edith.ts ──> Agent SDK query() ──> MCP tools ──> Telegram
  *   Timer    ──> edith.ts ──> Agent SDK query() ──> taskboard / MCP tools
- *
- * All logic is in lib/ modules. This file is just the startup + poll loop.
+ *   WebSocket ─> edith.ts ──> Agent SDK query() ──> WebSocket response (cloud only)
  */
-import {
-	appendFileSync,
-	chmodSync,
-	existsSync,
-	readdirSync,
-	statSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
+import { appendFileSync, chmodSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+
+// ── Cloud mode detection (must be before imports that read STATE_DIR) ─────────
+const isCloud =
+	!!process.env.RAILWAY_ENVIRONMENT ||
+	process.env.CLOUD_MODE === "true" ||
+	process.env.CLOUD_MODE === "1";
 
 // --- Log to file + console ---
 const LOG_FILE = process.env.EDITH_LOG_FILE;
@@ -43,6 +47,7 @@ console.error = (...args: any[]) => {
 	_origErr(...args);
 	writeLog("error", args);
 };
+// biome-ignore lint/suspicious/noExplicitAny: console overrides require any[]
 console.warn = (...args: any[]) => {
 	_origWarn(...args);
 	writeLog("warn", args);
@@ -54,8 +59,6 @@ import {
 	BACKOFF_SCHEDULE,
 	TELEGRAM_BOT_TOKEN as BOT_TOKEN,
 	CHAT_ID,
-	INBOX_DIR,
-	INBOX_MAX_AGE_MS,
 	POLL_INTERVAL_MS,
 	SCHEDULE_CHECK_MS,
 	SMS_BOT_ID,
@@ -88,18 +91,136 @@ if (!BOT_TOKEN) {
 	process.exit(1);
 }
 
-// --- .env permission check ---
-const ENV_FILE = join(import.meta.dir, ".env");
-if (existsSync(ENV_FILE)) {
-	const envMode = statSync(ENV_FILE).mode & 0o777;
-	if (envMode & 0o044) {
-		edithLog.warn("env_permission_insecure", { mode: envMode.toString(8) });
-		try {
-			chmodSync(ENV_FILE, 0o600);
-		} catch (e) {
-			edithLog.error("env_chmod_failed", { error: fmtErr(e) });
+// --- .env permission check (skip in cloud — secrets come from Railway env vars) ---
+if (!isCloud) {
+	const ENV_FILE = join(import.meta.dir, ".env");
+	if (existsSync(ENV_FILE)) {
+		const envMode = statSync(ENV_FILE).mode & 0o777;
+		if (envMode & 0o044) {
+			edithLog.warn("env_permission_insecure", { mode: envMode.toString(8) });
+			try {
+				chmodSync(ENV_FILE, 0o600);
+			} catch (e) {
+				edithLog.error("env_chmod_failed", { error: fmtErr(e) });
+			}
 		}
 	}
+}
+
+// ============================================================
+// HTTP health + WebSocket server (cloud mode)
+// ============================================================
+let httpServer: ReturnType<typeof Bun.serve> | null = null;
+
+if (isCloud) {
+	const { authenticateUpgrade, makeWsMessage } = await import("./lib/cloud-transport");
+
+	const HTTP_PORT = Number(process.env.PORT ?? 8080);
+	// biome-ignore lint/suspicious/noExplicitAny: Bun WS type not yet publicly exported
+	const connectedDevices = new Map<string, any>();
+
+	httpServer = Bun.serve<import("./lib/cloud-transport").WsClientData>({
+		port: HTTP_PORT,
+
+		async fetch(req, srv) {
+			const url = new URL(req.url);
+
+			if (url.pathname === "/health") {
+				return new Response(
+					JSON.stringify({
+						status: "ok",
+						uptime: Math.floor(process.uptime()),
+						devices: connectedDevices.size,
+						ts: Date.now(),
+					}),
+					{ headers: { "Content-Type": "application/json" } }
+				);
+			}
+
+			if (url.pathname === "/ws") {
+				const deviceId = await authenticateUpgrade(req);
+				if (!deviceId) return new Response("Unauthorized", { status: 401 });
+				const upgraded = srv.upgrade(req, {
+					data: { deviceId, connectedAt: Date.now(), lastPingAt: Date.now() },
+				});
+				return upgraded ? undefined : new Response("WebSocket upgrade failed", { status: 500 });
+			}
+
+			return new Response("Edith Cloud", { status: 200 });
+		},
+
+		websocket: {
+			open(ws) {
+				const { deviceId } = ws.data;
+				connectedDevices.set(deviceId, ws);
+				edithLog.info("device_connected", { deviceId, total: connectedDevices.size });
+				ws.send(
+					JSON.stringify(
+						makeWsMessage<import("./lib/cloud-transport").WsConnectedMessage>({
+							type: "connected",
+							deviceId,
+							serverVersion: "3.0.0",
+						})
+					)
+				);
+			},
+
+			message(ws, raw) {
+				ws.data.lastPingAt = Date.now();
+				const { deviceId } = ws.data;
+				let msg: Record<string, unknown>;
+				try {
+					msg = JSON.parse(typeof raw === "string" ? raw : raw.toString()) as Record<
+						string,
+						unknown
+					>;
+				} catch {
+					ws.send(
+						JSON.stringify(
+							makeWsMessage<import("./lib/cloud-transport").WsErrorMessage>({
+								type: "error",
+								code: "BAD_MESSAGE",
+								message: "Invalid JSON",
+							})
+						)
+					);
+					return;
+				}
+
+				if (msg.type === "ping") {
+					ws.send(JSON.stringify({ type: "pong", ts: Date.now() }));
+					return;
+				}
+
+				if (msg.type === "input") {
+					const input = msg as unknown as import("./lib/cloud-transport").WsInputMessage;
+					edithLog.info("ws_device_input", {
+						deviceId,
+						preview: String(input.text).slice(0, 80),
+					});
+					dispatchToConversation(CHAT_ID, 0, input.text).catch((err) => {
+						edithLog.error("ws_dispatch_failed", { deviceId, error: fmtErr(err) });
+					});
+					return;
+				}
+
+				edithLog.warn("ws_unhandled_message", { deviceId, messageType: msg.type });
+			},
+
+			close(ws, code, reason) {
+				const { deviceId } = ws.data;
+				connectedDevices.delete(deviceId);
+				edithLog.info("device_disconnected", {
+					deviceId,
+					code,
+					reason: reason?.toString(),
+					remaining: connectedDevices.size,
+				});
+			},
+		},
+	});
+
+	edithLog.info("http_server_listening", { port: HTTP_PORT });
 }
 
 // ============================================================
@@ -118,20 +239,22 @@ async function poll(): Promise<void> {
 				offset: currentOffset,
 				timeout: 30,
 				allowed_updates: ["message", "edited_message"],
-			})) as Array<Record<string, any>>;
+			})) as Array<Record<string, unknown>>;
 
 			for (const update of updates) {
-				currentOffset = update.update_id + 1;
+				const updateId = update.update_id as number;
+				currentOffset = updateId + 1;
 				saveOffset(currentOffset);
 
-				const msg = update.message ?? update.edited_message;
+				const msg = (update.message ?? update.edited_message) as
+					| Record<string, unknown>
+					| undefined;
 				if (!msg) continue;
 
-				const chatId = msg.chat?.id;
+				const chatId = (msg.chat as Record<string, unknown>)?.id as number | undefined;
 				if (!chatId) continue;
 
-				// Security: Only process messages from Randy's authorized chats or the SMS bot
-				const fromId = msg.from?.id;
+				const fromId = (msg.from as Record<string, unknown>)?.id;
 				const isSmsBot = !!(SMS_BOT_ID && String(fromId) === SMS_BOT_ID);
 				if (!ALLOWED_CHATS.has(chatId) && !isSmsBot) {
 					if (!recentlyIgnored.has(chatId)) {
@@ -147,39 +270,38 @@ async function poll(): Promise<void> {
 					paused = false;
 					edithLog.info("unpaused_by_message", {});
 				}
-				// Skip logging raw location updates — they fire frequently from live location sharing
-				// and create massive log spam. Geofence transitions are logged inside handleLocation.
 				if (!msg.location) {
 					const msgType = msg.voice ? "voice" : msg.photo ? "photo" : "text";
-					const msgPreview = msg.text?.slice(0, 80) ?? msg.caption?.slice(0, 80) ?? "";
 					edithLog.info("message_received", {
 						chatId,
 						type: msgType,
 						source: isSmsBot ? "sms_relay" : "randy",
-						text: (msg.text ?? "").slice(0, 200),
+						text: String(msg.text ?? "").slice(0, 200),
 					});
 				}
 
-				// Dispatch to type-specific handler
-				if (msg.location) {
-					await handleLocation(chatId, msg.location.latitude, msg.location.longitude);
+				const location = msg.location as Record<string, number> | undefined;
+				if (location) {
+					await handleLocation(chatId, location.latitude, location.longitude);
 					continue;
 				}
-				if (msg.voice || msg.audio) {
-					await handleVoice(chatId, msg.message_id, (msg.voice ?? msg.audio).file_id);
+				const voice = (msg.voice ?? msg.audio) as Record<string, string> | undefined;
+				if (voice) {
+					await handleVoice(chatId, msg.message_id as number, voice.file_id);
 					continue;
 				}
-				if (msg.photo && msg.photo.length > 0) {
+				const photos = msg.photo as Array<Record<string, unknown>> | undefined;
+				if (photos && photos.length > 0) {
 					await handlePhoto(
 						chatId,
-						msg.message_id,
-						msg.photo[msg.photo.length - 1].file_id,
-						msg.caption ?? ""
+						msg.message_id as number,
+						(photos[photos.length - 1] as Record<string, string>).file_id,
+						String(msg.caption ?? "")
 					);
 					continue;
 				}
 				if (msg.text) {
-					await handleText(chatId, msg.message_id, msg.text, isSmsBot);
+					await handleText(chatId, msg.message_id as number, msg.text as string, isSmsBot);
 				}
 			}
 			consecutiveErrors = 0;
@@ -206,7 +328,6 @@ async function poll(): Promise<void> {
 async function bootstrap(): Promise<void> {
 	rotateTaskboard();
 
-	// Check for signal files
 	if (existsSync(SIGNAL_FRESH)) {
 		edithLog.info("signal_fresh_session", {});
 		clearSession();
@@ -229,7 +350,6 @@ async function bootstrap(): Promise<void> {
 		edithLog.info("session_resume", { sessionId });
 	}
 
-	// Replay dead-lettered messages
 	const deadLetters = loadDeadLetters();
 	if (deadLetters.length > 0) {
 		edithLog.info("dead_letter_replay", { count: deadLetters.length });
@@ -251,7 +371,6 @@ async function bootstrap(): Promise<void> {
 // Graceful shutdown
 // ============================================================
 async function gracefulShutdown(): Promise<void> {
-	// Close active Agent SDK query if running
 	const activeQuery = getActiveQuery();
 	if (activeQuery) {
 		edithLog.info("shutdown_closing_session", {});
@@ -266,8 +385,9 @@ async function gracefulShutdown(): Promise<void> {
 			saveDeadLetter((job.opts.chatId as number) ?? CHAT_ID, job.prompt, "shutdown_drain");
 		}
 	}
-	stopCaffeinate();
-	// Flush buffered logs before exit
+
+	if (!isCloud) stopCaffeinate();
+	if (httpServer) httpServer.stop();
 	await edithLog.flush();
 	process.exit(0);
 }
@@ -275,9 +395,6 @@ async function gracefulShutdown(): Promise<void> {
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
-// ============================================================
-// Global error handlers
-// ============================================================
 process.on("uncaughtException", (err: Error) => {
 	edithLog.fatal("uncaught_exception", { error: err.message, err });
 	gracefulShutdown();
@@ -294,11 +411,15 @@ process.on("unhandledRejection", (reason: unknown) => {
 // Start
 // ============================================================
 edithLog.info("startup_begin", {
+	mode: isCloud ? "cloud" : "local",
 	betterstack: !!process.env.BETTERSTACK_SOURCE_TOKEN,
 });
 rotateEvents();
 
-// Seed Google OAuth tokens from env vars into SQLite
+import { rotateTranscripts } from "./lib/transcript";
+
+rotateTranscripts();
+
 import { seedTokensFromEnv } from "./lib/google-auth";
 
 try {
@@ -307,31 +428,21 @@ try {
 	edithLog.warn("oauth_seed_failed", { error: fmtErr(err) });
 }
 
-// Clean up old inbox files (older than 7 days)
-try {
-	const now = Date.now();
-	if (existsSync(INBOX_DIR)) {
-		for (const f of readdirSync(INBOX_DIR)) {
-			const fp = join(INBOX_DIR, f);
-			try {
-				if (now - statSync(fp).mtimeMs > INBOX_MAX_AGE_MS) unlinkSync(fp);
-			} catch {}
-		}
-	}
-} catch {}
-
-edithLog.info("startup", { pid: process.pid, sessionId: sessionId || "new" });
-startCaffeinate();
+edithLog.info("startup", {
+	pid: process.pid,
+	sessionId: sessionId || "new",
+	mode: isCloud ? "cloud" : "local",
+});
+if (!isCloud) startCaffeinate();
 await bootstrap();
 
-// Scheduler + signal file watcher
+// Scheduler tick
 const tickState: TickState = { paused: false };
 let schedulerRunning = false;
 setInterval(async () => {
 	if (schedulerRunning) return;
 	schedulerRunning = true;
 	try {
-		// Share pause state with poll loop
 		paused = tickState.paused;
 		await schedulerTick(tickState);
 		paused = tickState.paused;
@@ -345,8 +456,16 @@ setInterval(async () => {
 
 runScheduler().catch((err) => edithLog.error("scheduler_run_error", { error: fmtErr(err) }));
 
-// Start polling
-poll().catch((err) => {
-	edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
-	process.exit(1);
-});
+// Telegram polling
+// Cloud: disabled by default (local instance handles it). Enable with CLOUD_TELEGRAM_POLLING=true.
+// Local: always enabled.
+const shouldPollTelegram = isCloud ? process.env.CLOUD_TELEGRAM_POLLING === "true" : true;
+
+if (shouldPollTelegram) {
+	poll().catch((err) => {
+		edithLog.fatal("poll_loop_crashed", { error: fmtErr(err) });
+		process.exit(1);
+	});
+} else {
+	edithLog.info("telegram_polling_disabled", {});
+}

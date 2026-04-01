@@ -2,18 +2,13 @@
  * Proactive intervention tracker — cooldowns, rate limits, quiet hours.
  * Prevents notification fatigue while allowing Edith to act without being asked.
  */
-import { join } from "node:path";
 import {
 	PROACTIVE_COOLDOWN_MINUTES,
 	PROACTIVE_MAX_PER_HOUR,
 	PROACTIVE_QUIET_END,
 	PROACTIVE_QUIET_START,
-	STATE_DIR,
 } from "./config";
-import { openDatabase } from "./db";
-import { loadJson } from "./storage";
-
-const PROACTIVE_CONFIG_FILE = join(STATE_DIR, "proactive-config.json");
+import { kvGet, openDatabase } from "./db";
 
 interface Intervention {
 	timestamp: string;
@@ -70,10 +65,10 @@ function appendIntervention(category: string, message: string): void {
  * Check if a proactive intervention is allowed right now.
  */
 export function canIntervene(category?: string): { allowed: boolean; reason?: string } {
-	// Check dashboard toggle
-	const toggle = loadJson<{ enabled?: boolean }>(PROACTIVE_CONFIG_FILE, { enabled: true });
-	if (toggle.enabled === false) {
-		return { allowed: false, reason: "proactive disabled via dashboard" };
+	// Check proactive toggle
+	const enabledRaw = kvGet("proactive_enabled");
+	if (enabledRaw === "false") {
+		return { allowed: false, reason: "proactive disabled" };
 	}
 
 	const config = DEFAULT_CONFIG;

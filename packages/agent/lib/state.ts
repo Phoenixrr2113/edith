@@ -2,26 +2,14 @@
  * Shared state, config, and persistence for Edith.
  * All file paths, env vars, and read/write helpers live here.
  */
-import {
-	appendFileSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { CHAT_ID, DEAD_LETTER_FILE, INBOX_DIR, SESSION_FILE, STATE_DIR } from "./config";
-import { openDatabase } from "./db";
-import { saveJson } from "./storage";
+import { CHAT_ID, STATE_DIR } from "./config";
+import { kvGet, kvSet, openDatabase } from "./db";
 
 const USER_ID = Number(process.env.TELEGRAM_USER_ID ?? "0");
 export const ALLOWED_CHATS = new Set([CHAT_ID, USER_ID].filter(Boolean));
-
-export const OFFSET_FILE = join(STATE_DIR, "tg-offset");
-export const SCHEDULE_STATE_FILE = join(STATE_DIR, "schedule-state.json");
 
 export const PROJECT_ROOT = join(import.meta.dir, "..");
 export const PROMPTS_DIR = join(PROJECT_ROOT, "prompts");
@@ -29,51 +17,33 @@ export const SYSTEM_PROMPT_FILE = join(PROMPTS_DIR, "system.md");
 export const MCP_CONFIG = join(PROJECT_ROOT, ".mcp.json");
 
 // --- Init ---
-mkdirSync(INBOX_DIR, { recursive: true });
 mkdirSync(STATE_DIR, { recursive: true });
 
 // --- Mutable state ---
 export let offset = 0;
-if (existsSync(OFFSET_FILE)) {
-	try {
-		offset = Number(readFileSync(OFFSET_FILE, "utf-8").trim());
-	} catch {}
+{
+	const raw = kvGet("tg_offset");
+	if (raw) offset = Number(raw);
 }
 
 export let sessionId = "";
-// Load from SQLite first, fall back to file
 try {
 	const db = openDatabase();
 	const row = db
 		.query<{ value: string }, [string]>("SELECT value FROM sessions WHERE key = ?")
 		.get("session_id");
 	if (row) sessionId = row.value;
-} catch {
-	if (existsSync(SESSION_FILE)) {
-		try {
-			sessionId = readFileSync(SESSION_FILE, "utf-8").trim();
-		} catch {}
-	}
-}
+} catch {}
 
 export function saveOffset(newOffset: number): void {
 	offset = newOffset;
-	const tmp = `${OFFSET_FILE}.tmp`;
-	writeFileSync(tmp, String(newOffset), "utf-8");
-	renameSync(tmp, OFFSET_FILE);
+	kvSet("tg_offset", String(newOffset));
 }
 
 export function saveSession(id: string): void {
 	sessionId = id;
-	try {
-		const db = openDatabase();
-		db.run("INSERT OR REPLACE INTO sessions (key, value) VALUES (?, ?)", ["session_id", id]);
-	} catch {
-		// fallback to file
-		const tmp = `${SESSION_FILE}.tmp`;
-		writeFileSync(tmp, id, "utf-8");
-		renameSync(tmp, SESSION_FILE);
-	}
+	const db = openDatabase();
+	db.run("INSERT OR REPLACE INTO sessions (key, value) VALUES (?, ?)", ["session_id", id]);
 }
 
 export function clearSession(): void {
@@ -82,31 +52,12 @@ export function clearSession(): void {
 		const db = openDatabase();
 		db.run("DELETE FROM sessions WHERE key = ?", ["session_id"]);
 	} catch {}
-	try {
-		unlinkSync(SESSION_FILE);
-	} catch {}
 }
 
 // --- Event logging (delegated to edith-logger) ---
 export { rotateEvents } from "./edith-logger";
 
 import { edithLog } from "./edith-logger";
-
-// --- Active processes (for dashboard) ---
-export interface ActiveProcess {
-	pid: number;
-	label: string;
-	startedAt: string;
-	prompt: string;
-}
-
-export const activeProcesses: Map<number, ActiveProcess> = new Map();
-
-export function writeActiveProcesses(): void {
-	try {
-		saveJson(join(STATE_DIR, "active-processes.json"), Array.from(activeProcesses.values()));
-	} catch {}
-}
 
 // --- Dead-letter queue ---
 export interface DeadLetter {
@@ -120,19 +71,13 @@ export function saveDeadLetter(chatId: number, message: string, error: string): 
 	const ts = new Date().toISOString();
 	const msg = message.slice(0, 500);
 	const err = error.slice(0, 300);
-	try {
-		const db = openDatabase();
-		db.run("INSERT INTO dead_letters (ts, chat_id, message, error) VALUES (?, ?, ?, ?)", [
-			ts,
-			chatId,
-			msg,
-			err,
-		]);
-	} catch {
-		// fallback to file
-		const entry: DeadLetter = { ts, chatId, message: msg, error: err };
-		appendFileSync(DEAD_LETTER_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
-	}
+	const db = openDatabase();
+	db.run("INSERT INTO dead_letters (ts, chat_id, message, error) VALUES (?, ?, ?, ?)", [
+		ts,
+		chatId,
+		msg,
+		err,
+	]);
 	edithLog.warn("dead_letter", {
 		chatId,
 		message: message.slice(0, 100),
@@ -141,33 +86,17 @@ export function saveDeadLetter(chatId: number, message: string, error: string): 
 }
 
 export function loadDeadLetters(): DeadLetter[] {
-	try {
-		const db = openDatabase();
-		type DLRow = { ts: string; chat_id: number; message: string; error: string };
-		return db
-			.query<DLRow, []>("SELECT ts, chat_id, message, error FROM dead_letters ORDER BY id")
-			.all()
-			.map((r) => ({ ts: r.ts, chatId: r.chat_id, message: r.message, error: r.error }));
-	} catch {
-		// fallback to file
-		if (!existsSync(DEAD_LETTER_FILE)) return [];
-		try {
-			return readFileSync(DEAD_LETTER_FILE, "utf-8")
-				.split("\n")
-				.filter(Boolean)
-				.map((l) => JSON.parse(l));
-		} catch {
-			return [];
-		}
-	}
+	const db = openDatabase();
+	type DLRow = { ts: string; chat_id: number; message: string; error: string };
+	return db
+		.query<DLRow, []>("SELECT ts, chat_id, message, error FROM dead_letters ORDER BY id")
+		.all()
+		.map((r) => ({ ts: r.ts, chatId: r.chat_id, message: r.message, error: r.error }));
 }
 
 export function clearDeadLetters(): void {
 	try {
 		const db = openDatabase();
 		db.run("DELETE FROM dead_letters");
-	} catch {}
-	try {
-		unlinkSync(DEAD_LETTER_FILE);
 	} catch {}
 }

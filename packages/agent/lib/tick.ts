@@ -1,15 +1,15 @@
 /**
- * Scheduler tick — signals, triggers, and inbox processing.
+ * Scheduler tick — signals, triggers, and scheduled task dispatch.
  * Thin orchestrator: all IPC logic lives in lib/ipc.ts.
  */
 
-import { checkSignals, processInbox, processTriggers, type TickState } from "./ipc";
+import { checkSignals, processTriggers, type TickState } from "./ipc";
 import { runScheduler } from "./scheduler";
 
 export type { TickState };
 
 /**
- * Full scheduler tick — check signals, process triggers/inbox, run scheduler.
+ * Full scheduler tick — check signals, process triggers, run scheduler.
  */
 export async function schedulerTick(state: TickState): Promise<void> {
 	const signal = checkSignals(state);
@@ -17,6 +17,5 @@ export async function schedulerTick(state: TickState): Promise<void> {
 	if (signal === "pause" || state.paused) return;
 
 	await processTriggers();
-	await processInbox();
 	await runScheduler();
 }

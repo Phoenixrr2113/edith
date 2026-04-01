@@ -6,16 +6,10 @@ import { join } from "node:path";
 // --- Paths ---
 export const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
 export const DB_FILE = join(STATE_DIR, "edith.db");
-export const SCHEDULE_FILE = join(STATE_DIR, "schedule.json");
-export const LOCATIONS_FILE = join(STATE_DIR, "locations.json");
-export const REMINDERS_FILE = join(STATE_DIR, "reminders.json");
 export const EVENTS_FILE = join(STATE_DIR, "events.jsonl");
 export const TASKBOARD_FILE = join(STATE_DIR, "taskboard.md");
 export const TASKBOARD_ARCHIVE_DIR = join(STATE_DIR, "taskboard-archive");
-export const SESSION_FILE = join(STATE_DIR, "session-id");
-export const PID_FILE = join(STATE_DIR, "edith.pid");
-export const DEAD_LETTER_FILE = join(STATE_DIR, "dead-letters.json");
-export const INBOX_DIR = join(STATE_DIR, "inbox");
+export const DOWNLOADS_DIR = join(STATE_DIR, "downloads");
 
 // --- Telegram ---
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
@@ -53,7 +47,7 @@ export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 
 // --- Misc ---
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
-export const INBOX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const DOWNLOADS_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 export const BACKOFF_SCHEDULE = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
 
 // --- Reflector ---

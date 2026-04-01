@@ -1,24 +1,30 @@
 /**
- * Scheduler — reads tasks from ~/.edith/schedule.json and fires them via dispatch.
+ * Scheduler — reads tasks from SQLite and fires them via dispatch.
  */
 
 import { BRIEF_TYPE_MAP, buildBrief } from "./briefs";
+import { kvGet, kvSet } from "./db";
 import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import { isUserIdle } from "./screenpipe";
-import { SCHEDULE_STATE_FILE } from "./state";
-import { loadJson, loadSchedule, saveJson } from "./storage";
+import { loadSchedule } from "./storage";
 
 export interface ScheduleState {
 	lastFired: Record<string, string>;
 }
 
 function loadScheduleState(): ScheduleState {
-	return loadJson<ScheduleState>(SCHEDULE_STATE_FILE, { lastFired: {} });
+	const raw = kvGet("schedule_state");
+	if (!raw) return { lastFired: {} };
+	try {
+		return JSON.parse(raw);
+	} catch {
+		return { lastFired: {} };
+	}
 }
 
 function saveScheduleState(state: ScheduleState): void {
-	saveJson(SCHEDULE_STATE_FILE, state);
+	kvSet("schedule_state", JSON.stringify(state));
 }
 
 function isQuietHours(hour: number, quietStart?: number, quietEnd?: number): boolean {

@@ -38,14 +38,7 @@ import { edithLog } from "./edith-logger";
 import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { getActiveQuery, injectMessage, setActiveQuery, setActiveSessionId } from "./session";
-import {
-	activeProcesses,
-	clearSession,
-	PROJECT_ROOT,
-	saveSession,
-	sessionId,
-	writeActiveProcesses,
-} from "./state";
+import { clearSession, PROJECT_ROOT, saveSession, sessionId } from "./state";
 import { loadJson } from "./storage";
 import { sendTyping } from "./telegram";
 import { appendTranscript, startTranscript } from "./transcript";
@@ -185,7 +178,7 @@ export async function processMessageStream(
 	wakeId: string,
 	resume: boolean,
 	opts: DispatchOptions,
-	pseudoPid: number,
+	_pseudoPid: number,
 	reflector: ReflectorSession | null,
 	_abortController?: AbortController
 ): Promise<StreamResult> {
@@ -379,8 +372,6 @@ export async function processMessageStream(
 	} finally {
 		setActiveQuery(null);
 		setActiveSessionId("");
-		activeProcesses.delete(pseudoPid);
-		writeActiveProcesses();
 	}
 
 	return {
@@ -470,15 +461,7 @@ export async function dispatchToClaude(
 		const queryHandle = query({ prompt, options: sdkOptions });
 		setActiveQuery(queryHandle);
 
-		// Track as active process (unique ID)
 		pseudoPid = ++pidCounter;
-		activeProcesses.set(pseudoPid, {
-			pid: pseudoPid,
-			label,
-			startedAt: new Date().toISOString(),
-			prompt: prompt.slice(0, 200),
-		});
-		writeActiveProcesses();
 
 		// Start reflector for this session — randomly assign A/B mode
 		const reflectorMode: ReflectorMode =
@@ -599,8 +582,6 @@ export async function dispatchToClaude(
 
 		setActiveQuery(null);
 		setActiveSessionId("");
-		activeProcesses.delete(pseudoPid); // Clean up if inner finally didn't run
-		writeActiveProcesses();
 		return "";
 	} finally {
 		clearTimeout(timeoutHandle);
