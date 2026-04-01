@@ -132,7 +132,11 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 	};
 
 	// Session handling
-	if (resume) {
+	// Cloud: never resume sessions — Claude Code session store is ephemeral per container.
+	// Deploys wipe it but our SQLite retains stale session IDs → "No conversation found" errors.
+	if (IS_CLOUD) {
+		sdkOptions.persistSession = false;
+	} else if (resume) {
 		if (sessionId) {
 			sdkOptions.resume = sessionId;
 		}
