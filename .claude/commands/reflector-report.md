@@ -1,10 +1,10 @@
-Analyze reflector performance from `~/.edith/events.jsonl`. Parse all `reflector_*` events and report:
+Analyze reflector performance from `packages/agent/.state/events.jsonl`. Parse all `reflector_*` events and report:
 
 ## What to extract
 
 Use bash to grep and parse:
 ```
-grep '"reflector_' ~/.edith/events.jsonl
+grep '"reflector_' packages/agent/.state/events.jsonl
 ```
 
 Event types:

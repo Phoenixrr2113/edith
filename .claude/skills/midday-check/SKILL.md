@@ -30,7 +30,7 @@ Midday check-in. Runs at 12:07 PM or on demand. The `communicator` agent runs th
 - **Email**: last 4h, unread (`manage_emails`)
 - **Calendar**: next 6h (`manage_calendar`)
 - **Reminders**: anything due today (`list_reminders`)
-- **Taskboard**: read `~/.edith/taskboard.md` — what did morning-brief do? Avoid repeating it.
+- **Taskboard**: read `packages/agent/.state/taskboard.md` — what did morning-brief do? Avoid repeating it.
 
 ## Step 2: Do the work
 
@@ -85,7 +85,7 @@ Full brief → [Google Doc link if created]
 
 ## Step 5: Taskboard + Cognee
 
-- Taskboard (`~/.edith/taskboard.md`): write `## [ISO-timestamp] — midday-check` with what was done and what's next
+- Taskboard (`packages/agent/.state/taskboard.md`): write `## [ISO-timestamp] — midday-check` with what was done and what's next
 - Cognee: store any new knowledge (contacts, decisions, patterns)
   ```bash
   bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."

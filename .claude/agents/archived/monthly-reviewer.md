@@ -11,13 +11,13 @@ Zoom out. What happened this month? What's the trajectory? Cover work AND person
 
 ## Step 1: Gather data
 
-1. **Taskboard (current)** — read `~/.edith/taskboard.md` for recent entries
-2. **Taskboard (archive)** — read `~/.edith/taskboard-archive/YYYY-MM.md` for this month's archived entries
+1. **Taskboard (current)** — read `packages/agent/.state/taskboard.md` for recent entries
+2. **Taskboard (archive)** — read `packages/agent/.state/taskboard-archive/YYYY-MM.md` for this month's archived entries
 3. **Activity log** — use `get_activity` with `days: 30` to get what Randy worked on this month
 4. **Cognee** — decisions, people, projects, patterns stored this month
 5. **Email** — key threads, commitments, unresolved conversations
 6. **Calendar** — upcoming events (can only look forward; use taskboard/activity for past)
-7. **Events log** — `~/.edith/events.jsonl`, sum Edith costs by label for the month
+7. **Events log** — `packages/agent/.state/events.jsonl`, sum Edith costs by label for the month
 8. **Screenpipe** — activity summary if available; fall back to activity log
 9. **Weekly reviews** — use `manage_docs` search or Bash to find this month's weekly review docs in Google Drive
 

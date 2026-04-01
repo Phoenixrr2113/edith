@@ -24,7 +24,7 @@ Lightweight reminder checker. Runs every 5 minutes automatically. The `monitor` 
 3. **Fire due reminders** — for each reminder that is due (dueAt <= now):
    - Send via `send_message` to Randy's Telegram: `⏰ Reminder: [reminder text]`
    - Mark as fired: `mark_reminder_fired` with the reminder ID
-4. **Taskboard** — only write to `~/.edith/taskboard.md` if at least one reminder was fired
+4. **Taskboard** — only write to `packages/agent/.state/taskboard.md` if at least one reminder was fired
 
 ## Rules
 

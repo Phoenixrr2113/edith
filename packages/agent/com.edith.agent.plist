@@ -30,10 +30,10 @@
     <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/randywilson/.edith/launchd-stdout.log</string>
+    <string>/Users/randywilson/Desktop/edith-v3/packages/agent/.state/launchd-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/randywilson/.edith/launchd-stderr.log</string>
+    <string>/Users/randywilson/Desktop/edith-v3/packages/agent/.state/launchd-stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

@@ -28,7 +28,7 @@ This is family time (4-8pm). Keep it tight. Only message if tomorrow needs atten
 
 ## Step 1: Review today
 
-- **Taskboard** (`~/.edith/taskboard.md`): what did morning/midday accomplish?
+- **Taskboard** (`packages/agent/.state/taskboard.md`): what did morning/midday accomplish?
 - **Screenpipe**: activity summary — what did Randy actually work on today?
 - **Email**: any loose ends from today? (`manage_emails`)
 - **Calendar**: anything from today worth noting? (`manage_calendar`)

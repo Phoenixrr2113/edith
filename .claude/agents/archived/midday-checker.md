@@ -58,6 +58,6 @@ Do NOT message "nothing to report" or "just checking in."
 
 ## Step 5: Taskboard + Cognee
 
-Write to taskboard (`~/.edith/taskboard.md`) with format: `## ISO-timestamp — midday-check`
+Write to taskboard (`packages/agent/.state/taskboard.md`) with format: `## ISO-timestamp — midday-check`
 
 Store new knowledge in Cognee.

@@ -26,8 +26,8 @@ Cover BOTH work and personal/family — not just work.
 
 ## Step 1: Look back (this week)
 
-1. **Taskboard (current)** — `~/.edith/taskboard.md`, recent entries
-2. **Taskboard (archive)** — `~/.edith/taskboard-archive/YYYY-MM.md` for this month; filter to this week's dates
+1. **Taskboard (current)** — `packages/agent/.state/taskboard.md`, recent entries
+2. **Taskboard (archive)** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for this month; filter to this week's dates
 3. **Activity log** — `get_activity` with `days: 7` — what Randy actually worked on
 4. **Cognee** — search decisions, people, projects, patterns from this week:
    ```bash

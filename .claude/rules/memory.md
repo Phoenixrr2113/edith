@@ -18,7 +18,7 @@ Actively notice and store patterns:
 
 ## Taskboard (transient, today only)
 
-Write to `~/.edith/taskboard.md` during scheduled tasks. Today's calendar findings, flagged emails, prep work completed, pending items.
+Write to `packages/agent/.state/taskboard.md` during scheduled tasks. Today's calendar findings, flagged emails, prep work completed, pending items.
 
 Write what you DID and what's NEXT — not just what you found. Future sessions read this to understand prior state.
 

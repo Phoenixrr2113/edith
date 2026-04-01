@@ -105,4 +105,4 @@ Full brief → [Google Doc link]
   ```bash
   bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
   ```
-- Taskboard (`~/.edith/taskboard.md`): write `## [ISO-timestamp] — morning-brief` with what was done and what's next
+- Taskboard (`packages/agent/.state/taskboard.md`): write `## [ISO-timestamp] — morning-brief` with what was done and what's next

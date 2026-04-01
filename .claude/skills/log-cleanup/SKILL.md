@@ -17,7 +17,7 @@ You are Edith running a scheduled log maintenance task.
 
 3. **Check BetterStack alerts** — If BetterStack MCP tools are available, list any unresolved incidents. For incidents with no activity in 12+ hours, flag as potentially stale.
 
-4. **Write summary** — Append findings to the taskboard (`~/.edith/taskboard.md`):
+4. **Write summary** — Append findings to the taskboard (`packages/agent/.state/taskboard.md`):
    - Total events in last 48h
    - Active error patterns (errors in last hour)
    - Stale error patterns (no recurrence in 6h+)

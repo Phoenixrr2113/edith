@@ -1,11 +1,9 @@
 Debug dump for troubleshooting. Show:
 
-1. Last 15 events from `~/.edith/events.jsonl` (focus on errors, dispatch_error, session_reset)
-2. Active processes: `cat ~/.edith/active-processes.json`
-3. Dead letters: `cat ~/.edith/dead-letters.jsonl 2>/dev/null || echo "none"`
-4. Schedule state: `cat ~/.edith/schedule-state.json`
-5. Current session: `cat ~/.edith/session-id`
-6. Telegram offset: `cat ~/.edith/tg-offset`
-7. Disk usage: `du -sh ~/.edith/`
+1. Last 15 events from `packages/agent/.state/events.jsonl` (focus on errors, dispatch_error, session_reset)
+2. Dead letters: query `SELECT * FROM dead_letters ORDER BY id DESC LIMIT 5` from `packages/agent/.state/edith.db`
+3. Schedule state: query `SELECT * FROM kv_state` from `packages/agent/.state/edith.db`
+4. Current session: query `SELECT * FROM sessions` from `packages/agent/.state/edith.db`
+5. Disk usage: `du -sh packages/agent/.state/`
 
-Flag anything unusual. Check for stuck processes, repeated errors, or growing files.
+Flag anything unusual. Check for repeated errors or growing files.

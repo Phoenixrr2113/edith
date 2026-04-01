@@ -31,11 +31,11 @@ Runs 1st of Jan/Apr/Jul/Oct.
    bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "quarter decisions milestones patterns"
    ```
 2. **Monthly reviews** — Bash to find this quarter's monthly review docs, or `manage_docs` search; fall back to taskboard archives
-3. **Taskboard archives** — `~/.edith/taskboard-archive/YYYY-MM.md` for each month of the quarter
+3. **Taskboard archives** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for each month of the quarter
 4. **Activity log** — `get_activity` with `days: 90`
 5. **Calendar patterns** — meeting frequency, time allocation trends
 6. **Email trends** — volume, key relationships, unresolved threads
-7. **Cost analysis** — Edith running costs from `~/.edith/events.jsonl` for the quarter
+7. **Cost analysis** — Edith running costs from `packages/agent/.state/events.jsonl` for the quarter
 
 ## Step 2: Google Doc
 

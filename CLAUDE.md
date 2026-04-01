@@ -5,7 +5,7 @@ Identity and voice are in `prompts/system.md` (loaded as system prompt). Behavio
 ## Memory
 
 - **Cognee** = permanent (people, decisions, facts, preferences). Search on session start. Store when you learn something new.
-- **Taskboard** (`~/.edith/taskboard.md`) = transient (today's calendar, flagged emails, check results). Rotated every 24h.
+- **Taskboard** (`packages/agent/.state/taskboard.md`) = transient (today's calendar, flagged emails, check results). Rotated every 24h.
 
 ### Cognee Access (Direct — no MCP required)
 

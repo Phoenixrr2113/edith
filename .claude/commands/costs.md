@@ -11,5 +11,5 @@ Cost tracking is handled by two external systems — no local SQLite needed.
 For a quick spot-check of recent cost events from the local event log:
 
 ```bash
-grep '"cost"' ~/.edith/events.jsonl | grep "$(date +%Y-%m-%d)" | tail -20
+grep '"cost"' packages/agent/.state/events.jsonl | grep "$(date +%Y-%m-%d)" | tail -20
 ```

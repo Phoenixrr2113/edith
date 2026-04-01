@@ -4,7 +4,10 @@
 import { join } from "node:path";
 
 // --- Paths ---
-export const STATE_DIR = join(process.env.HOME ?? "~", ".edith");
+// State lives inside the project so the AI agent can see it when debugging.
+// Cloud mode: uses /data/.state (Railway volume) or falls back to project dir.
+const PROJECT_DIR = join(import.meta.dir, "..");
+export const STATE_DIR = process.env.EDITH_STATE_DIR ?? join(PROJECT_DIR, ".state");
 export const DB_FILE = join(STATE_DIR, "edith.db");
 export const EVENTS_FILE = join(STATE_DIR, "events.jsonl");
 export const TASKBOARD_FILE = join(STATE_DIR, "taskboard.md");

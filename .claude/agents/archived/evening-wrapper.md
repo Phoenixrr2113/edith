@@ -11,7 +11,7 @@ This runs at 4:53 PM — transition from work to family time. Keep it tight.
 
 ## Step 1: Review today
 
-- Read taskboard (`~/.edith/taskboard.md`) — what did morning/midday do?
+- Read taskboard (`packages/agent/.state/taskboard.md`) — what did morning/midday do?
 - Screenpipe activity summary — what did Randy actually work on today?
 - Email: any loose ends from today?
 - Calendar: anything that happened today worth noting?

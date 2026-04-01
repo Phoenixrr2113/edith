@@ -14,8 +14,9 @@ RUN bun install --ignore-scripts
 # Copy agent source (desktop excluded via .dockerignore)
 COPY packages/agent/ ./packages/agent/
 
-# Persistent data directory
-RUN mkdir -p /data
+# Persistent state directory (Railway volume mount or ephemeral)
+RUN mkdir -p /data/.state
+ENV EDITH_STATE_DIR=/data/.state
 
 # Set working directory to agent package
 WORKDIR /app/packages/agent

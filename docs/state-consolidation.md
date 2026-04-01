@@ -5,7 +5,7 @@
 
 ## Problem
 
-Edith's runtime state is scattered across 20+ files and directories in `~/.edith/`. Half are dead (dashboard was deleted), several are legacy JSON fallbacks that already migrated to SQLite, and two near-identical entrypoints (`edith.ts` and `edith-cloud.ts`) duplicate 300+ lines of startup logic.
+Edith's runtime state is scattered across 20+ files and directories in `packages/agent/.state/`. Half are dead (dashboard was deleted), several are legacy JSON fallbacks that already migrated to SQLite, and two near-identical entrypoints (`edith.ts` and `edith-cloud.ts`) duplicate 300+ lines of startup logic.
 
 ## Audit Summary
 
@@ -65,9 +65,9 @@ These were migrated to SQLite (`edith.db`) but the JSON files and fallback read 
 
 **How:** One `edith.ts` with `const isCloud = !!process.env.RAILWAY_ENVIRONMENT || process.env.CLOUD_MODE === "true"`. Guard local-only and cloud-only blocks behind this flag. Delete `edith-cloud.ts`. Update `Dockerfile` CMD to `["bun", "run", "edith.ts"]`.
 
-### 2. Keep `~/.edith/` for local, use Postgres for cloud
+### 2. State lives in project dir, Postgres for cloud
 
-**Why `~/.edith/` stays for local:**
+**Why `packages/agent/.state/` stays for local:**
 - Survives git operations, reinstalls, branch switches
 - SQLite is perfect for single-machine, single-process state
 - No server dependency for a desktop agent
@@ -98,19 +98,20 @@ CREATE TABLE IF NOT EXISTS kv_state (
 
 1417 files in `transcripts/` and growing. Add age-based cleanup: delete transcripts older than 30 days during `rotateEvents()`.
 
-### 5. Don't move state to project dir
+### 5. Move state into the project dir
 
-Considered `packages/agent/.state/` but rejected because:
-- Cloud deployment makes local directory choice less important
-- `~/.edith/` already works and survives git operations
-- Moving would require a migration step for existing installs (just Randy, but still friction for no gain)
+Moved from `packages/agent/.state/` to `packages/agent/.state/` (gitignored) because:
+- The AI agent works inside the project dir and never checks `packages/agent/.state/` when debugging
+- Hours of debugging issues were caused by stale/corrupt state the agent couldn't see
+- Everything is now visible to the agent during troubleshooting
+- `EDITH_STATE_DIR` env var allows override for cloud (`/data/.state`) or testing
 
 ## Target State
 
-### `~/.edith/` after cleanup (local)
+### `packages/agent/.state/` after cleanup (local)
 
 ```
-~/.edith/
+packages/agent/.state/
 ├── edith.db                # ALL structured state
 ├── edith.db-shm
 ├── edith.db-wal
@@ -182,6 +183,6 @@ No volume mounts. No filesystem state. Everything in Postgres or BetterStack.
 ## What we're NOT doing
 
 - **Not moving to Redis/MongoDB** — SQLite/Postgres covers everything, no need for another dependency
-- **Not moving state to project dir** — `~/.edith/` is correct for local, cloud uses Postgres
+- **Not moving state to project dir** — `packages/agent/.state/` is correct for local, cloud uses Postgres
 - **Not moving everything to Cognee/FalkorDB** — Cognee is for knowledge (fuzzy/semantic), not operational state (exact retrieval)
 - **Not adding a migration framework** — the `db.ts` migration pattern (check table exists, migrate, mark done) is simple enough

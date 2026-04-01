@@ -91,4 +91,4 @@ Let me know if you need anything!
 
 Cognee: new contacts, decisions, project updates, family plans, activity ideas that worked.
 
-Write to taskboard (`~/.edith/taskboard.md`) with format: `## ISO-timestamp — morning-brief`
+Write to taskboard (`packages/agent/.state/taskboard.md`) with format: `## ISO-timestamp — morning-brief`

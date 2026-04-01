@@ -11,8 +11,8 @@ GTD-style weekly review — close open loops, prep for what's coming. Cover BOTH
 
 ## Step 1: Look back (this week)
 
-1. **Taskboard (current)** — read `~/.edith/taskboard.md` for recent entries
-2. **Taskboard (archive)** — read `~/.edith/taskboard-archive/` for this week's archived entries (files named `YYYY-MM.md`); read the current month's file and filter to this week's dates
+1. **Taskboard (current)** — read `packages/agent/.state/taskboard.md` for recent entries
+2. **Taskboard (archive)** — read `packages/agent/.state/taskboard-archive/` for this week's archived entries (files named `YYYY-MM.md`); read the current month's file and filter to this week's dates
 3. **Activity log** — use `get_activity` with `days: 7` to get what Randy actually worked on this week
 4. **Cognee** — search for decisions, people, projects, patterns stored this week
 5. **Screenpipe** — activity summary for the week (what did Randy spend time on?) — use if available, fall back to activity log

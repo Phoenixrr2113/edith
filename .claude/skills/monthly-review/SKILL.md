@@ -26,8 +26,8 @@ Cover work AND personal life. Zoom out.
 
 ## Step 1: Gather data
 
-1. **Taskboard (current)** — `~/.edith/taskboard.md`
-2. **Taskboard (archive)** — `~/.edith/taskboard-archive/YYYY-MM.md` for this month
+1. **Taskboard (current)** — `packages/agent/.state/taskboard.md`
+2. **Taskboard (archive)** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for this month
 3. **Activity log** — `get_activity` with `days: 30`
 4. **Cognee** — all decisions, people, projects, patterns this month:
    ```bash
@@ -35,7 +35,7 @@ Cover work AND personal life. Zoom out.
    ```
 5. **Email** — key threads, commitments, unresolved conversations
 6. **Calendar** — upcoming events (forward only; use taskboard/activity for past)
-7. **Events log** — `~/.edith/events.jsonl`: sum Edith costs by label for the month
+7. **Events log** — `packages/agent/.state/events.jsonl`: sum Edith costs by label for the month
 8. **Screenpipe** — activity summary if available; fall back to activity log
 9. **Weekly reviews** — use `manage_docs` search or Bash to find this month's weekly review docs
 
