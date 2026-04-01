@@ -25,9 +25,13 @@ RUN bun install --ignore-scripts
 # Copy agent source (desktop excluded via .dockerignore)
 COPY packages/agent/ ./packages/agent/
 
-# Persistent state directory (Railway volume mount or ephemeral)
+# Persistent state directory
 RUN mkdir -p /data/.state
 ENV EDITH_STATE_DIR=/data/.state
+
+# Create non-root user (Claude Code refuses --dangerously-skip-permissions as root)
+RUN useradd -m -s /bin/bash edith && chown -R edith:edith /app /data
+USER edith
 
 # Set working directory to agent package
 WORKDIR /app/packages/agent
