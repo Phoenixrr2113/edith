@@ -57,6 +57,26 @@
 	let settingsOpen = $state(false);
 	/** Controls visible via right-click on character */
 	let controlsVisible = $state(false);
+
+	// Dynamic window resizing for settings panel
+	async function resizeWindow(width: number, height: number): Promise<void> {
+		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
+			const { LogicalSize } = await import('@tauri-apps/api/dpi');
+			const win = getCurrentWindow();
+			await win.setSize(new LogicalSize(width, height));
+		} catch {
+			// Not in Tauri
+		}
+	}
+
+	$effect(() => {
+		if (settingsOpen) {
+			resizeWindow(360, 500);
+		} else {
+			resizeWindow(200, 200);
+		}
+	});
 	/** True while TTS audio is playing */
 	let audioPlaying = $state(false);
 
@@ -458,83 +478,34 @@
 {/if}
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<main oncontextmenu={(e) => { e.preventDefault(); controlsVisible = !controlsVisible; }}>
+<main
+	oncontextmenu={(e) => { e.preventDefault(); controlsVisible = !controlsVisible; }}
+	onclick={() => { if (controlsVisible) controlsVisible = false; }}
+>
 	<RiveCharacter agentState={characterState} size={180} />
 
-	<div class="bubble-stack">
-		<UpdateNotification
-			update={pendingUpdate}
-			onDismiss={() => { pendingUpdate = null; }}
-		/>
-
-		{#if agentTyping}
-			<SpeechBubble
-				type="typing"
-				onDismiss={() => { agentTyping = false; }}
-			/>
-		{/if}
-		{#each messages as msg (msg.id)}
-			<SpeechBubble
-				text={msg.text}
-				type={msg.type}
-				onDismiss={() => removeMessage(msg.id)}
-				autoFadeMs={msg.autoFadeMs ?? settingsStore.value.autoFadeMs}
-			/>
-		{/each}
-	</div>
-
-	<WorkerProgress />
-
-	<AudioPlayer
-		playing={audioPlaying}
-		onStop={() => { audioPlaying = false; }}
-	/>
-
 	{#if controlsVisible}
-	<div class="controls">
-		<button class="test-btn" onclick={addTestMessage} type="button">
-			+ Message
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="context-menu" onclick={(e) => e.stopPropagation()}>
+		<button class="menu-item" onclick={() => { settingsOpen = true; controlsVisible = false; }} type="button">
+			⚙️ Settings
 		</button>
-		<button class="test-btn" onclick={toggleTestTyping} type="button">
-			{agentTyping ? 'Stop' : 'Typing…'}
-		</button>
-		<TaskQueueStatus
-			queue={taskQueue}
-			visible={connMode === 'offline' || connMode === 'local'}
-			onClear={() => taskQueue.clear()}
-		/>
-		<SyncStatus
-			status={syncStatus}
-			{lastSyncAt}
-			onSyncNow={() => syncManager.requestSync()}
-		/>
-		<ConnectionStatus
-			mode={connMode}
-			{ollamaAvailable}
-			{cloudConnected}
-			{manualOverride}
-			onForceCloud={() => { connectionModeManager.forceMode('cloud'); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
-			onForceLocal={() => { connectionModeManager.forceMode('local'); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
-			onForceAuto={() => { connectionModeManager.forceMode(null); connMode = connectionModeManager.mode; manualOverride = connectionModeManager.manualOverride; }}
-		/>
-		{#if settingsStore.value.sttEnabled}
-			<VoiceInput
-				onTranscript={handleVoiceTranscript}
-				disabled={connectionState !== 'connected'}
-			/>
-		{/if}
-		<button
-			class="gear-btn"
-			onclick={() => (settingsOpen = !settingsOpen)}
-			type="button"
-			aria-label="Open settings"
-			aria-pressed={settingsOpen}
-		>⚙</button>
+		<div class="menu-sep"></div>
+		<span class="menu-status">
+			{connMode === 'cloud' ? '🟢' : connMode === 'local' ? '🟡' : '⚫'} {connMode}
+		</span>
 	</div>
 	{/if}
 </main>
 
-<Settings open={settingsOpen} onClose={() => (settingsOpen = false)} />
+{#if settingsOpen}
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="settings-overlay" onclick={() => (settingsOpen = false)}>
+	<div class="settings-card" onclick={(e) => e.stopPropagation()}>
+		<Settings open={settingsOpen} onClose={() => (settingsOpen = false)} />
+	</div>
+</div>
+{/if}
 
 <style>
 	:global(html),
@@ -567,60 +538,70 @@
 		margin: 0;
 	}
 
-	.test-btn {
-		background: var(--btn-bg);
-		color: var(--text-secondary);
-		border: 1px solid var(--input-border);
-		border-radius: 8px;
-		padding: 6px 12px;
-		font-size: 12px;
-		cursor: pointer;
-		transition: background 0.15s ease;
+	.settings-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(20, 20, 25, 0.95);
+		z-index: 20000;
+		display: flex;
+		flex-direction: column;
+		overflow-y: auto;
 	}
 
-	.test-btn:hover {
-		background: var(--btn-bg-hover);
+	.settings-card {
+		flex: 1;
+		padding: 8px;
 	}
 
 	:global(.worker-progress) {
 		margin-bottom: 8px;
 	}
 
-	.controls {
+	.context-menu {
+		position: absolute;
+		bottom: 8px;
+		left: 50%;
+		transform: translateX(-50%);
 		display: flex;
-		align-items: center;
-		gap: 8px;
-		flex-wrap: wrap;
-		justify-content: center;
-		background: rgba(20, 20, 25, 0.92);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
+		flex-direction: column;
+		background: rgba(30, 30, 35, 0.95);
+		backdrop-filter: blur(16px);
+		-webkit-backdrop-filter: blur(16px);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 10px;
+		padding: 4px;
+		min-width: 160px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+		z-index: 10000;
+	}
+
+	.menu-item {
+		background: none;
+		border: none;
+		color: #e0e0e0;
+		font-size: 13px;
 		padding: 8px 12px;
-		max-width: 280px;
-	}
-
-	.gear-btn {
-		background: var(--btn-bg);
-		border: 1px solid var(--input-border);
-		color: var(--text-secondary);
-		border-radius: 8px;
-		padding: 5px 8px;
-		font-size: 14px;
+		text-align: left;
 		cursor: pointer;
-		line-height: 1;
-		transition: background 0.15s, color 0.15s;
+		border-radius: 6px;
+		transition: background 0.1s;
 	}
 
-	.gear-btn:hover {
-		background: var(--btn-bg-hover);
-		color: var(--text-color);
+	.menu-item:hover {
+		background: rgba(255, 255, 255, 0.1);
 	}
 
-	.gear-btn[aria-pressed="true"] {
-		background: var(--btn-bg-active);
-		border-color: var(--accent);
-		color: var(--text-color);
+	.menu-sep {
+		height: 1px;
+		background: rgba(255, 255, 255, 0.08);
+		margin: 4px 8px;
 	}
+
+	.menu-status {
+		font-size: 11px;
+		color: rgba(255, 255, 255, 0.4);
+		padding: 4px 12px 6px;
+		text-transform: capitalize;
+	}
+
 </style>
