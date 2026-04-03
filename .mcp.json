@@ -1,8 +1,18 @@
 {
 	"mcpServers": {
-		"cognee": {
-			"command": "bash",
-			"args": ["mcp/cognee-wrapper.sh"]
+		"codegraph": {
+			"command": "/Users/randywilson/Desktop/codebase-graph/node_modules/.bin/tsx",
+			"args": ["/Users/randywilson/Desktop/codebase-graph/packages/mcp-server/src/index.ts"],
+			"env": {
+				"CODEGRAPH_LICENSE_SKIP": "true",
+				"CODEGRAPH_DRIVER": "falkordblite",
+				"CODEGRAPH_DB_PATH": "/Users/randywilson/Desktop/edith-v3/packages/agent/.state/codegraph",
+				"CODEGRAPH_EMBEDDING_PROVIDER": "voyage",
+				"VOYAGE_API_KEY": "${VOYAGE_API_KEY}",
+				"JINA_API_KEY": "${JINA_API_KEY}",
+				"LLM_PROVIDER": "cerebras",
+				"CEREBRAS_API_KEY": "${CEREBRAS_API_KEY}"
+			}
 		},
 		"edith": {
 			"command": "bash",

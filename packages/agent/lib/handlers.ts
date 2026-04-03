@@ -52,6 +52,7 @@ export async function handleLocation(chatId: number, lat: number, lon: number): 
 				chatId: String(chatId),
 			});
 			await dispatchToClaude(brief, {
+				resume: false,
 				label: "location",
 				briefType: "location",
 				priority: Priority.P1_USER,
@@ -128,7 +129,7 @@ export async function handleText(
 		await dispatchToConversation(
 			chatId,
 			messageId,
-			`[Incoming SMS]\n${cleanSms}\n\n[Triage: store new contacts/context in Cognee. If it needs Randy's attention, summarize and forward via send_message. If not actionable, ignore silently. Chat ID: ${CHAT_ID}]`
+			`[Incoming SMS]\n${cleanSms}\n\n[Triage: store new contacts/context in CodeGraph knowledge. If it needs Randy's attention, summarize and forward via send_message. If not actionable, ignore silently. Chat ID: ${CHAT_ID}]`
 		);
 	} else {
 		await dispatchToConversation(chatId, messageId, `[Message from Randy via Telegram] ${text}`);

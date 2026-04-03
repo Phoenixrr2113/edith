@@ -23,7 +23,7 @@ import { edithLog } from "./edith-logger";
 import { DispatchQueue, Priority, type QueuedJob } from "./queue";
 import { DEFAULT_REFLECTOR_CONFIG, type ReflectorMode, ReflectorSession } from "./reflector";
 import { setActiveQuery } from "./session";
-import { clearSession, saveSession, sessionId } from "./state";
+import { clearSession, sessionId } from "./state";
 import { sendTyping } from "./telegram";
 import { startTranscript } from "./transcript";
 import { fmtErr } from "./util";
@@ -323,6 +323,11 @@ export async function dispatchToClaude(
 
 /**
  * Dispatch a conversation message — builds brief, dispatches to Claude.
+ *
+ * Uses resume:false (ephemeral session) because continue:true is fragile —
+ * stale/missing session files cause the SDK to return 0 tokens silently.
+ * Conversation context comes from the brief (taskboard entries, memory),
+ * not from SDK session continuation.
  */
 export async function dispatchToConversation(
 	chatId: number,
@@ -330,8 +335,8 @@ export async function dispatchToConversation(
 	message: string
 ): Promise<void> {
 	const brief = await buildBrief("message", { message, chatId: String(chatId) });
-	const result = await dispatchToClaude(brief, {
-		resume: true,
+	await dispatchToClaude(brief, {
+		resume: false,
 		label: "message",
 		chatId,
 		priority: Priority.P1_USER,

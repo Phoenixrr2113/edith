@@ -116,9 +116,9 @@ describe("buildMessageBrief", () => {
 		expect(result).toContain("send_message");
 	});
 
-	test("instructs to search Cognee", () => {
+	test("instructs to search CodeGraph knowledge", () => {
 		const result = buildMessageBrief("test", "1");
-		expect(result).toContain("Cognee");
+		expect(result).toContain("CodeGraph");
 	});
 
 	test("returns a non-empty string", () => {
@@ -357,9 +357,9 @@ describe("buildFullBrief", () => {
 		expect(result).toContain("manage_calendar");
 	});
 
-	test("includes Cognee search instruction", async () => {
+	test("includes CodeGraph knowledge search instruction", async () => {
 		const result = await buildFullBrief("morning");
-		expect(result).toContain("Cognee");
+		expect(result).toContain("CodeGraph");
 	});
 
 	test("includes CHAT_ID", async () => {

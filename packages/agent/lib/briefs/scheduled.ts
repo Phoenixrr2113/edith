@@ -23,12 +23,12 @@ export async function buildFullBrief(type: "boot" | "morning"): Promise<string> 
 	}
 
 	sections.push(
-		`\nOrient yourself: search Cognee for relevant context, check calendar (manage_calendar action=get, hoursAhead=16, includeAllDay=true), check reminders.`,
+		`\nOrient yourself: search CodeGraph knowledge for relevant context, check calendar (manage_calendar action=get, hoursAhead=16, includeAllDay=true), check reminders.`,
 		`\n## Email Scan`,
 		`Use gmail_search_messages (maxResults=50) to get the last 50 emails. Review ALL of them — not just unread.`,
 		`For anything you find, think: what would a brilliant human assistant do with this? Research deeply before acting.`,
 		`Clean the inbox: archive newsletters, promos, automated notifications, shipping updates, and social media alerts. Trash obvious spam. Keep emails from real people, calendar invites, active projects, and anything financial/legal. Use manage_emails with operations array for efficiency. Report what you cleaned, not what you found.`,
-		`Store genuinely new knowledge in Cognee. Write findings to taskboard at ${TASKBOARD_FILE}.`,
+		`Store genuinely new knowledge in CodeGraph knowledge. Write findings to taskboard at ${TASKBOARD_FILE}.`,
 		`Send Randy ONE short message (3-5 lines) with what you DID, not what you FOUND. Chat ID: ${CHAT_ID}.`
 	);
 
@@ -89,7 +89,7 @@ export async function buildEveningBrief(): Promise<string> {
 		`\nReview today (taskboard + activity log). Check tomorrow's calendar (manage_calendar action=get, hoursAhead=24, includeAllDay=true).`,
 		`For tomorrow's events: research context, prep materials. If deadline < 48h, do as much work as possible now.`,
 		`Final inbox sweep: archive any remaining noise from today. Only keep emails that need action tomorrow. Use manage_emails with operations array.`,
-		`Store new knowledge in Cognee. Write summary to taskboard at ${TASKBOARD_FILE}.`,
+		`Store new knowledge in CodeGraph knowledge. Write summary to taskboard at ${TASKBOARD_FILE}.`,
 		`\n## Daily Summary`,
 		`Write a "## Daily Summary" section at the end of today's activity log at ${activityFile}.`,
 		`Summarize the day in 3-5 lines: what Randy worked on, key meetings/calls, decisions made, focus blocks. This is for future retrieval ("what did I do last week?").`,
@@ -110,7 +110,7 @@ export async function buildWeekendBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the weekend-brief skill. Gather context: search Cognee for Phoenix interests and family plans, check calendar (manage_calendar action=get, hoursAhead=48, includeAllDay=true), check reminders.`,
+		`\nRun the weekend-brief skill. Gather context: search CodeGraph knowledge for Phoenix interests and family plans, check calendar (manage_calendar action=get, hoursAhead=48, includeAllDay=true), check reminders.`,
 		`Research weekend activities for the family in Bradenton/Sarasota FL: Macaroni Kid, Facebook local groups, Visit Sarasota/Bradenton event calendars. Search for Phoenix interests: parkour, ninja warrior, STEM, outdoor, beach.`,
 		`Check weather for today and tomorrow. Beach conditions: Anna Maria Island, Siesta Key, Lido Beach.`,
 		`Create a Google Doc (manage_docs) with full weekend guide. Title: "Weekend Guide — [Dates]"`,
@@ -136,12 +136,12 @@ export async function buildWeeklyReviewBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the weekly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/, use get_activity with days=7, search Cognee for this week's decisions and people.`,
+		`\nRun the weekly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/, use get_activity with days=7, search CodeGraph knowledge for this week's decisions and people.`,
 		`Look back at this week: what shipped, key meetings, family time with Phoenix/Diana, health signals, patterns.`,
 		`Look ahead at next week: calendar (manage_calendar action=get, hoursAhead=168, includeAllDay=true), deadlines, meeting prep needed.`,
 		`Create a Google Doc (manage_docs) titled "Week of [DATE] — Weekly Review" with full review.`,
 		`Send Randy a Telegram summary (scorecard, win, gap, next week, open loop + Doc link). Chat ID: ${CHAT_ID}.`,
-		`Store decisions and patterns in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — weekly-review`
+		`Store decisions and patterns in CodeGraph knowledge. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — weekly-review`
 	);
 
 	return sections.join("\n");
@@ -158,12 +158,12 @@ export async function buildMonthlyReviewBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the monthly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/YYYY-MM.md for this month, use get_activity with days=30, search Cognee for this month's decisions and patterns.`,
+		`\nRun the monthly-review skill. Gather data: read taskboard archive at ${TASKBOARD_ARCHIVE_DIR}/YYYY-MM.md for this month, use get_activity with days=30, search CodeGraph knowledge for this month's decisions and patterns.`,
 		`Pull cost data from BetterStack logs or query edith.db — sum Edith costs by label for the month.`,
 		`Look at the life scorecard: Work, Family (Phoenix, Diana+Phoenix), Health/Fitness, Finances, Learning, Fun, Mental Health. Use ⬆️➡️⬇️ trend arrows.`,
 		`Create a Google Doc (manage_docs) titled "Monthly Review — [MONTH YEAR]" with full review.`,
 		`Send Randy a Telegram summary (scorecard on one line, win, gap, month focus, Phoenix note + Doc link). Chat ID: ${CHAT_ID}.`,
-		`Store monthly summary and updated goals in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — monthly-review`
+		`Store monthly summary and updated goals in CodeGraph knowledge. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — monthly-review`
 	);
 
 	return sections.join("\n");
@@ -180,12 +180,12 @@ export async function buildQuarterlyReviewBrief(): Promise<string> {
 	}
 
 	sections.push(
-		`\nRun the quarterly-review skill. Gather data: search Cognee for decisions, milestones, patterns from the last 3 months, read taskboard archives for each month of the quarter, use get_activity with days=90.`,
+		`\nRun the quarterly-review skill. Gather data: search CodeGraph knowledge for decisions, milestones, patterns from the last 3 months, read taskboard archives for each month of the quarter, use get_activity with days=90.`,
 		`This is a strategic review. Cover: Career & Projects, Family & Relationships, Health & Wellbeing, Finances, Edith Effectiveness.`,
 		`Look at quarterly theme, 3 wins, 3 misses, lessons, what would you do differently.`,
 		`Create a Google Doc (manage_docs) titled "Q[N] [YEAR] — Quarterly Review" with full strategic review.`,
 		`Send Randy a Telegram summary (theme, win, miss, Q[N+1] focus, Phoenix trend + Doc link). Chat ID: ${CHAT_ID}.`,
-		`Store quarterly milestone and updated trajectory in Cognee. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — quarterly-review`
+		`Store quarterly milestone and updated trajectory in CodeGraph knowledge. Write to taskboard at ${TASKBOARD_FILE}: ## ISO-timestamp — quarterly-review`
 	);
 
 	return sections.join("\n");

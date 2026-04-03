@@ -58,6 +58,10 @@ export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 export const NTFY_SERVER = process.env.NTFY_SERVER ?? "https://ntfy.sh";
 export const NTFY_TOPIC = process.env.NTFY_TOPIC ?? "";
 
+// --- Timezone ---
+/** User's timezone for scheduler. Cloud servers run in UTC; this converts to local time. */
+export const EDITH_TIMEZONE = process.env.EDITH_TIMEZONE ?? "America/New_York";
+
 // --- Misc ---
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 export const DOWNLOADS_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h

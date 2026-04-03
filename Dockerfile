@@ -50,7 +50,7 @@ WORKDIR /app/packages/agent
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
   CMD curl -sf http://localhost:${PORT:-8080}/health || exit 1
 
 # Railway injects env vars directly — no .env file needed.

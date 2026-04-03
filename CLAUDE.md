@@ -4,22 +4,31 @@ Identity and voice are in `prompts/system.md` (loaded as system prompt). Behavio
 
 ## Memory
 
-- **Cognee** = permanent (people, decisions, facts, preferences). Search on session start. Store when you learn something new.
+- **CodeGraph** = permanent knowledge (people, decisions, facts, preferences, conversations). Uses FalkorDBLite (embedded) via MCP.
 - **Taskboard** (`packages/agent/.state/taskboard.md`) = transient (today's calendar, flagged emails, check results). Rotated every 24h.
 
-### Cognee Access (Direct — no MCP required)
+### CodeGraph Access (MCP)
 
-The Cognee MCP server is unreliable. Use the direct script instead via Bash:
+CodeGraph provides the `knowledge` tool via MCP with these actions:
+- `store` — store entities, relationships, or extract from text
+- `recall` — retrieve knowledge by entity name or type
+- `search` — semantic search across all stored knowledge
 
-```bash
-# Search
-bash /Users/randywilson/Desktop/edith-v3/packages/agent/mcp/cognee-direct.sh search "your query"
+```
+# Store a fact (LLM extracts entities automatically)
+knowledge({ action: "store", text: "Randy prefers bullet points over prose", extract: true })
 
-# Save
-bash /Users/randywilson/Desktop/edith-v3/packages/agent/mcp/cognee-direct.sh save "text to store"
+# Store a relationship directly
+knowledge({ action: "store", headText: "Randy", headType: "Person", tailText: "Edith", tailType: "Project", type: "OWNS" })
+
+# Recall everything about a person
+knowledge({ action: "recall", text: "Randy" })
+
+# Semantic search
+knowledge({ action: "recall", text: "communication preferences", semantic: true })
 ```
 
-Do NOT use `mcp__cognee__search` or `mcp__cognee__cognify` — they may silently fail.
+Graph data stored at: `packages/agent/.state/codegraph/`
 
 ## Scheduling
 

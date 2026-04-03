@@ -8,12 +8,12 @@ import { describe, expect, it } from "bun:test";
 // --- #131: MCP Server Filtering ---
 
 describe("MCP server filtering", () => {
-	it("CLOUD_EXCLUDED_SERVERS contains computer-use and cognee", async () => {
+	it("CLOUD_EXCLUDED_SERVERS contains computer-use and codegraph", async () => {
 		// Import the module to verify the set exists and contains expected values
 		const source = await Bun.file(`${import.meta.dir}/../lib/dispatch-options.ts`).text();
 		expect(source).toContain("CLOUD_EXCLUDED_SERVERS");
 		expect(source).toContain('"computer-use"');
-		expect(source).toContain('"cognee"');
+		expect(source).toContain('"codegraph"');
 	});
 
 	it("loadMcpConfig filters servers when IS_CLOUD is true", async () => {

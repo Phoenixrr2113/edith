@@ -13,7 +13,7 @@ import type {
 import type { BriefType } from "./briefs";
 import { IS_CLOUD } from "./config";
 import { assembleSystemPrompt } from "./context";
-import { PROJECT_ROOT, sessionId } from "./state";
+import { PROJECT_ROOT } from "./state";
 import { loadJson } from "./storage";
 
 // --- Lightweight task set (uses shorter timeout) ---
@@ -74,7 +74,7 @@ export function spawnWithStderrCapture(options: SpawnOptions): SpawnedProcess {
 // --- MCP config ---
 
 /** Servers that require local machine access and cannot run in cloud. */
-const CLOUD_EXCLUDED_SERVERS = new Set(["computer-use", "cognee"]);
+const CLOUD_EXCLUDED_SERVERS = new Set(["computer-use", "codegraph"]);
 
 function loadMcpConfig(): Record<string, McpServerConfig> {
 	try {

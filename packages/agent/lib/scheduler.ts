@@ -3,13 +3,13 @@
  */
 
 import { BRIEF_TYPE_MAP, buildBrief } from "./briefs";
-import { IS_CLOUD } from "./config";
+import { EDITH_TIMEZONE, IS_CLOUD } from "./config";
 import { kvGet, kvSet } from "./db";
 import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
 import { claimTask } from "./schedule-coordinator";
 import { isUserIdle } from "./screenpipe";
-import { loadSchedule } from "./storage";
+import { hasDueReminders, loadSchedule } from "./storage";
 
 /** Tasks that require local machine access and should not run in cloud mode. */
 const CLOUD_SKIPPED_TASKS = new Set(["proactive-check"]);
@@ -30,6 +30,38 @@ function loadScheduleState(): ScheduleState {
 
 function saveScheduleState(state: ScheduleState): void {
 	kvSet("schedule_state", JSON.stringify(state));
+}
+
+/** Convert a Date to user's local timezone components. */
+function toLocalTime(date: Date): {
+	hours: number;
+	minutes: number;
+	dayOfWeek: number;
+	dayOfMonth: number;
+	month: number;
+	year: number;
+} {
+	const fmt = new Intl.DateTimeFormat("en-US", {
+		timeZone: EDITH_TIMEZONE,
+		hour: "numeric",
+		minute: "numeric",
+		weekday: "short",
+		day: "numeric",
+		month: "numeric",
+		year: "numeric",
+		hour12: false,
+	});
+	const parts = fmt.formatToParts(date);
+	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
+	const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+	return {
+		hours: Number(get("hour")),
+		minutes: Number(get("minute")),
+		dayOfWeek: dayMap[get("weekday")] ?? 0,
+		dayOfMonth: Number(get("day")),
+		month: Number(get("month")),
+		year: Number(get("year")),
+	};
 }
 
 function isQuietHours(hour: number, quietStart?: number, quietEnd?: number): boolean {
@@ -56,9 +88,11 @@ export function shouldFire(
 	now: Date,
 	state: ScheduleState
 ): boolean {
-	const dow = now.getDay(); // 0=Sun, 6=Sat
-	const dom = now.getDate();
-	const month = now.getMonth() + 1; // 1-12
+	// Use user's local timezone for all time comparisons (fixes cloud UTC issue)
+	const local = toLocalTime(now);
+	const dow = local.dayOfWeek;
+	const dom = local.dayOfMonth;
+	const month = local.month;
 
 	// Day-of-week filter (applies to all task types)
 	if (entry.daysOfWeek && !entry.daysOfWeek.includes(dow)) return false;
@@ -70,7 +104,7 @@ export function shouldFire(
 	if (entry.dayOfMonth && dom !== entry.dayOfMonth) return false;
 
 	// Check quiet hours for interval tasks
-	if (entry.intervalMinutes && isQuietHours(now.getHours(), entry.quietStart, entry.quietEnd)) {
+	if (entry.intervalMinutes && isQuietHours(local.hours, entry.quietStart, entry.quietEnd)) {
 		return false;
 	}
 
@@ -86,21 +120,21 @@ export function shouldFire(
 	const targetMinute = entry.minute ?? 0;
 	if (targetHour < 0) return false;
 
-	const h = now.getHours();
-	const m = now.getMinutes();
+	const h = local.hours;
+	const m = local.minutes;
 	const nowMinutes = h * 60 + m;
 	const targetMinutes = targetHour * 60 + targetMinute;
 
 	// Must be at or past target time, within a 30-minute window
 	if (nowMinutes < targetMinutes || nowMinutes > targetMinutes + 30) return false;
 
-	// Check if already fired today
+	// Check if already fired today (in user's local timezone)
 	if (lastFiredTime > 0) {
-		const lastDate = new Date(lastFiredTime);
+		const lastLocal = toLocalTime(new Date(lastFiredTime));
 		if (
-			lastDate.getFullYear() === now.getFullYear() &&
-			lastDate.getMonth() === now.getMonth() &&
-			lastDate.getDate() === now.getDate()
+			lastLocal.year === local.year &&
+			lastLocal.month === local.month &&
+			lastLocal.dayOfMonth === local.dayOfMonth
 		) {
 			return false;
 		}
@@ -163,6 +197,15 @@ export async function runScheduler(): Promise<void> {
 			prompt = await buildBrief(briefType);
 		} else {
 			prompt = await buildBrief("scheduled", { prompt: entry.prompt, taskName: entry.name });
+		}
+
+		// Pre-check: skip check-reminders dispatch if no reminders are due.
+		// Saves ~$27/day by avoiding 288 unnecessary LLM calls.
+		if (entry.name === "check-reminders" && !hasDueReminders()) {
+			edithLog.debug("scheduler_skipped_no_due_reminders", { task: entry.name });
+			state.lastFired[entry.name] = now.toISOString();
+			saveScheduleState(state);
+			continue;
 		}
 
 		// Empty brief = heuristics decided to skip (e.g. proactive-check with no triggers)

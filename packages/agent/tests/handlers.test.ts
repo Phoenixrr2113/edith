@@ -560,7 +560,7 @@ describe("handleText", () => {
 		await handleText(999, 5, "Hey", true);
 
 		const content = calls.dispatchToConversation[0][2];
-		expect(content).toContain("Cognee");
+		expect(content).toContain("CodeGraph");
 		expect(content).toContain("send_message");
 		expect(content).toContain("ignore silently");
 	});

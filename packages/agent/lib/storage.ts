@@ -155,6 +155,17 @@ export function saveLocations(locations: LocationEntry[]): void {
 
 // --- Reminders ---
 
+/** Quick check: are there any unfired time-based reminders due now or in the past? */
+export function hasDueReminders(): boolean {
+	const db = openDatabase();
+	const now = new Date().toISOString();
+	const row = db.get<{ count: number }>(
+		"SELECT COUNT(*) as count FROM reminders WHERE type = 'time' AND fired = 0 AND fire_at <= ?",
+		[now]
+	);
+	return (row?.count ?? 0) > 0;
+}
+
 export function loadReminders(): Reminder[] {
 	const db = openDatabase();
 	type ReminderRow = {

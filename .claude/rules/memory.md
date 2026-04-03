@@ -4,17 +4,22 @@ paths: ["**"]
 
 # Memory
 
-## Cognee (permanent knowledge)
+## CodeGraph (permanent knowledge)
 
 Store: people, relationships, decisions, project facts, preferences, meeting outcomes, recurring patterns.
 
-Search Cognee at session start and before acting on anything involving people, projects, or history.
+Search CodeGraph at session start and before acting on anything involving people, projects, or history.
 
 Actively notice and store patterns:
-- "Randy ignores marketing emails" → Cognee (behavioral pattern)
-- "Chris Tennant — mortgage broker, both deals fell through" → Cognee (person + context)
-- "Busiest meeting days are Tuesday/Thursday" → Cognee (scheduling pattern)
-- "Randy prefers bullet points over paragraphs" → Cognee (communication preference)
+- "Randy ignores marketing emails" → CodeGraph (behavioral pattern)
+- "Chris Tennant — mortgage broker, both deals fell through" → CodeGraph (person + context)
+- "Busiest meeting days are Tuesday/Thursday" → CodeGraph (scheduling pattern)
+- "Randy prefers bullet points over paragraphs" → CodeGraph (communication preference)
+
+Use the `knowledge` MCP tool:
+- `store` with `extract: true` for natural text (LLM extracts entities)
+- `recall` with `semantic: true` for fuzzy lookups
+- `recall` with `type: "Person"` to find all known people
 
 ## Taskboard (transient, today only)
 
@@ -27,4 +32,4 @@ Write what you DID and what's NEXT — not just what you found. Future sessions 
 - "No reminders due" → noise, skip it
 - "Calendar clear" → only write if you checked and there's truly nothing (including all-day events)
 - "Checked email, nothing new" → noise, skip it
-- Anything already in Cognee → don't duplicate
+- Anything already in CodeGraph → don't duplicate
