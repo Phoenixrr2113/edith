@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Edith v4 Architecture</title>
+<title>Edith v3 Architecture</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace; background: #0a0a0a; color: #e0e0e0; }
-  .tabs { display: flex; gap: 0; padding: 16px 20px 0; background: #111; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10; }
+  .tabs { display: flex; gap: 0; padding: 16px 20px 0; background: #111; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
   .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #222; border-bottom: none; border-radius: 8px 8px 0 0; background: #0a0a0a; color: #666; font-size: 0.9em; }
   .tab.active { background: #151515; color: #fff; border-color: #333; }
   .tab:hover { color: #60a5fa; }
@@ -20,185 +20,239 @@
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
   .note { color: #888; font-size: 0.85em; padding: 8px 12px; border-left: 2px solid #333; margin: 8px 0; }
+  .problem { color: #f87171; font-size: 0.85em; padding: 8px 12px; border-left: 2px solid #f87171; margin: 8px 0; background: rgba(248,113,113,0.05); }
+  .stat { display: inline-block; background: #1e293b; padding: 4px 10px; border-radius: 6px; font-size: 0.85em; margin: 2px 4px; }
+  .stat b { color: #60a5fa; }
 </style>
 </head>
 <body>
 
-<h1>Edith v4 — Architecture Diagrams</h1>
+<h1>Edith v3 — Architecture Diagrams <span style="color:#666;font-size:0.7em">Updated 2026-04-03</span></h1>
 
 <div class="tabs">
   <div class="tab active" onclick="show('overview',this)">System Overview</div>
   <div class="tab" onclick="show('message',this)">Message Flow</div>
-  <div class="tab" onclick="show('scheduler',this)">Scheduler Flow</div>
   <div class="tab" onclick="show('dispatch',this)">Dispatch Engine</div>
+  <div class="tab" onclick="show('scheduler',this)">Scheduler</div>
   <div class="tab" onclick="show('mcp',this)">MCP Tools</div>
-  <div class="tab" onclick="show('files',this)">File I/O Map</div>
-  <div class="tab" onclick="show('lifecycle',this)">Lifecycle</div>
+  <div class="tab" onclick="show('data',this)">Data & State</div>
+  <div class="tab" onclick="show('problems',this)">⚠ Problems</div>
+  <div class="tab" onclick="show('future',this)">Future Architecture</div>
 </div>
 
 <!-- ==================== SYSTEM OVERVIEW ==================== -->
 <div id="overview" class="view">
-<h2>System Overview — Processes & External Services</h2>
+<h2>System Overview — What Exists Today</h2>
 <div class="legend">
   <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div> Edith processes</div>
   <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div> External APIs</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#c084fc"></div> Docker services</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c084fc"></div> Companion app</div>
   <div class="legend-item"><div class="legend-dot" style="background:#facc15"></div> Agent SDK / LLMs</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> File system</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> State / storage</div>
 </div>
 <div class="mermaid">
 graph TB
-  subgraph PROCESSES["Edith Processes"]
+  subgraph BRAIN["Edith Brain (packages/agent)"]
     direction TB
-    EDITH["edith.ts<br/><i>Main daemon</i><br/>Telegram poll + scheduler"]
-    DASH["dashboard.ts<br/><i>Status monitor</i><br/>localhost:3456"]
-    MCP["mcp/server.ts<br/><i>MCP tool server</i><br/>stdio transport"]
+    EDITH["edith.ts<br/><i>Main daemon</i><br/>Telegram + scheduler + HTTP"]
+    MCP["mcp/server.ts<br/><i>10 tool domains</i><br/>stdio transport"]
+    DISPATCH["dispatch.ts<br/><i>Sequential dispatcher</i><br/>busy flag + queue"]
+    SCHED["scheduler.ts<br/><i>Cron-like</i><br/>60s tick"]
+    REFLECT["reflector.ts<br/><i>Quality monitor</i><br/>A/B injection"]
+    SENTINEL["sentinel.ts<br/><i>Message evaluator</i><br/>fire-and-forget"]
+    BRIEFS["briefs/*.ts<br/><i>Context builders</i><br/>8 brief types"]
   end
 
   subgraph AGENT_SDK["Claude Agent SDK"]
-    QUERY["query() API<br/><i>Session management</i><br/>streamInput()"]
-    CLAUDE["Claude<br/><i>Sonnet/Opus</i><br/>Max subscription"]
+    QUERY["query() API<br/><i>Session management</i><br/>Claude Max subscription"]
+    CLAUDE["Claude Sonnet/Opus<br/><i>+ Haiku for lightweight</i>"]
+  end
+
+  subgraph COMPANION["Desktop Companion (packages/desktop)"]
+    TAURI["Tauri v2 + Svelte 5<br/><i>Rive character</i><br/>transparent overlay"]
   end
 
   subgraph EXTERNAL["External APIs"]
-    TG["Telegram Bot API<br/><i>Messages, files, typing</i>"]
+    TG["Telegram Bot API"]
+    GMAIL["Gmail REST API<br/><i>Direct OAuth2</i>"]
+    GCAL["Google Calendar API<br/><i>Direct OAuth2</i>"]
+    GDOCS["Google Docs API"]
     GROQ["Groq Whisper<br/><i>Voice transcription</i>"]
-    TWILIO["Twilio<br/><i>WhatsApp + SMS</i>"]
-    GOOGLE["Google Imagen<br/><i>Image generation</i>"]
-    OPENROUTER["OpenRouter<br/><i>agntk sub-agents</i>"]
+    NTFY["ntfy.sh<br/><i>Push notifications</i>"]
+    TWILIO["Twilio<br/><i>SMS + WhatsApp</i>"]
   end
 
-  subgraph DOCKER["Docker Services"]
-    N8N["n8n<br/><i>:5679</i><br/>Calendar + Gmail + Notify"]
-    COGNEE["Cognee<br/><i>:8001</i><br/>Knowledge graph"]
+  subgraph STATE["State (.state/)"]
+    DB["edith.db (SQLite)<br/><i>schedule, reminders,</i><br/><i>sessions, dead-letters</i>"]
+    TASKBOARD["taskboard.md<br/><i>Daily task notes</i>"]
+    EVENTS["events.jsonl<br/><i>Structured event log</i>"]
   end
 
-  subgraph STATE["~/.edith/"]
-    FILES["events.jsonl<br/>taskboard.md<br/>schedule.json<br/>transcripts/<br/>triggers/"]
+  subgraph OBSERVABILITY["Observability"]
+    LANGFUSE["Langfuse<br/><i>LLM traces + cost</i>"]
+    BETTERSTACK["BetterStack<br/><i>Logs + uptime</i>"]
   end
 
-  EDITH -->|"getUpdates / sendMessage"| TG
-  EDITH -->|"query(prompt, options)"| QUERY
-  QUERY -->|"spawns via .mcp.json"| MCP
-  QUERY <-->|"tool calls + results"| CLAUDE
-  CLAUDE -->|"MCP tool calls"| MCP
-  MCP -->|"send_message"| TG
-  MCP -->|"delegate_to_agent"| OPENROUTER
-  MCP -->|"calendar / gmail / notify"| N8N
-  MCP -->|"WhatsApp / SMS"| TWILIO
-  MCP -->|"generate_image"| GOOGLE
-  EDITH -->|"transcribeAudio"| GROQ
-  EDITH -->|"read/write state"| FILES
-  DASH -->|"read state"| FILES
-  DASH -->|"write triggers"| FILES
+  EDITH -->|"poll / webhook"| TG
+  EDITH -->|"60s tick"| SCHED
+  SCHED -->|"buildBrief + dispatch"| DISPATCH
+  EDITH -->|"processUpdate"| DISPATCH
+  DISPATCH -->|"query(prompt)"| QUERY
+  QUERY -->|"spawns subprocess"| MCP
+  QUERY <-->|"tool calls"| CLAUDE
+  CLAUDE -->|"send_message"| MCP
+  MCP -->|"Telegram API"| TG
+  MCP -->|"search/send/archive"| GMAIL
+  MCP -->|"list/create/update"| GCAL
+  MCP -->|"create/read"| GDOCS
+  MCP -->|"push"| NTFY
+  MCP -->|"SMS/WhatsApp"| TWILIO
+  EDITH -->|"transcribe voice"| GROQ
+  DISPATCH -->|"read/write"| DB
+  DISPATCH -->|"append"| EVENTS
+  BRIEFS -->|"read"| TASKBOARD
+  REFLECT -->|"inject via streamInput"| QUERY
+  DISPATCH -->|"fire-and-forget"| SENTINEL
+  EDITH -->|"WebSocket"| TAURI
+  EDITH -->|"traces"| LANGFUSE
+  EDITH -->|"logs"| BETTERSTACK
 
   style EDITH fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style DASH fill:#1e3a5f,stroke:#60a5fa,color:#fff
   style MCP fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style DISPATCH fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style SCHED fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style REFLECT fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style SENTINEL fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style BRIEFS fill:#1e3a5f,stroke:#60a5fa,color:#fff
   style QUERY fill:#3f3f1a,stroke:#facc15,color:#fff
   style CLAUDE fill:#3f3f1a,stroke:#facc15,color:#fff
+  style TAURI fill:#2e1a3f,stroke:#c084fc,color:#fff
   style TG fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GMAIL fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GCAL fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GDOCS fill:#1a3f2e,stroke:#4ade80,color:#fff
   style GROQ fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style NTFY fill:#1a3f2e,stroke:#4ade80,color:#fff
   style TWILIO fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style GOOGLE fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style OPENROUTER fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style N8N fill:#2e1a3f,stroke:#c084fc,color:#fff
-  style COGNEE fill:#2e1a3f,stroke:#c084fc,color:#fff
-  style FILES fill:#3f1a1a,stroke:#f87171,color:#fff
+  style DB fill:#3f1a1a,stroke:#f87171,color:#fff
+  style TASKBOARD fill:#3f1a1a,stroke:#f87171,color:#fff
+  style EVENTS fill:#3f1a1a,stroke:#f87171,color:#fff
+  style LANGFUSE fill:#2a2a2a,stroke:#666,color:#aaa
+  style BETTERSTACK fill:#2a2a2a,stroke:#666,color:#aaa
 </div>
 
 <h2>Module Dependency Graph</h2>
 <div class="mermaid">
 graph LR
-  edith[edith.ts] --> dispatch[lib/dispatch.ts]
-  edith --> session[lib/session.ts]
-  edith --> briefs[lib/briefs.ts]
-  edith --> scheduler[lib/scheduler.ts]
-  edith --> telegram[lib/telegram.ts]
-  edith --> state[lib/state.ts]
-  edith --> geo[mcp/geo.ts]
-  edith --> taskboard[lib/taskboard.ts]
-  edith --> caffeinate[lib/caffeinate.ts]
+  edith[edith.ts] --> dispatch[dispatch.ts]
+  edith --> scheduler[scheduler.ts]
+  edith --> transport[telegram-transport.ts]
+  edith --> polling[telegram-polling.ts]
+  edith --> state[state.ts]
+  edith --> briefs[briefs/]
+  edith --> http[http-server.ts]
 
-  dispatch --> context[lib/context.ts]
-  dispatch --> session
-  dispatch --> state
-  dispatch --> telegram
-  dispatch --> briefs
-  dispatch --> transcript[lib/transcript.ts]
+  transport --> handlers[handlers.ts]
+  handlers --> dispatch
+  handlers --> sms[sms.ts]
+  handlers --> geo[geo.ts]
 
-  briefs --> prewake[lib/prewake.ts]
-  briefs --> taskboard
-  briefs --> config[lib/config.ts]
+  dispatch --> stream[dispatch-stream.ts]
+  dispatch --> options[dispatch-options.ts]
+  dispatch --> reflector[reflector.ts]
+  dispatch --> session[session.ts]
+  dispatch --> queue[queue.ts]
 
-  prewake --> n8n[lib/n8n-client.ts]
+  stream --> reflector
+  stream --> session
+
+  options --> context[context.ts]
+  options --> state
+
   scheduler --> dispatch
   scheduler --> briefs
-  scheduler --> state
 
-  geo --> storage[lib/storage.ts]
+  briefs --> taskboard[taskboard.ts]
+  briefs --> activity[activity.ts]
 
-  mcpserver[mcp/server.ts] --> telegram
-  mcpserver --> state
-  mcpserver --> storage
-  mcpserver --> twilio[lib/twilio.ts]
-  mcpserver --> n8n
-  mcpserver --> subagent[lib/subagent.ts]
-  mcpserver --> helpers[lib/mcp-helpers.ts]
+  mcpserver[mcp/server.ts] --> email[gmail.ts]
+  mcpserver --> calendar[gcal.ts]
+  mcpserver --> docs[gdocs.ts]
+  mcpserver --> telegram[telegram.ts]
+  mcpserver --> notify[notify.ts]
+  mcpserver --> storage[storage.ts]
 
-  state --> config
-  storage --> config
-  n8n --> config
-  telegram --> config
-  twilio --> config
-  subagent --> state
+  state --> db[db.ts]
+  storage --> db
+  email --> gauth[google-auth.ts]
+  calendar --> gauth
 
   style edith fill:#1e3a5f,stroke:#60a5fa,color:#fff
   style dispatch fill:#3f3f1a,stroke:#facc15,color:#fff
   style mcpserver fill:#2e1a3f,stroke:#c084fc,color:#fff
-  style config fill:#3f1a1a,stroke:#f87171,color:#fff
+  style db fill:#3f1a1a,stroke:#f87171,color:#fff
   style state fill:#3f1a1a,stroke:#f87171,color:#fff
+</div>
+
+<h2>Production Stats (48h sample)</h2>
+<div>
+  <span class="stat"><b>9,400</b> events</span>
+  <span class="stat"><b>$25</b> API cost</span>
+  <span class="stat"><b>83.7%</b> dispatch success</span>
+  <span class="stat"><b>8.0/10</b> reflector avg score</span>
+  <span class="stat"><b>76%</b> cost = check-reminders</span>
+  <span class="stat"><b>0</b> user messages processed</span>
 </div>
 </div>
 
 <!-- ==================== MESSAGE FLOW ==================== -->
 <div id="message" class="view">
-<h2>Telegram Message Flow — Text, Voice, Photo, Location</h2>
+<h2>Message Flow — Telegram → Claude → Response</h2>
 <div class="mermaid">
 sequenceDiagram
   participant R as Randy (Telegram)
-  participant P as edith.ts poll()
-  participant D as dispatchToClaude()
-  participant B as buildBrief()
+  participant P as telegram-polling.ts
+  participant T as telegram-transport.ts
+  participant H as handlers.ts
+  participant D as dispatch.ts
+  participant B as briefs/
   participant SDK as Agent SDK query()
   participant C as Claude
   participant MCP as MCP Server
   participant TG as Telegram API
 
   R->>P: Text message
-  P->>P: sendTyping(chatId)
-  P->>B: buildBrief("message", {message, chatId})
-  B->>B: getRecentTaskboardEntries()
-  B-->>P: brief with context
-  P->>D: dispatchToClaude(brief, {resume:true})
+  P->>P: Save offset
+  P->>T: processUpdate(update)
+  T->>T: Check ALLOWED_CHATS
+  T->>T: Check SMS_BOT_ID
+  T->>T: sendTyping(chatId)
+  T->>H: handleText(chatId, msgId, text, isSmsBot)
 
-  alt Session active (busy=true)
-    D->>D: injectMessage() via streamInput()
-    D-->>P: "injected"
-  else Session idle
-    D->>D: assembleSystemPrompt()
+  alt SMS Relay message
+    H->>H: processSmsRelay(text)
+    H->>H: isSmsSpam? → drop if yes
+    H->>D: dispatchToConversation("[Incoming SMS]...")
+  else Randy's message
+    H->>D: dispatchToConversation("[Message from Randy]...")
+  end
+
+  D->>B: buildBrief("message", {message, chatId})
+  B-->>D: brief with taskboard context
+
+  alt busy = true
+    D->>D: Queue with P1_USER priority
+    Note over D: Waits for current dispatch to finish
+  else busy = false
+    D->>D: busy = true
     D->>SDK: query({prompt, options})
-    SDK->>MCP: spawn via stdio (.mcp.json)
+    SDK->>MCP: spawn via .mcp.json (stdio)
     loop Message stream
-      SDK->>C: prompt + system prompt
       C->>MCP: tool_use: send_message
       MCP->>TG: sendMessage(chatId, text)
-      TG-->>R: Message delivered
-      MCP-->>C: tool_result
-      C-->>SDK: assistant response
+      TG-->>R: Response delivered
     end
-    SDK-->>D: result (cost, turns, session_id)
-    D->>D: saveSession(), logEvent()
+    D->>D: busy = false, drain queue
   end
 </div>
 
@@ -206,421 +260,492 @@ sequenceDiagram
 <div class="mermaid">
 sequenceDiagram
   participant R as Randy
-  participant P as edith.ts
+  participant H as handlers.ts
   participant TG as Telegram API
   participant G as Groq Whisper
-  participant D as dispatchToConversation()
+  participant D as dispatch.ts
 
-  R->>P: Voice message
-  P->>TG: getFile(fileId)
-  TG-->>P: file path
-  P->>TG: download file
-  TG-->>P: ~/.edith/inbox/123.ogg
-  P->>G: transcribeAudio(localPath)
-  G-->>P: "Hey Edith, what's on my calendar?"
-  P->>D: "[Voice note from Randy] transcription"
-  D->>D: buildBrief + dispatchToClaude
+  R->>H: Voice message
+  H->>TG: downloadFile(fileId)
+  TG-->>H: audio.ogg
+  H->>G: transcribeAudio(localPath)
+  G-->>H: "Hey Edith, what's on my calendar?"
+  H->>D: dispatchToConversation("[Voice note] transcription")
 </div>
 
-<h2>Location Update Flow</h2>
-<div class="mermaid">
-sequenceDiagram
-  participant R as Randy
-  participant P as edith.ts
-  participant GEO as mcp/geo.ts
-  participant TG as Telegram API
-  participant D as dispatchToClaude()
-
-  R->>P: Location (lat, lon)
-  P->>GEO: checkLocationReminders(lat, lon)
-  GEO-->>P: triggered reminders[]
-
-  loop Each triggered reminder
-    P->>TG: sendMessage("Reminder near {location}")
-  end
-  P->>GEO: markFired(ids)
-
-  P->>GEO: checkTimeReminders()
-  GEO-->>P: due reminders[]
-  loop Each due reminder
-    P->>TG: sendMessage("Reminder: {text}")
-  end
-
-  P->>GEO: checkLocationTransitions(lat, lon)
-  GEO-->>P: [{type:"arrived", locationLabel:"Office"}]
-
-  alt Transitions detected
-    P->>P: buildBrief("location", {desc, lat, lon})
-    P->>D: dispatchToClaude(brief)
-  end
-</div>
-</div>
-
-<!-- ==================== SCHEDULER FLOW ==================== -->
-<div id="scheduler" class="view">
-<h2>Scheduler — Task Firing Logic</h2>
-<div class="mermaid">
-flowchart TD
-  TICK["setInterval 60s"] --> SIG_CHECK{Signal files?}
-  SIG_CHECK -->|.signal-restart| EXIT["process.exit 0"]
-  SIG_CHECK -->|.signal-pause| PAUSE["paused = true"]
-  SIG_CHECK -->|none| PAUSE_CHECK{paused?}
-  PAUSE_CHECK -->|yes| SKIP["return - skip tick"]
-  PAUSE_CHECK -->|no| TRIGGERS{Trigger files?}
-
-  TRIGGERS -->|yes| FIRE_TRIGGER["delete file, buildBrief, dispatchToClaude"]
-  TRIGGERS -->|no| SCHEDULER["runScheduler"]
-
-  SCHEDULER --> LOAD["loadSchedule + loadScheduleState"]
-  LOAD --> FOREACH["For each entry"]
-
-  FOREACH --> IS_INTERVAL{intervalMinutes?}
-  IS_INTERVAL -->|yes| CHECK_INT{elapsed past interval?}
-  IS_INTERVAL -->|no| CHECK_TIME{Within 30min window?}
-
-  CHECK_INT -->|yes| FIRE
-  CHECK_INT -->|no| NEXT["Next entry"]
-  CHECK_TIME -->|yes| FIRED_TODAY{Already fired today?}
-  CHECK_TIME -->|no| NEXT
-  FIRED_TODAY -->|no| FIRE["Build brief + dispatch + save state"]
-  FIRED_TODAY -->|yes| NEXT
-
-  style TICK fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style FIRE fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style FIRE_TRIGGER fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style EXIT fill:#3f1a1a,stroke:#f87171,color:#fff
-  style PAUSE fill:#3f3f1a,stroke:#facc15,color:#fff
-</div>
-
-<h2>Default Schedule</h2>
-<div class="note">
-  <b>morning-brief</b> — 8:03 AM — Full context (calendar, email, taskboard, Cognee)<br/>
-  <b>midday-check</b> — 12:07 PM — Light scan (recent taskboard, changes)<br/>
-  <b>evening-wrap</b> — 4:53 PM — Tomorrow prep (full taskboard, summary)<br/>
-  <b>check-reminders</b> — Every 5 min — Silent check, only fires due reminders
-</div>
-
-<h2>Brief Types</h2>
-<div class="mermaid">
-graph LR
-  subgraph HEAVY["Heavy Context (async)"]
-    BOOT["boot"] --> PRE["gatherPrewakeContext()<br/>calendar + email via n8n"]
-    MORNING["morning"] --> PRE
-    BOOT --> TB1["readTaskboard()"]
-    MORNING --> TB1
-  end
-
-  subgraph MEDIUM["Medium Context"]
-    MIDDAY["midday"] --> TB2["getRecentTaskboardEntries()"]
-    EVENING["evening"] --> TB3["readTaskboard()"]
-    MESSAGE["message"] --> TB2
-  end
-
-  subgraph LIGHT["Light Context"]
-    LOCATION["location"]
-    SCHEDULED["scheduled"]
-  end
-
-  style BOOT fill:#3f3f1a,stroke:#facc15,color:#fff
-  style MORNING fill:#3f3f1a,stroke:#facc15,color:#fff
-  style MIDDAY fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style EVENING fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style MESSAGE fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style LOCATION fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style SCHEDULED fill:#1a3f2e,stroke:#4ade80,color:#fff
+<div class="problem">
+  <b>⚠ BROKEN:</b> Message dispatches show durationMs=0, inputTokens=0 in production logs.
+  Messages are received by Telegram polling but never reach Claude.
+  Scheduled tasks (check-reminders, briefs) work fine — they use a different dispatch path.
+  SMS relay messages (#164) also affected — TELEGRAM_SMS_BOT_ID not configured.
 </div>
 </div>
 
 <!-- ==================== DISPATCH ENGINE ==================== -->
 <div id="dispatch" class="view">
-<h2>Dispatch Engine — dispatchToClaude() Internals</h2>
+<h2>Dispatch Engine — The Bottleneck</h2>
 <div class="mermaid">
 flowchart TD
-  ENTRY["dispatchToClaude"] --> CB{Circuit breaker active?}
-  CB -->|yes 5 fails| SKIP_CB["return empty"]
-  CB -->|no| BUSY{busy?}
+  ENTRY["dispatchToClaude(prompt, opts)"] --> CB{Circuit breaker?}
+  CB -->|"tripped (5 fails)"| SKIP_CB["return '' — skip"]
+  CB -->|"ok"| BUSY{busy?}
 
-  BUSY -->|yes| INJECT{Active query + resume?}
-  INJECT -->|yes| STREAM_INPUT["injectMessage via streamInput"]
-  STREAM_INPUT -->|success| RETURN_INJ["return injected"]
-  STREAM_INPUT -->|fail| QUEUE_CHECK{skipIfBusy?}
-  INJECT -->|no| QUEUE_CHECK
-  QUEUE_CHECK -->|yes| SKIP_BUSY["return empty"]
-  QUEUE_CHECK -->|no| QUEUE["dispatchQueue.push - return Promise"]
+  BUSY -->|"yes"| PRIORITY{skipIfBusy?}
+  PRIORITY -->|"yes (P3)"| SKIP_BUSY["return '' — TASK LOST"]
+  PRIORITY -->|"no (P1/P2)"| QUEUE["Queue — wait for turn"]
 
-  BUSY -->|no| START["busy=true, AbortController 5min"]
-  START --> PROMPT["assembleSystemPrompt"]
-  PROMPT --> OPTIONS["Build SDK Options"]
-  OPTIONS --> SESSION{resume + sessionId?}
-  SESSION -->|yes| RESUME["options.resume = sessionId"]
-  SESSION -->|no| EPHEMERAL["persistSession = false"]
-  RESUME --> LAUNCH
-  EPHEMERAL --> LAUNCH
+  BUSY -->|"no"| LOCK["busy = true"]
+  LOCK --> BRIEF["assembleSystemPrompt()"]
+  BRIEF --> SDK_OPTS["buildSdkOptions()"]
+  SDK_OPTS --> LAUNCH["Agent SDK query()"]
 
-  LAUNCH["query prompt + options"] --> STREAM["for await message of handle"]
-  STREAM --> MSG_TYPE{message.type?}
+  LAUNCH --> STREAM["processMessageStream()"]
 
-  MSG_TYPE -->|assistant| COUNT["Count tool_use turns"]
-  MSG_TYPE -->|result| RESULT["Extract cost + turns"]
-  MSG_TYPE -->|session_id| SAVE_SID["setActiveSessionId"]
+  subgraph STREAM_DETAIL["Stream Processing"]
+    STREAM --> REFLECTOR{"Reflector trigger?"}
+    REFLECTOR -->|"compaction"| INJECT_R["Inject reflection via streamInput"]
+    REFLECTOR -->|"guard (irreversible)"| INJECT_R
+    REFLECTOR -->|"periodic (Nth tool)"| INJECT_R
+    REFLECTOR -->|"no"| CONTINUE["Continue stream"]
+    INJECT_R --> CONTINUE
+    CONTINUE --> NEXT_MSG{"Next message?"}
+    NEXT_MSG -->|"tool_use"| TRACK["Track tool calls"]
+    NEXT_MSG -->|"result"| EXTRACT["Extract cost, tokens"]
+    NEXT_MSG -->|"end"| DONE
+    TRACK --> NEXT_MSG
+    EXTRACT --> DONE
+  end
 
-  COUNT --> STREAM
-  SAVE_SID --> STREAM
-  RESULT --> ERROR{is_error?}
+  DONE --> ERROR{Error?}
+  ERROR -->|"stale session"| RETRY["clearSession → retry once"]
+  ERROR -->|"other"| FAIL_COUNT["consecutiveFailures++"]
+  ERROR -->|"none"| SUCCESS["Log cost + tokens"]
 
-  ERROR -->|error_during_execution| RETRY["clearSession, needsRetry=true"]
-  ERROR -->|no| DONE
+  FAIL_COUNT --> BREAKER{"5+ fails?"}
+  BREAKER -->|"yes"| TRIP["Circuit breaker ON — 10 min"]
+  BREAKER -->|"no"| FINALLY
 
-  RETRY --> DONE["Stream ends"]
-  DONE --> NEEDS_RETRY{needsRetry?}
-  NEEDS_RETRY -->|yes| REQUEUE["queue.unshift retry"]
-  NEEDS_RETRY -->|no| SUCCESS["saveSession + logEvent"]
+  SUCCESS --> SENTINEL["sentinel.evaluateMessage() — fire & forget"]
+  SENTINEL --> FINALLY
 
-  REQUEUE --> FINALLY
-  SUCCESS --> FINALLY["finally: busy=false, drain queue"]
-  FINALLY --> DRAIN{Queue not empty?}
-  DRAIN -->|yes| DNEXT["dispatch next job"]
-  DRAIN -->|no| DEND["Done"]
+  RETRY --> FINALLY
+  TRIP --> FINALLY
+
+  FINALLY["finally: busy = false"] --> DRAIN{Queue?}
+  DRAIN -->|"not empty"| NEXT["Dispatch next job"]
+  DRAIN -->|"empty"| IDLE["Done"]
 
   style ENTRY fill:#1e3a5f,stroke:#60a5fa,color:#fff
   style LAUNCH fill:#3f3f1a,stroke:#facc15,color:#fff
-  style STREAM_INPUT fill:#2e1a3f,stroke:#c084fc,color:#fff
-  style RETRY fill:#3f1a1a,stroke:#f87171,color:#fff
+  style SKIP_BUSY fill:#3f1a1a,stroke:#f87171,color:#fff
+  style SKIP_CB fill:#3f1a1a,stroke:#f87171,color:#fff
+  style TRIP fill:#3f1a1a,stroke:#f87171,color:#fff
   style SUCCESS fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style QUEUE fill:#3f3f1a,stroke:#facc15,color:#fff
+</div>
+
+<div class="problem">
+  <b>⚠ SEQUENTIAL BOTTLENECK:</b> Only ONE Claude query runs at a time.
+  A 35-second check-reminders blocks all incoming messages.
+  387 dispatch_skipped events in 48 hours — tasks silently lost.
+  The busy flag is the single biggest architectural limitation.
+</div>
+
+<h2>What Happens When Randy Messages During a Task</h2>
+<div class="mermaid">
+sequenceDiagram
+  participant S as Scheduler
+  participant D as Dispatch (busy=true)
+  participant Q as Queue
+  participant R as Randy's Message
+
+  S->>D: check-reminders (P3_BACKGROUND)
+  Note over D: busy = true, ~35 seconds
+
+  R->>D: "what's on my calendar?" (P1_USER)
+  D->>D: busy = true → check priority
+  D->>Q: Enqueue (P1_USER)
+  Note over Q: Waits 35 seconds...
+
+  D-->>D: check-reminders complete
+  D->>D: busy = false
+  D->>Q: Drain → dispatch Randy's message
+  Note over D: Randy waited 35+ seconds for a response
+</div>
+</div>
+
+<!-- ==================== SCHEDULER ==================== -->
+<div id="scheduler" class="view">
+<h2>Scheduler — What Fires and When</h2>
+<div class="mermaid">
+flowchart TD
+  TICK["setInterval(schedulerTick, 60s)"] --> LOAD["Load schedule from SQLite"]
+  LOAD --> FOREACH["For each task"]
+
+  FOREACH --> SHOULD{"shouldFire()?"}
+
+  SHOULD -->|"interval task"| ELAPSED{Elapsed >= interval?}
+  SHOULD -->|"window task"| WINDOW{Within 30min window?}
+
+  ELAPSED -->|"yes"| QUIET{Quiet hours?}
+  ELAPSED -->|"no"| SKIP["Skip"]
+  WINDOW -->|"yes"| FIRED{Already fired today?}
+  WINDOW -->|"no"| SKIP
+
+  QUIET -->|"quiet"| SKIP
+  QUIET -->|"ok"| IDLE{User idle?}
+  IDLE -->|"idle"| SKIP
+  IDLE -->|"active"| FIRE
+
+  FIRED -->|"yes"| SKIP
+  FIRED -->|"no"| FIRE
+
+  FIRE["buildBrief → dispatchToClaude<br/>(skipIfBusy=true, P3)"] --> SAVE["Save lastFired to SQLite"]
+
+  style TICK fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style FIRE fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style SKIP fill:#2a2a2a,stroke:#666,color:#888
+</div>
+
+<h2>Default Schedule</h2>
+<div class="note">
+  <b>morning-brief</b> — 8:03 AM — Full context: calendar, email, Cognee, meeting prep<br/>
+  <b>midday-check</b> — 12:07 PM — Light: catch changes, prep afternoon<br/>
+  <b>evening-wrap</b> — 4:53 PM — Day review, tomorrow prep, Cognee store<br/>
+  <b>check-reminders</b> — Every 5 min — Check SQLite reminders table<br/>
+  <b>proactive-check</b> — Every 10 min — Screen context + triggers (local only)<br/>
+  <b>weekly-review</b> — Sunday 5 PM — GTD review, Google Doc<br/>
+  <b>monthly-review</b> — 1st of month 9:30 AM — Life scorecard<br/>
+  <b>quarterly-review</b> — 1st of Jan/Apr/Jul/Oct 10 AM — Strategic review
+</div>
+
+<div class="problem">
+  <b>⚠ COST:</b> check-reminders fires 288x/day at $0.10 each = <b>$29/day</b> for a task
+  that found 1 reminder in 48 hours. No code-level pre-check before LLM dispatch.
+  <br/><br/>
+  <b>⚠ TIMEZONE:</b> Quiet hours use UTC, not local time. Cloud mode fires during evening.
+  <br/><br/>
+  <b>⚠ LOST TASKS:</b> skipIfBusy=true means window tasks (morning-brief) can be
+  permanently skipped if dispatch is busy. No retry.
 </div>
 </div>
 
 <!-- ==================== MCP TOOLS ==================== -->
 <div id="mcp" class="view">
-<h2>MCP Tool Server — 15 Registered Tools</h2>
+<h2>MCP Tool Server — 10 Domains, Direct APIs</h2>
 <div class="mermaid">
 graph TB
-  C["Claude"] --> ROUTER["MCP Tool Router"]
+  C["Claude (via Agent SDK)"] --> ROUTER["MCP Tool Router<br/><i>mcp/server.ts</i>"]
 
-  ROUTER --> SM["send_message"]
-  ROUTER --> SN["send_notification"]
-  SM --> TG["Telegram API"]
-  SN --> TG
-  SN --> TWILIO["Twilio (WhatsApp/SMS)"]
-  SN --> N8NNOTIFY["n8n /notify"]
-  SN --> DESKTOP["macOS Notifications"]
+  subgraph MESSAGING["Messaging"]
+    SM["send_message → Telegram"]
+    SN["send_notification → ntfy.sh"]
+  end
 
-  ROUTER --> LS["list_scheduled_tasks"]
-  ROUTER --> AS["add_scheduled_task"]
-  ROUTER --> RS["remove_scheduled_task"]
-  LS --> SFILE["schedule.json"]
-  AS --> SFILE
-  RS --> SFILE
+  subgraph GOOGLE["Google APIs (Direct OAuth2)"]
+    ME["manage_emails<br/><i>search, send, archive, label</i>"]
+    MC["manage_calendar<br/><i>list, create, update, delete</i>"]
+    MD["manage_docs<br/><i>create, read</i>"]
+  end
 
-  ROUTER --> SL["save_location"]
-  ROUTER --> LL["list_locations"]
-  SL --> LFILE["locations.json"]
-  LL --> LFILE
+  subgraph DATA["Data & Schedule"]
+    LS["manage_schedule<br/><i>add, list, remove tasks</i>"]
+    LO["manage_locations<br/><i>geofenced areas</i>"]
+    LR["list_reminders + mark_fired"]
+  end
 
-  ROUTER --> SR["save_reminder"]
-  ROUTER --> LR["list_reminders"]
-  ROUTER --> MRF["mark_reminder_fired"]
-  SR --> RFILE["reminders.json"]
-  LR --> RFILE
-  MRF --> RFILE
+  subgraph SYSTEM["System"]
+    GA["get_activity<br/><i>screen + audio log</i>"]
+    GL["get_logs + get_costs<br/><i>events.jsonl queries</i>"]
+    CU["computer_use<br/><i>local only — macOS</i>"]
+    PR["can_intervene<br/><i>proactive rate limiter</i>"]
+  end
 
-  ROUTER --> ME["manage_emails"]
-  ROUTER --> MC["manage_calendar"]
-  ROUTER --> GI["generate_image"]
-  ME --> N8N["n8n /gmail"]
-  MC --> N8N2["n8n /calendar"]
-  GI --> IMAGEN["Imagen 3.0"]
+  ROUTER --> SM
+  ROUTER --> SN
+  ROUTER --> ME
+  ROUTER --> MC
+  ROUTER --> MD
+  ROUTER --> LS
+  ROUTER --> LO
+  ROUTER --> LR
+  ROUTER --> GA
+  ROUTER --> GL
+  ROUTER --> CU
+  ROUTER --> PR
+
+  ME --> GMAIL_API["Gmail REST API"]
+  MC --> GCAL_API["Calendar REST API"]
+  MD --> GDOCS_API["Docs REST API"]
+  SM --> TG_API["Telegram Bot API"]
+  SN --> NTFY_API["ntfy.sh"]
 
   style ROUTER fill:#2e1a3f,stroke:#c084fc,color:#fff
   style C fill:#3f3f1a,stroke:#facc15,color:#fff
-  style TG fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style TWILIO fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style N8N fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style N8N2 fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style N8NNOTIFY fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style DESKTOP fill:#1a3f2e,stroke:#4ade80,color:#fff
-  style IMAGEN fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GMAIL_API fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GCAL_API fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style GDOCS_API fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style TG_API fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style NTFY_API fill:#1a3f2e,stroke:#4ade80,color:#fff
 </div>
 
-<h2>Sub-Agent Model Tiers</h2>
-<div class="note">
-  <b>researcher</b> (fast tier) — web lookups, fact finding<br/>
-  <b>analyst</b> (reasoning tier) — pattern analysis, structured insights<br/>
-  <b>coder</b> (standard tier) — code generation, file ops<br/>
-  <b>drafter</b> (standard tier) — email drafts, content creation<br/>
-  <br/>
-  Models resolved at runtime by @agntk/core via OpenRouter. Tier mapping in lib/subagent.ts.
-</div>
-</div>
-
-<!-- ==================== FILE I/O MAP ==================== -->
-<div id="files" class="view">
-<h2>File I/O Map — ~/.edith/</h2>
+<h2>Skill Routing — Brief Type → Agent + Model</h2>
 <div class="mermaid">
 graph LR
-  subgraph WRITERS["Writers"]
+  subgraph COMMUNICATOR["communicator (Sonnet)"]
+    MB["morning-brief"]
+    MD2["midday-check"]
+    EW["evening-wrap"]
+    WB["weekend-brief"]
+    ET["email-triage"]
+    MSG["message (no skill)"]
+    LOC["location (no skill)"]
+  end
+
+  subgraph ANALYST["analyst (Sonnet/Opus)"]
+    WR["weekly-review"]
+    MR["monthly-review"]
+    QR["quarterly-review ★Opus"]
+  end
+
+  subgraph MONITOR["monitor (Haiku)"]
+    CR["check-reminders"]
+    PC["proactive-check"]
+  end
+
+  style MB fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style MD2 fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style EW fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style WR fill:#3f3f1a,stroke:#facc15,color:#fff
+  style MR fill:#3f3f1a,stroke:#facc15,color:#fff
+  style QR fill:#3f3f1a,stroke:#facc15,color:#fff
+  style CR fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style PC fill:#1a3f2e,stroke:#4ade80,color:#fff
+</div>
+</div>
+
+<!-- ==================== DATA & STATE ==================== -->
+<div id="data" class="view">
+<h2>State & Persistence Layer</h2>
+<div class="mermaid">
+graph TB
+  subgraph SQLITE["edith.db (SQLite / Neon Postgres)"]
+    KV["kv_state<br/><i>tg_offset, schedule_state</i>"]
+    SCHED_T["schedule<br/><i>task definitions</i>"]
+    REM["reminders<br/><i>id, text, fire_at, fired</i>"]
+    LOC_T["locations<br/><i>geofenced areas</i>"]
+    SESS["sessions<br/><i>active session ID</i>"]
+    DL["dead_letters<br/><i>failed messages for replay</i>"]
+    PROACT["proactive_state<br/><i>intervention records</i>"]
+    GEO_T["geo_state<br/><i>last known location</i>"]
+  end
+
+  subgraph FILES[".state/ (File System)"]
+    TB_F["taskboard.md<br/><i>Today's notes</i>"]
+    TB_A["taskboard-archive/<br/><i>YYYY-MM.md history</i>"]
+    EVT["events.jsonl<br/><i>Structured log (rotated)</i>"]
+    ACT["activity/<br/><i>Daily screen/audio log</i>"]
+    TRANS["transcripts/<br/><i>Full query transcripts</i>"]
+  end
+
+  subgraph WRITERS["Who Writes"]
     E["edith.ts"]
     D["dispatch.ts"]
     S["scheduler.ts"]
-    T["transcript.ts"]
-    ST["state.ts"]
-    DASH["dashboard.ts"]
-    MCP_S["mcp/server.ts"]
-    GEO["mcp/geo.ts"]
-    TB["taskboard.ts"]
-    TEL["telegram.ts"]
+    MCP_W["MCP tools (Claude)"]
+    LOG["edith-logger.ts"]
   end
 
-  subgraph FILES["~/.edith/"]
-    PID["edith.pid"]
-    SID["session-id"]
-    OFFSET["tg-offset"]
-    EVENTS["events.jsonl"]
-    TASKB["taskboard.md"]
-    SCHED["schedule.json"]
-    SCHED_ST["schedule-state.json"]
-    LOC["locations.json"]
-    REM["reminders.json"]
-    DL["dead-letters.json"]
-    AP["active-processes.json"]
-    TRANS["transcripts dir"]
-    INBOX["inbox dir"]
-    TRIG["triggers dir"]
-    LOG["edith.log"]
-    SIG["signal files"]
-  end
+  E -->|"dead-letters, session"| SQLITE
+  D -->|"session, kv_state"| SQLITE
+  S -->|"kv_state (lastFired)"| SQLITE
+  MCP_W -->|"reminders, locations, schedule"| SQLITE
+  MCP_W -->|"write findings"| TB_F
+  LOG -->|"append"| EVT
+  D -->|"transcript per query"| TRANS
 
-  E -->|"write"| PID
-  E -->|"read/delete"| SIG
-  E -->|"read/delete"| TRIG
-  ST -->|"write"| SID
-  ST -->|"write"| OFFSET
-  ST -->|"append"| EVENTS
-  ST -->|"write"| AP
-  ST -->|"write"| DL
-  D -->|"read"| SID
-  S -->|"read/write"| SCHED
-  S -->|"read/write"| SCHED_ST
-  T -->|"write"| TRANS
-  TB -->|"read/write"| TASKB
-  TEL -->|"write"| INBOX
-  MCP_S -->|"read/write"| LOC
-  MCP_S -->|"read/write"| REM
-  MCP_S -->|"read/write"| SCHED
-  GEO -->|"read/write"| REM
-  DASH -->|"read"| PID
-  DASH -->|"read"| EVENTS
-  DASH -->|"read"| SCHED
-  DASH -->|"read"| SCHED_ST
-  DASH -->|"read"| TASKB
-  DASH -->|"read"| TRANS
-  DASH -->|"read"| LOG
-  DASH -->|"write"| TRIG
-  E -->|"append"| LOG
+  style SQLITE fill:#3f1a1a,stroke:#f87171,color:#fff
+  style TB_F fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style EVT fill:#3f3f1a,stroke:#facc15,color:#fff
+</div>
 
-  style PID fill:#3f1a1a,stroke:#f87171,color:#fff
-  style SID fill:#3f1a1a,stroke:#f87171,color:#fff
-  style EVENTS fill:#3f3f1a,stroke:#facc15,color:#fff
-  style TRANS fill:#3f3f1a,stroke:#facc15,color:#fff
-  style TASKB fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style SCHED fill:#1e3a5f,stroke:#60a5fa,color:#fff
-  style TRIG fill:#2e1a3f,stroke:#c084fc,color:#fff
-  style SIG fill:#2e1a3f,stroke:#c084fc,color:#fff
+<div class="problem">
+  <b>⚠ NO SELF-SCHEDULING:</b> Edith cannot create her own future tasks.
+  She can check reminders Randy sets, but cannot say "I should follow up on this tomorrow."
+  The task queue she needs to be autonomous doesn't exist.
+  <br/><br/>
+  <b>⚠ NO PERSISTENT CONTEXT:</b> Every dispatch starts cold. There's no
+  "what Edith knows" state file that accumulates between runs. The taskboard
+  is the closest thing, but it's just notes — not structured knowledge.
 </div>
 </div>
 
-<!-- ==================== LIFECYCLE ==================== -->
-<div id="lifecycle" class="view">
-<h2>Startup Sequence</h2>
+<!-- ==================== PROBLEMS ==================== -->
+<div id="problems" class="view">
+<h2>⚠ Why Edith Isn't Useful Yet</h2>
+
+<h2>1. Sequential Processing — The Core Bottleneck</h2>
 <div class="mermaid">
-sequenceDiagram
-  participant SH as launch-edith.sh
-  participant E as edith.ts
-  participant D as dashboard.ts
-  participant SDK as Agent SDK
-  participant TG as Telegram
+graph TD
+  T1["check-reminders 35s"] --> T2["Randy msg QUEUED ❌"]
+  T2 --> T3["morning-brief 270s"]
+  T3 --> T4["SMS relay QUEUED ❌"]
+  T4 --> T5["One at a time. Everything waits."]
 
-  SH->>SH: Check PID file, kill stale
-  SH->>SH: docker compose up (n8n, Cognee)
-  SH->>D: bun dashboard.ts &
-  SH->>E: bun edith.ts &
-  SH->>SH: fswatch *.ts *.md (auto-restart)
+  style T2 fill:#3f1a1a,stroke:#f87171,color:#fff
+  style T4 fill:#3f1a1a,stroke:#f87171,color:#fff
+  style T5 fill:#3f1a1a,stroke:#f87171,color:#fff
+</div>
+<div class="mermaid">
+graph TD
+  W1["Signal collector"] --> W2["Worker 1: emails"]
+  W1 --> W3["Worker 2: Randy msg"]
+  W1 --> W4["Worker 3: research"]
+  W1 --> W5["Parallel. Nothing waits. ✅"]
 
-  E->>E: rotateEvents()
-  E->>E: Clean old inbox files
-  E->>E: startCaffeinate()
-  E->>E: Write PID file
-
-  E->>E: bootstrap()
-  E->>E: rotateTaskboard()
-  E->>E: Check .signal-fresh
-
-  alt No existing session
-    E->>E: buildBrief("boot")
-    E->>SDK: dispatchToClaude(bootBrief)
-    SDK-->>E: session_id saved
-  else Existing session
-    E->>E: Resume session
-  end
-
-  E->>E: Replay dead-lettered messages
-  E->>E: Start scheduler (setInterval 60s)
-  E->>E: runScheduler() (initial)
-  E->>TG: poll() — infinite loop (getUpdates)
+  style W1 fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style W5 fill:#1a3f2e,stroke:#4ade80,color:#fff
 </div>
 
-<h2>Graceful Shutdown</h2>
+<h2>2. Reports Instead of Acts</h2>
 <div class="mermaid">
-sequenceDiagram
-  participant OS as SIGINT/SIGTERM
-  participant E as edith.ts
-  participant SDK as Active Query
-  participant Q as dispatchQueue
-  participant FS as ~/.edith/
+graph LR
+  B1["Morning brief"] --> R1["CFP deadline in 2 days"]
+  R1 --> R2["Randy does it himself ❌"]
 
-  OS->>E: Signal received
-  E->>SDK: getActiveQuery()
-  alt Active query running
-    E->>SDK: query.close()
-  end
-  E->>Q: Check queue length
-  loop Each queued job
-    E->>FS: saveDeadLetter(chatId, prompt)
-  end
-  E->>E: stopCaffeinate()
-  E->>FS: unlinkSync(edith.pid)
-  E->>E: process.exit(0)
+  style R2 fill:#3f1a1a,stroke:#f87171,color:#fff
+</div>
+<div class="mermaid">
+graph LR
+  B2["Morning brief"] --> A1["CFP deadline in 2 days"]
+  A1 --> A2["Draft 3 abstracts"]
+  A2 --> A3["Put in Google Doc"]
+  A3 --> A4["Message: Pick one ✅"]
+
+  style A4 fill:#1a3f2e,stroke:#4ade80,color:#fff
 </div>
 
-<h2>Error Recovery</h2>
+<h2>3. No Self-Scheduling / Agency</h2>
 <div class="mermaid">
-flowchart TD
-  ERR["Dispatch error"] --> TYPE{"Error type?"}
-  TYPE -->|"Session corrupted"| RESET["clearSession()<br/>Push retry to front of queue"]
-  TYPE -->|"Timeout (5min)"| ABORT["AbortController.abort()"]
-  TYPE -->|"General error"| COUNT["consecutiveFailures++"]
+graph LR
+  C1["SMS: Medical compliance"] --> C2["Does nothing ❌"]
 
-  COUNT --> CHECK{"failures >= 5?"}
-  CHECK -->|"yes"| BREAKER["Circuit breaker ON<br/>10 min cooldown<br/>All dispatches skipped"]
-  CHECK -->|"no"| QUEUE_NEXT["Try next in queue"]
+  style C2 fill:#3f1a1a,stroke:#f87171,color:#fff
+</div>
+<div class="mermaid">
+graph LR
+  N1["SMS: Medical compliance"] --> N2["Forward to Randy"]
+  N2 --> N3["Self-task: check in 24h"]
+  N3 --> N4["Nudge if no action ✅"]
 
-  RESET --> QUEUE_NEXT
+  style N4 fill:#1a3f2e,stroke:#4ade80,color:#fff
+</div>
 
-  subgraph MESSAGE_RETRY["Message retry (dispatchToConversation)"]
-    FAIL1["Attempt 1 fails"] -->|"3s delay"| RETRY2["Attempt 2"]
-    RETRY2 -->|"fails, 6s delay"| RETRY3["Attempt 3"]
-    RETRY3 -->|"fails"| DEAD["saveDeadLetter()<br/>Replayed on next boot"]
+<h2>4. No Memory Between Runs</h2>
+<div class="mermaid">
+graph LR
+  R1["Morning: Ally Auto due ❌"] -.-> R2["Midday: Ally Auto due ❌"]
+  R2 -.-> R3["Evening: Ally Auto due ❌"]
+
+  style R1 fill:#3f1a1a,stroke:#f87171,color:#fff
+  style R2 fill:#3f1a1a,stroke:#f87171,color:#fff
+  style R3 fill:#3f1a1a,stroke:#f87171,color:#fff
+</div>
+<div class="mermaid">
+graph LR
+  N1["Morning: Track item"] --> N2["Midday: Not paid yet"]
+  N2 --> N3["Evening: Nudge with link ✅"]
+
+  style N3 fill:#1a3f2e,stroke:#4ade80,color:#fff
+</div>
+
+<h2>Open Issues Summary</h2>
+<div class="note">
+  <b>28 open issues.</b> Key ones by impact:<br/><br/>
+  <b>#164</b> SMS relay broken (bot ID not configured)<br/>
+  <b>#158</b> check-reminders wastes $29/day (no pre-check)<br/>
+  <b>#161</b> Bootstrap 6.7% success rate<br/>
+  <b>#159</b> dispatch_skipped drops important tasks<br/>
+  <b>#163</b> No follow-up tracking (action items forgotten)<br/>
+  <b>#141</b> Proactive triggers not wired<br/>
+  <b>#156</b> Scheduler timezone wrong in cloud<br/>
+  <b>#147</b> Telegram messages lost on processing error
+</div>
+</div>
+
+<!-- ==================== FUTURE ARCHITECTURE ==================== -->
+<div id="future" class="view">
+<h2>Future: Always-On Agent with Self-Scheduling</h2>
+<div class="mermaid">
+graph TB
+  subgraph INPUTS["Async Inputs"]
+    TG_IN["Telegram"]
+    SMS_IN["SMS relay"]
+    EMAIL_IN["New emails"]
+    CAL_IN["Calendar"]
+    SCREEN_IN["Screen"]
   end
 
-  style BREAKER fill:#3f1a1a,stroke:#f87171,color:#fff
-  style DEAD fill:#3f1a1a,stroke:#f87171,color:#fff
-  style RESET fill:#3f3f1a,stroke:#facc15,color:#fff
+  subgraph LOOP["Continuous Loop - every 60s"]
+    COLLECT["Signal Collector"]
+    TRIAGE["Triage + Planning"]
+    QUEUE_T["Self-Managed Task Queue"]
+    STATE_F["Persistent State"]
+  end
+
+  subgraph WORKERS["Parallel Workers"]
+    W1["communicator"]
+    W2["researcher"]
+    W3["analyst"]
+    W4["executor"]
+  end
+
+  subgraph OUTPUTS["Outputs"]
+    TG_OUT["Telegram to Randy"]
+    DOC_OUT["Google Docs"]
+    EMAIL_OUT["Email drafts"]
+    SELF_OUT["Self-scheduled tasks"]
+  end
+
+  TG_IN --> COLLECT
+  SMS_IN --> COLLECT
+  EMAIL_IN --> COLLECT
+  CAL_IN --> COLLECT
+  SCREEN_IN --> COLLECT
+  COLLECT --> TRIAGE
+  TRIAGE --> QUEUE_T
+  STATE_F --> TRIAGE
+  TRIAGE --> STATE_F
+  QUEUE_T --> W1
+  QUEUE_T --> W2
+  QUEUE_T --> W3
+  QUEUE_T --> W4
+  W1 --> TG_OUT
+  W1 --> EMAIL_OUT
+  W3 --> DOC_OUT
+  W4 --> SELF_OUT
+
+  style COLLECT fill:#1e3a5f,stroke:#60a5fa,color:#fff
+  style TRIAGE fill:#3f3f1a,stroke:#facc15,color:#fff
+  style QUEUE_T fill:#1a3f2e,stroke:#4ade80,color:#fff
+  style STATE_F fill:#2e1a3f,stroke:#c084fc,color:#fff
+  style SELF_OUT fill:#1a3f2e,stroke:#4ade80,color:#fff
+</div>
+
+<h2>Key Differences from Current</h2>
+<div class="note">
+  <b>1. No busy flag</b> — inputs always accepted, never blocked<br/>
+  <b>2. Self-scheduling</b> — Edith creates her own follow-up tasks<br/>
+  <b>3. Persistent state</b> — context accumulates between runs, nothing forgotten<br/>
+  <b>4. Parallel workers</b> — multiple things happen at once<br/>
+  <b>5. Actions over reports</b> — briefs trigger work, not just summaries<br/>
+  <b>6. Signal-driven</b> — reacts to changes, not just timers
 </div>
 </div>
 
 <script>
   mermaid.initialize({
-    startOnLoad: false,
+    startOnLoad: true,
     theme: 'dark',
     themeVariables: {
       darkMode: true,
@@ -641,15 +766,19 @@ flowchart TD
   function show(id, el) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(id).classList.remove('hidden');
+    var target = document.getElementById(id);
+    if (target) target.classList.remove('hidden');
     if (el) el.classList.add('active');
+    window.scrollTo(0, 0);
   }
 
-  // After mermaid renders, hide all views except the first
-  mermaid.run().then(() => {
-    document.querySelectorAll('.view').forEach((v, i) => {
-      if (i > 0) v.classList.add('hidden');
-    });
+  // Hide all views except first after Mermaid finishes rendering
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      document.querySelectorAll('.view').forEach(function(v, i) {
+        if (i > 0) v.classList.add('hidden');
+      });
+    }, 2000);
   });
 </script>
 </body>
