@@ -13,7 +13,7 @@
  */
 
 import { playAudio } from "./audio.js";
-import { settingsStore } from "./settings.js";
+import { settingsStore } from "./settings.svelte.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 

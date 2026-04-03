@@ -210,7 +210,8 @@ setInterval(async () => {
 	}
 }, SCHEDULE_CHECK_MS);
 
-runScheduler().catch((err) => edithLog.error("scheduler_run_error", { error: fmtErr(err) }));
+// Removed standalone runScheduler() call — the interval at line 198 handles it.
+// The standalone call raced with the first interval tick, causing duplicate dispatches.
 
 // Telegram: webhook (cloud) vs polling (local)
 if (IS_CLOUD) {

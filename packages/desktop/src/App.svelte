@@ -6,16 +6,16 @@
 	import { EdithWsClient, type ConnectionState, type WsAudioMessage } from './lib/ws-client.js';
 	import { connectionModeManager, type ConnectionMode } from './lib/connection-state.js';
 	import ConnectionStatus from './lib/ConnectionStatus.svelte';
-	import { addWorker, updateWorker, removeWorker } from './lib/stores.js';
-	import { settingsStore } from './lib/settings.js';
-	import { initTheme } from './lib/theme.js';
+	import { addWorker, updateWorker, removeWorker } from './lib/stores.svelte.js';
+	import { settingsStore } from './lib/settings.svelte.js';
+	import { initTheme } from './lib/theme.svelte.js';
 	import Onboarding from './lib/Onboarding.svelte';
 	import AudioPlayer from './lib/AudioPlayer.svelte';
 	import { playAudio, stopAudio } from './lib/audio.js';
 	import { speak } from './lib/tts.js';
 	import TaskQueueStatus from './lib/TaskQueueStatus.svelte';
-	import { taskQueue } from './lib/task-queue.js';
-	import type { QueuedTask } from './lib/task-queue.js';
+	import { taskQueue } from './lib/task-queue.svelte.js';
+	import type { QueuedTask } from './lib/task-queue.svelte.js';
 	import { SyncManager, type SyncStatus as SyncStatusType } from './lib/sync.js';
 	import SyncStatus from './lib/SyncStatus.svelte';
 	import VoiceInput from './lib/VoiceInput.svelte';
@@ -38,6 +38,7 @@
 		type UpdateInfo,
 	} from './lib/updater.js';
 	import { listen } from '@tauri-apps/api/event';
+	import RiveCharacter, { type AgentState } from './lib/RiveCharacter.svelte';
 
 	const MAX_BUBBLES = 3;
 
@@ -54,8 +55,23 @@
 	/** True while the agent is in 'thinking' or 'working' state */
 	let agentTyping = $state(false);
 	let settingsOpen = $state(false);
+	/** Controls visible via right-click on character */
+	let controlsVisible = $state(false);
 	/** True while TTS audio is playing */
 	let audioPlaying = $state(false);
+
+	// ── Rive character state ──────────────────────────────────────────────────
+	let characterState = $derived<AgentState>(
+		connectionState !== 'connected'
+			? 'offline'
+			: messages.some((m) => m.type === 'error')
+				? 'error'
+				: agentTyping
+					? 'thinking'
+					: messages.length > 0
+						? 'talking'
+						: 'idle'
+	);
 
 	// ── Onboarding ────────────────────────────────────────────────────────────
 	/** Show onboarding when: never completed, OR wsUrl/wsToken are missing */
@@ -72,7 +88,7 @@
 		}
 		return true;
 	}
-	let onboardingVisible = $state(needsOnboarding());
+	let onboardingVisible = $state(false); // TODO: restore needsOnboarding() after testing
 
 	function handleOnboardingComplete(): void {
 		onboardingVisible = false;
@@ -441,7 +457,10 @@
 	<Onboarding onComplete={handleOnboardingComplete} />
 {/if}
 
-<main>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<main oncontextmenu={(e) => { e.preventDefault(); controlsVisible = !controlsVisible; }}>
+	<RiveCharacter agentState={characterState} size={180} />
+
 	<div class="bubble-stack">
 		<UpdateNotification
 			update={pendingUpdate}
@@ -471,6 +490,7 @@
 		onStop={() => { audioPlaying = false; }}
 	/>
 
+	{#if controlsVisible}
 	<div class="controls">
 		<button class="test-btn" onclick={addTestMessage} type="button">
 			+ Message
@@ -511,6 +531,7 @@
 			aria-pressed={settingsOpen}
 		>⚙</button>
 	</div>
+	{/if}
 </main>
 
 <Settings open={settingsOpen} onClose={() => (settingsOpen = false)} />
@@ -528,21 +549,22 @@
 	main {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-end;
-		justify-content: flex-end;
+		align-items: center;
+		justify-content: center;
 		min-height: 100vh;
-		padding: 16px;
-		box-sizing: border-box;
+		padding: 0;
+		margin: 0;
+		overflow: hidden;
 	}
 
 	.bubble-stack {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		align-items: flex-end;
+		gap: 6px;
+		align-items: center;
 		width: 100%;
-		max-width: 320px;
-		margin-bottom: 12px;
+		max-width: 280px;
+		margin: 0;
 	}
 
 	.test-btn {
@@ -567,7 +589,16 @@
 	.controls {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 8px;
+		flex-wrap: wrap;
+		justify-content: center;
+		background: rgba(20, 20, 25, 0.92);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		padding: 8px 12px;
+		max-width: 280px;
 	}
 
 	.gear-btn {

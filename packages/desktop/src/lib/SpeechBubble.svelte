@@ -79,11 +79,6 @@
 </script>
 
 <div class="bubble-wrap" class:visible class:fading>
-	<!-- Character avatar -->
-	<div class="avatar" aria-hidden="true">
-		<span class="avatar-letter">E</span>
-	</div>
-
 	<!-- Speech bubble -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -133,9 +128,8 @@
 
 	.bubble-wrap {
 		display: flex;
-		flex-direction: row;
-		align-items: flex-end;
-		gap: 8px;
+		flex-direction: column;
+		align-items: center;
 		width: 100%;
 		max-width: 320px;
 
@@ -157,28 +151,6 @@
 		transition:
 			opacity 0.3s ease,
 			transform 0.3s ease;
-	}
-
-	/* ── Avatar ─────────────────────────────────────────────────────────────── */
-
-	.avatar {
-		flex-shrink: 0;
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		background: linear-gradient(135deg, #6b73ff 0%, #9b59b6 100%);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		box-shadow: 0 2px 8px rgba(107, 115, 255, 0.4);
-	}
-
-	.avatar-letter {
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-		font-size: 16px;
-		font-weight: 600;
-		color: #ffffff;
-		line-height: 1;
 	}
 
 	/* ── Bubble base ────────────────────────────────────────────────────────── */
@@ -207,17 +179,18 @@
 		background: var(--bubble-bg-hover);
 	}
 
-	/* ── Tail triangle (points left toward avatar) ──────────────────────────── */
+	/* ── Tail triangle (points up toward character) ─────────────────────────── */
 
 	.bubble-tail {
 		position: absolute;
-		left: -7px;
-		bottom: 12px;
+		top: -7px;
+		left: 50%;
+		transform: translateX(-50%);
 		width: 0;
 		height: 0;
-		border-top: 6px solid transparent;
-		border-bottom: 6px solid transparent;
-		border-right: 8px solid var(--bubble-bg);
+		border-left: 6px solid transparent;
+		border-right: 6px solid transparent;
+		border-bottom: 8px solid var(--bubble-bg);
 	}
 
 	/* ── Bubble type variants ───────────────────────────────────────────────── */
@@ -232,7 +205,7 @@
 	}
 
 	.bubble--progress .bubble-tail {
-		border-right-color: var(--bubble-bg);
+		border-bottom-color: var(--bubble-bg);
 	}
 
 	.bubble--error {
@@ -242,7 +215,7 @@
 	}
 
 	.bubble--error .bubble-tail {
-		border-right-color: var(--bubble-error-bg, rgba(40, 15, 18, 0.92));
+		border-bottom-color: var(--bubble-error-bg, rgba(40, 15, 18, 0.92));
 	}
 
 	.bubble--typing {

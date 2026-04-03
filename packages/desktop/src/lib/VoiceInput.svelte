@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { SpeechToText } from './stt.js';
-	import { settingsStore } from './settings.js';
+	import { settingsStore } from './settings.svelte.js';
 
 	interface Props {
 		/** Called when transcription is ready — passes the transcribed text */

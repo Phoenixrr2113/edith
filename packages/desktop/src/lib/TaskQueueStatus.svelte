@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { TaskQueue } from './task-queue.js';
+	import type { TaskQueue } from './task-queue.svelte.js';
 
 	interface Props {
 		queue: TaskQueue;

@@ -10,6 +10,7 @@ use tauri::{
 /// Holds the tray icon so it isn't dropped (which would remove it from the menu bar).
 struct TrayState(TrayIcon);
 
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

@@ -10,7 +10,7 @@
  * Requires GOOGLE_GENERATIVE_AI_API_KEY in settings (geminiApiKey).
  */
 
-import { settingsStore } from "./settings.js";
+import { settingsStore } from "./settings.svelte.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

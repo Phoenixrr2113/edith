@@ -4,8 +4,8 @@
 		ollamaStatus,
 		refreshOllamaStatus,
 		DEFAULT_OLLAMA_URL,
-	} from './ollama.js';
-	import { settingsStore } from './settings.js';
+	} from './ollama.svelte.js';
+	import { settingsStore } from './settings.svelte.js';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 
 	const POLL_INTERVAL_MS = 30_000;

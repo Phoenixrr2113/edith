@@ -11,9 +11,9 @@
  */
 
 import { playAudio } from "./audio.js";
-import { settingsStore } from "./settings.js";
+import { settingsStore } from "./settings.svelte.js";
 import { synthesize as cartesiaSynthesize } from "./tts-cartesia.js";
-import { DEFAULT_PIPER_URL, synthesize as piperSynthesize } from "./tts-piper.js";
+import { DEFAULT_PIPER_URL, synthesize as piperSynthesize } from "./tts-piper.svelte.js";
 
 /**
  * Speak the given text using the configured TTS provider.

@@ -8,8 +8,8 @@
  * Issue: INFRA-LOCAL-093
  */
 
-import { detectOllama, type OllamaModel } from "./ollama.js";
-import { settingsStore } from "./settings.js";
+import { detectOllama, type OllamaModel } from "./ollama.svelte.js";
+import { settingsStore } from "./settings.svelte.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

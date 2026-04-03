@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { settingsStore } from './settings.js';
-	import { setTheme, type ThemeMode } from './theme.js';
+	import { settingsStore } from './settings.svelte.js';
+	import { setTheme, type ThemeMode } from './theme.svelte.js';
 	import { audioCapture } from './audio-capture.js';
 	import type { AudioCaptureMode } from './audio-capture.js';
 	import OllamaStatus from './OllamaStatus.svelte';

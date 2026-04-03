@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { settingsStore } from './settings.js';
+	import { settingsStore } from './settings.svelte.js';
 
 	interface Props {
 		onComplete: () => void;

@@ -14,7 +14,7 @@
  */
 
 import type { ScreenContext } from "./gemini-bridge.js";
-import { settingsStore } from "./settings.js";
+import { settingsStore } from "./settings.svelte.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

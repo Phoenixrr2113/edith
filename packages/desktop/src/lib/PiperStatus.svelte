@@ -4,7 +4,7 @@
 		piperStatus,
 		refreshPiperStatus,
 		DEFAULT_PIPER_URL,
-	} from './tts-piper.js';
+	} from './tts-piper.svelte.js';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 
 	const POLL_INTERVAL_MS = 30_000;

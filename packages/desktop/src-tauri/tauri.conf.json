@@ -15,15 +15,15 @@
 			{
 				"label": "main",
 				"title": "Edith",
-				"width": 320,
-				"height": 480,
-				"resizable": true,
+				"width": 200,
+				"height": 200,
+				"resizable": false,
 				"decorations": false,
 				"transparent": true,
 				"alwaysOnTop": true,
 				"skipTaskbar": true,
 				"x": 1100,
-				"y": 100
+				"y": 500
 			}
 		],
 		"security": {
@@ -35,10 +35,7 @@
 		"targets": "all",
 		"macOS": {
 			"signingIdentity": null,
-			"infoPlist": {
-				"NSScreenCaptureUsageDescription": "Edith uses screen capture to understand your context and proactively assist you.",
-				"NSMicrophoneUsageDescription": "Edith uses the microphone for ambient audio capture and voice input."
-			}
+			"infoPlist": null
 		},
 		"icon": [
 			"icons/32x32.png",

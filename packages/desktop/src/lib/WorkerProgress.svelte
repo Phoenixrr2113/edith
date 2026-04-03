@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { getWorkers } from './stores.js';
+	import { getWorkers } from './stores.svelte.js';
 
 	// Elapsed time formatting
 	function elapsed(startTime: number): string {

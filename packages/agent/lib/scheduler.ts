@@ -7,6 +7,7 @@ import { IS_CLOUD } from "./config";
 import { kvGet, kvSet } from "./db";
 import { dispatchToClaude, Priority } from "./dispatch";
 import { edithLog } from "./edith-logger";
+import { claimTask } from "./schedule-coordinator";
 import { isUserIdle } from "./screenpipe";
 import { loadSchedule } from "./storage";
 
@@ -131,6 +132,17 @@ export async function runScheduler(): Promise<void> {
 					task: entry.name,
 					intervalMinutes: entry.intervalMinutes,
 				});
+				continue;
+			}
+		}
+
+		// Cross-instance coordination: for window-based tasks (fired once per day),
+		// claim via shared Postgres before dispatching. First instance wins.
+		if (!entry.intervalMinutes) {
+			const dateStr = now.toISOString().slice(0, 10);
+			if (!claimTask(entry.name, dateStr)) {
+				state.lastFired[entry.name] = now.toISOString();
+				saveScheduleState(state);
 				continue;
 			}
 		}
