@@ -2,14 +2,20 @@
 	/**
 	 * Animated Rive character — Edith's desktop pet.
 	 *
-	 * Small transparent window. Click+drag moves the entire window
-	 * via Tauri's startDragging(). Right-click toggles controls.
-	 * Rive handles cursor tracking automatically via its state machine.
+	 * Uses "robot-expressions" asset with 5 expression states + cursor tracking.
+	 *
+	 * State Machine: "State Machine 1"
+	 * Triggers: "Happy button", "Sad button", "Scared button",
+	 *           "Surprised button", "Smiling button"
+	 * Boolean: "IsTracking" (cursor follow)
+	 * Seasonal: "Christmas button", "Halloween button", "Easter button"
 	 */
 
 	import { onMount, onDestroy } from 'svelte';
 
-	export type AgentState = 'idle' | 'thinking' | 'talking' | 'error' | 'offline';
+	// ── Types ──────────────────────────────────────────────────────────────────
+
+	export type AgentState = 'idle' | 'thinking' | 'talking' | 'error' | 'offline' | 'alert';
 
 	interface Props {
 		agentState?: AgentState;
@@ -18,32 +24,72 @@
 
 	let { agentState = 'idle', size = 200 }: Props = $props();
 
+	// ── Internal state ────────────────────────────────────────────────────────
+
 	let canvas: HTMLCanvasElement;
 	let riveInstance: any = null;
 	let stateMachineInputs: any[] = [];
 	let lastTriggeredState: AgentState | null = null;
-
 	let appWindow: any = null;
+
+	// ── Rive helpers ──────────────────────────────────────────────────────────
+
+	function fireTrigger(name: string): void {
+		const input = stateMachineInputs.find(
+			(i: any) => i.name === name && typeof i.fire === 'function'
+		);
+		if (input) input.fire();
+	}
+
+	function setBoolInput(name: string, value: boolean): void {
+		const input = stateMachineInputs.find(
+			(i: any) => i.name === name && typeof i.value === 'boolean'
+		);
+		if (input) input.value = value;
+	}
+
+	// ── State → expression mapping ────────────────────────────────────────────
+
+	const STATE_TO_TRIGGER: Record<AgentState, string> = {
+		idle: '',                     // Natural idle — no trigger needed
+		thinking: 'Smiling button',   // Smiling while working
+		talking: 'Happy button',      // Happy when speaking to user
+		error: 'Sad button',          // Sad when something broke
+		offline: 'Scared button',     // Scared when disconnected
+		alert: 'Surprised button',    // Surprised for urgent notifications
+	};
 
 	function applyState(state: AgentState): void {
 		if (state === lastTriggeredState) return;
 		lastTriggeredState = state;
+
+		const trigger = STATE_TO_TRIGGER[state];
+		if (trigger) {
+			fireTrigger(trigger);
+		}
+		// 'idle' has no trigger — robot returns to idle naturally after expressions
 	}
+
+	// ── Drag ──────────────────────────────────────────────────────────────────
 
 	async function onMouseDown(e: MouseEvent): Promise<void> {
 		if (e.button === 0 && appWindow) {
-			// Left click — start dragging the window
 			await appWindow.startDragging();
 		}
 	}
 
+	// ── Lifecycle ─────────────────────────────────────────────────────────────
+
 	onMount(async () => {
-		const { getCurrentWindow } = await import('@tauri-apps/api/window');
+		// Tauri window (for drag)
 		try {
+			const { getCurrentWindow } = await import('@tauri-apps/api/window');
 			appWindow = getCurrentWindow();
 		} catch {
-			// Not in Tauri — running in browser, skip drag
+			// Not in Tauri
 		}
+
+		// Load Rive
 		const { Rive: RiveCanvas } = await import('@rive-app/canvas-lite');
 
 		try {
@@ -54,9 +100,13 @@
 				artboard: 'Main',
 				stateMachines: 'State Machine 1',
 				onLoad: () => {
-					console.log('[Rive] Cute robot loaded');
+					console.log('[Rive] Robot-expressions loaded');
 					stateMachineInputs = riveInstance.stateMachineInputs('State Machine 1') ?? [];
-					console.log('[Rive] Inputs:', stateMachineInputs.map((i: any) => `${i.name} (${typeof i.value})`));
+					console.log('[Rive] Inputs:', stateMachineInputs.map((i: any) =>
+						`${i.name} (${typeof i.fire === 'function' ? 'trigger' : typeof i.value})`
+					));
+					// Enable cursor tracking
+					setBoolInput('IsTracking', true);
 					applyState(agentState);
 				},
 				onLoadError: (err: any) => {
@@ -72,6 +122,8 @@
 		riveInstance?.cleanup();
 		riveInstance = null;
 	});
+
+	// ── Reactivity ────────────────────────────────────────────────────────────
 
 	$effect(() => {
 		if (riveInstance && stateMachineInputs.length > 0) {
