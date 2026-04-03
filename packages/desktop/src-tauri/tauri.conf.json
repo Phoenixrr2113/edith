@@ -22,6 +22,8 @@
 				"transparent": true,
 				"alwaysOnTop": true,
 				"skipTaskbar": true,
+				"acceptFirstMouse": true,
+				"visibleOnAllWorkspaces": true,
 				"x": 1100,
 				"y": 500
 			}

@@ -3,5 +3,18 @@
 	"identifier": "default",
 	"description": "Capability for the main window",
 	"windows": ["main"],
-	"permissions": ["core:default", "opener:default", "shell:allow-execute", "shell:allow-open"]
+	"permissions": [
+		"core:default",
+		"core:window:allow-start-dragging",
+		"core:window:allow-set-ignore-cursor-events",
+		"core:window:allow-set-size",
+		"core:window:allow-set-position",
+		"core:window:allow-maximize",
+		"core:window:allow-show",
+		"core:window:allow-hide",
+		"core:window:allow-set-focus",
+		"opener:default",
+		"shell:allow-execute",
+		"shell:allow-open"
+	]
 }
