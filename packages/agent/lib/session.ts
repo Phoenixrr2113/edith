@@ -80,6 +80,12 @@ export async function injectMessage(text: string, _chatId?: number): Promise<boo
 			yield message;
 		}
 
+		if (typeof activeQuery.streamInput !== "function") {
+			edithLog.debug("session_inject_unavailable", {
+				reason: "streamInput not available in this SDK version",
+			});
+			return false;
+		}
 		await activeQuery.streamInput(singleMessage());
 		edithLog.info("session_message_injected", { preview: text.slice(0, 80) });
 		return true;

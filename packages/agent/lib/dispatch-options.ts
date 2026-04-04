@@ -78,6 +78,27 @@ export function spawnWithStderrCapture(options: SpawnOptions): SpawnedProcess {
 		console.log(`[spawn] pid=${proc.pid} error: ${err.message}`);
 	});
 
+	// Belt-and-suspenders: if the abort signal fires but the process doesn't die
+	// within 5s (observed on macOS), force-kill it.
+	if (options.signal) {
+		options.signal.addEventListener(
+			"abort",
+			() => {
+				if (proc.exitCode === null) {
+					console.log(`[spawn] pid=${proc.pid} abort signal received, sending SIGTERM`);
+					proc.kill("SIGTERM");
+					setTimeout(() => {
+						if (proc.exitCode === null) {
+							console.log(`[spawn] pid=${proc.pid} still alive after SIGTERM, sending SIGKILL`);
+							proc.kill("SIGKILL");
+						}
+					}, 5_000);
+				}
+			},
+			{ once: true }
+		);
+	}
+
 	// Capture stderr into buffer for error reporting
 	proc.stderr?.on("data", (chunk: Buffer) => {
 		const text = chunk.toString();
