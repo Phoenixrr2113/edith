@@ -8,7 +8,7 @@
 		"test": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts tests/state.test.ts tests/storage.test.ts tests/proactive.test.ts tests/activity.test.ts tests/auth.test.ts && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts && bun test tests/google-auth.test.ts tests/gmail.test.ts tests/google-apis.test.ts && bun test tests/db.test.ts tests/storage-db.test.ts",
 		"test:coverage": "bun test tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts --coverage && bun test tests/handlers.test.ts && bun test tests/dispatch-integration.test.ts",
 		"test:e2e": "bash test-e2e.sh",
-		"lint": "biome check .",
+		"lint": "biome check --diagnostic-level=error .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit"
 	},

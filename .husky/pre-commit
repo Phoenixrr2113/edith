@@ -1,1 +1,3 @@
+export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 turbo run lint typecheck && bun test --cwd packages/agent tests/scheduler.test.ts tests/geo.test.ts tests/mcp-tools.test.ts tests/taskboard.test.ts tests/screenpipe.test.ts tests/dispatch.test.ts tests/briefs.test.ts tests/auth.test.ts && bun test --cwd packages/agent tests/handlers.test.ts && bun test --cwd packages/agent tests/dispatch-integration.test.ts && bun test --cwd packages/agent tests/google-auth.test.ts && bun test --cwd packages/agent tests/gmail.test.ts && bun test --cwd packages/agent tests/google-apis.test.ts

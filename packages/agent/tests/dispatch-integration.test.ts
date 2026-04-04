@@ -846,9 +846,12 @@ describe("scheduler shouldFire → dispatch integration", () => {
 		return { lastFired };
 	}
 
+	// March 30, 2026 is in EDT (UTC-4). Use explicit offsets for shouldFire's toLocalTime.
+	const etDate = (iso: string) => new Date(`${iso}-04:00`);
+
 	test("morning-brief fires within window → dispatch would be called", () => {
-		// 8:10 is within the 8:03 + 30 min window
-		const now = new Date("2026-03-30T08:10:00");
+		// 8:10 ET is within the 8:03 + 30 min window
+		const now = etDate("2026-03-30T08:10:00");
 		const entry = {
 			name: "morning-brief",
 			prompt: "/morning-brief",
@@ -860,23 +863,26 @@ describe("scheduler shouldFire → dispatch integration", () => {
 	});
 
 	test("morning-brief does not fire if already ran today → dispatch skipped", () => {
-		const now = new Date("2026-03-30T08:15:00");
+		const now = etDate("2026-03-30T08:15:00");
 		const entry = { name: "morning-brief", prompt: "/morning-brief", hour: 8, minute: 3 };
-		const state = makeState({ "morning-brief": "2026-03-30T08:03:00.000Z" });
+		// lastFired at 08:03 ET = 12:03 UTC
+		const state = makeState({ "morning-brief": "2026-03-30T12:03:00.000Z" });
 		expect(shouldFire(entry, now, state)).toBe(false);
 	});
 
 	test("interval task skips when too recent → dispatch skipped", () => {
-		const now = new Date("2026-03-30T12:02:00");
+		const now = etDate("2026-03-30T12:02:00");
 		const entry = { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 };
-		const state = makeState({ "check-reminders": "2026-03-30T12:00:00.000Z" });
+		// lastFired at 12:00 ET = 16:00 UTC
+		const state = makeState({ "check-reminders": "2026-03-30T16:00:00.000Z" });
 		expect(shouldFire(entry, now, state)).toBe(false);
 	});
 
 	test("interval task fires after interval elapsed → dispatch proceeds", () => {
-		const now = new Date("2026-03-30T12:06:00");
+		const now = etDate("2026-03-30T12:06:00");
 		const entry = { name: "check-reminders", prompt: "/check-reminders", intervalMinutes: 5 };
-		const state = makeState({ "check-reminders": "2026-03-30T12:00:00.000Z" });
+		// lastFired at 12:00 ET = 16:00 UTC
+		const state = makeState({ "check-reminders": "2026-03-30T16:00:00.000Z" });
 		expect(shouldFire(entry, now, state)).toBe(true);
 	});
 

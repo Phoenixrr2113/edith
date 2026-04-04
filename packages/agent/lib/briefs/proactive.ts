@@ -101,6 +101,7 @@ export async function buildProactiveBrief(): Promise<string> {
 	// Gate: check if intervention is even allowed before doing any work
 	const gate = canIntervene();
 	if (!gate.allowed) {
+		edithLog.debug("proactive_gate_blocked", { reason: gate.reason });
 		return ""; // empty brief = skip dispatch
 	}
 
@@ -110,6 +111,11 @@ export async function buildProactiveBrief(): Promise<string> {
 	const pendingTasks = hasPendingTasks();
 	const nextTask = pendingTasks ? getNextPendingTask() : null;
 	const allPending = pendingTasks ? listEdithTasks("pending") : [];
+	edithLog.debug("proactive_task_check", {
+		hasPending: pendingTasks,
+		nextTaskId: nextTask?.id ?? null,
+		pendingCount: allPending.length,
+	});
 
 	// Claim the task immediately so the next cycle doesn't re-dispatch it
 	if (nextTask) {
@@ -138,6 +144,11 @@ export async function buildProactiveBrief(): Promise<string> {
 
 	// Fire if: pending tasks exist OR screen triggers detected OR screen activity
 	if (!pendingTasks && triggers.length === 0 && !screen) {
+		edithLog.debug("proactive_no_triggers", {
+			pendingTasks,
+			triggerCount: triggers.length,
+			hasScreen: !!screen,
+		});
 		return ""; // nothing to do
 	}
 

@@ -54,11 +54,28 @@ export function spawnWithStderrCapture(options: SpawnOptions): SpawnedProcess {
 	const { spawn } = require("node:child_process") as typeof import("node:child_process");
 	lastStderr = "";
 
+	const spawnStart = Date.now();
+	console.log(
+		`[spawn] starting: ${options.command} ${(options.args ?? []).slice(0, 3).join(" ")} (cwd: ${options.cwd})`
+	);
+
 	const proc = spawn(options.command, options.args, {
 		cwd: options.cwd,
 		env: options.env as NodeJS.ProcessEnv,
 		signal: options.signal,
 		stdio: ["pipe", "pipe", "pipe"],
+	});
+
+	console.log(`[spawn] pid=${proc.pid ?? "none"} started in ${Date.now() - spawnStart}ms`);
+
+	proc.on("exit", (code, signal) => {
+		console.log(
+			`[spawn] pid=${proc.pid} exited code=${code} signal=${signal} after ${Date.now() - spawnStart}ms`
+		);
+	});
+
+	proc.on("error", (err) => {
+		console.log(`[spawn] pid=${proc.pid} error: ${err.message}`);
 	});
 
 	// Capture stderr into buffer for error reporting
