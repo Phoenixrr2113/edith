@@ -143,9 +143,21 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 	const { resume = true } = opts;
 	const systemPrompt = assembleSystemPrompt();
 
+	// Resolve CLI path explicitly — Bun uses symlinks in node_modules/.bun/
+	// and the SDK's internal check fails on these. We resolve the real path.
+	const { existsSync, realpathSync } = require("node:fs") as typeof import("node:fs");
+	const { join } = require("node:path") as typeof import("node:path");
+	let cliPath: string | undefined;
+	try {
+		const sdkDir = join(PROJECT_ROOT, "node_modules/@anthropic-ai/claude-agent-sdk");
+		const candidate = join(sdkDir, "cli.js");
+		if (existsSync(candidate)) cliPath = realpathSync(candidate);
+	} catch {}
+
 	const sdkOptions: Options = {
 		abortController,
 		spawnClaudeCodeProcess: spawnWithStderrCapture,
+		...(cliPath ? { pathToClaudeCodeExecutable: cliPath } : {}),
 		systemPrompt: {
 			type: "preset",
 			preset: "claude_code",
