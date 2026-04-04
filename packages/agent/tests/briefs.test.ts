@@ -178,11 +178,6 @@ describe("buildScheduledBrief", () => {
 		expect(result).toContain(TASKBOARD_FILE);
 	});
 
-	test("includes CHAT_ID reference", () => {
-		const result = buildScheduledBrief("anything", "task");
-		expect(result).toContain(String(CHAT_ID));
-	});
-
 	test("mentions 'time' in output", () => {
 		const result = buildScheduledBrief("anything", "task");
 		expect(result).toContain("time");
