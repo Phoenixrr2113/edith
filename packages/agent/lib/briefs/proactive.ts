@@ -120,15 +120,24 @@ interface GitHubIssue {
  */
 export function checkGitHubIssues(): GitHubIssue[] {
 	try {
+		// gh --label uses AND logic, so we search with OR via --search
+		const ghPath = `${process.env.HOME}/.bun/bin:/opt/homebrew/bin:/usr/local/bin:${process.env.PATH ?? ""}`;
 		const raw = execSync(
-			'gh issue list --label "edith,sentinel-detected" --state open --json number,title,labels,createdAt --limit 5',
-			{ timeout: 10_000, stdio: ["pipe", "pipe", "pipe"], encoding: "utf-8" }
+			'gh issue list --state open --search "label:edith,sentinel-detected" --json number,title,labels,createdAt --limit 5',
+			{
+				timeout: 10_000,
+				stdio: ["pipe", "pipe", "pipe"],
+				encoding: "utf-8",
+				env: { ...process.env, PATH: ghPath },
+			}
 		);
 		const issues: GitHubIssue[] = JSON.parse(raw.trim() || "[]");
 		edithLog.debug("proactive_github_check", { issueCount: issues.length });
 		return issues;
-	} catch {
-		// gh CLI not available or rate-limited — silently skip
+	} catch (err) {
+		edithLog.debug("proactive_github_error", {
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return [];
 	}
 }

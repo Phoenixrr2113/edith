@@ -221,9 +221,10 @@ export async function runScheduler(): Promise<void> {
 		}
 
 		// Wrap dispatch in a timeout so a hung task can't block the entire scheduler.
-		// The dispatch has its own internal timeout (QUERY_TIMEOUT_MS) but if the
-		// Agent SDK process never starts, that timeout may not fire.
-		const SCHEDULER_DISPATCH_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+		// Must be longer than QUERY_TIMEOUT_MS (5min) to let the dispatch's own
+		// AbortController handle normal timeouts. This is a last-resort safety net
+		// for cases where the Agent SDK process never starts.
+		const SCHEDULER_DISPATCH_TIMEOUT_MS = 6 * 60 * 1000; // 6 minutes (> QUERY_TIMEOUT_MS)
 		try {
 			const result = await Promise.race([
 				dispatchToClaude(prompt, {

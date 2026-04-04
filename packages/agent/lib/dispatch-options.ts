@@ -17,7 +17,9 @@ import { PROJECT_ROOT } from "./state";
 import { loadJson } from "./storage";
 
 // --- Lightweight task set (uses shorter timeout) ---
-export const LIGHTWEIGHT_TASKS = new Set(["check-reminders", "proactive-check"]);
+// proactive-check removed: now handles GitHub issues and error investigation,
+// which need the full QUERY_TIMEOUT_MS (5 minutes).
+export const LIGHTWEIGHT_TASKS = new Set(["check-reminders"]);
 
 // --- DispatchOptions ---
 
