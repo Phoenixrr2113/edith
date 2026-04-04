@@ -1,12 +1,20 @@
 /**
- * Proactive brief builder — checks task queue, calendar, and screen context.
- * Primary trigger: pending tasks in edith_tasks. Secondary: screen heuristics.
+ * Proactive brief builder — checks task queue, GitHub issues, error logs,
+ * calendar, and screen context.
+ *
+ * Trigger sources (checked in order):
+ *   1. Pending tasks in edith_tasks (SQLite)
+ *   2. Open GitHub issues labeled `edith` or `sentinel-detected`
+ *   3. Recent error patterns in events.jsonl
+ *   4. Screen heuristics (social media, break reminder)
+ *
  * Also exports detectTriggers and gatherScreenContext for unit testing and reuse.
  */
 
+import { execSync } from "node:child_process";
 import { appendActivity } from "../activity";
 import { processAudioTranscripts } from "../audio-extract";
-import { edithLog } from "../edith-logger";
+import { edithLog, queryEvents } from "../edith-logger";
 import { summarizeScreenContext } from "../gemini";
 import { canIntervene, recordIntervention } from "../proactive";
 import {
@@ -97,6 +105,68 @@ export async function gatherScreenContext(
 	}
 }
 
+// --- GitHub issue scanning ---
+
+interface GitHubIssue {
+	number: number;
+	title: string;
+	labels: Array<{ name: string }>;
+	createdAt: string;
+}
+
+/**
+ * Check for open GitHub issues labeled `edith` or `sentinel-detected`.
+ * Returns formatted list, or empty string if none found.
+ */
+export function checkGitHubIssues(): GitHubIssue[] {
+	try {
+		const raw = execSync(
+			'gh issue list --label "edith,sentinel-detected" --state open --json number,title,labels,createdAt --limit 5',
+			{ timeout: 10_000, stdio: ["pipe", "pipe", "pipe"], encoding: "utf-8" }
+		);
+		const issues: GitHubIssue[] = JSON.parse(raw.trim() || "[]");
+		edithLog.debug("proactive_github_check", { issueCount: issues.length });
+		return issues;
+	} catch {
+		// gh CLI not available or rate-limited — silently skip
+		return [];
+	}
+}
+
+// --- Error pattern scanning ---
+
+interface ErrorSummary {
+	type: string;
+	count: number;
+}
+
+/**
+ * Check events.jsonl for error patterns in the last hour.
+ * Returns error types with counts, or empty array if clean.
+ */
+export function checkRecentErrors(): ErrorSummary[] {
+	try {
+		const result = queryEvents({
+			level: "error",
+			timeRange: "last_hour",
+			aggregate: "count_by_type",
+		});
+		const entries = (result as { entries?: Array<{ type: string; count: number }> })?.entries ?? [];
+		// Filter out known noise (test leaks, expected auth failures)
+		const meaningful = entries.filter(
+			(e) => e.count >= 3 && !e.type.includes("auth_device_secret")
+		);
+		if (meaningful.length > 0) {
+			edithLog.debug("proactive_error_check", {
+				errorTypes: meaningful.map((e) => `${e.type}:${e.count}`),
+			});
+		}
+		return meaningful;
+	} catch {
+		return [];
+	}
+}
+
 export async function buildProactiveBrief(): Promise<string> {
 	// Gate: check if intervention is even allowed before doing any work
 	const gate = canIntervene();
@@ -139,13 +209,27 @@ export async function buildProactiveBrief(): Promise<string> {
 		recordIntervention(t.type, t.message);
 	}
 
+	// Check GitHub issues labeled for Edith
+	const ghIssues = checkGitHubIssues();
+
+	// Check for recent error patterns
+	const recentErrors = checkRecentErrors();
+
 	// Summarize screen context (also persists to activity log)
 	const screen = await gatherScreenContext(15, true);
 
-	// Fire if: pending tasks exist OR screen triggers detected OR screen activity
-	if (!pendingTasks && triggers.length === 0 && !screen) {
+	// Fire if: pending tasks OR GitHub issues OR errors OR screen triggers OR screen activity
+	if (
+		!pendingTasks &&
+		ghIssues.length === 0 &&
+		recentErrors.length === 0 &&
+		triggers.length === 0 &&
+		!screen
+	) {
 		edithLog.debug("proactive_no_triggers", {
 			pendingTasks,
+			ghIssues: ghIssues.length,
+			recentErrors: recentErrors.length,
 			triggerCount: triggers.length,
 			hasScreen: !!screen,
 		});
@@ -192,6 +276,46 @@ export async function buildProactiveBrief(): Promise<string> {
 					.map((t) => `- ${t.text}${t.dueAt ? ` (due: ${t.dueAt})` : ""}`)
 			);
 		}
+	}
+
+	// GitHub issues to fix
+	if (ghIssues.length > 0) {
+		sections.push(
+			``,
+			`## 🐛 GitHub Issues to Fix`,
+			``,
+			`These open issues are labeled for you. Read the issue, fix it, commit, push, then close it.`,
+			``
+		);
+		for (const issue of ghIssues) {
+			const labels = issue.labels.map((l) => l.name).join(", ");
+			sections.push(`- **#${issue.number}**: ${issue.title} [${labels}]`);
+		}
+		sections.push(
+			``,
+			`**Workflow:** \`gh issue view <N>\` → understand → fix → commit → push → \`gh issue close <N>\``,
+			`If the fix is complex or risky, create an edith_task instead of fixing inline.`
+		);
+	}
+
+	// Recent error patterns
+	if (recentErrors.length > 0) {
+		sections.push(
+			``,
+			`## 🔴 Recent Errors (last hour)`,
+			``,
+			`These error patterns were detected in the event log. Investigate and fix if possible.`,
+			``
+		);
+		for (const err of recentErrors) {
+			sections.push(`- **${err.type}**: ${err.count} occurrences`);
+		}
+		sections.push(
+			``,
+			`Use \`query_logs\` MCP tool for details. Check BetterStack for broader patterns.`,
+			`If the fix is a code change → fix, commit, push. If it's a config issue → fix the config.`,
+			`If you can't fix it → create a GitHub issue with \`gh issue create --label edith\`.`
+		);
 	}
 
 	// Secondary: think about Randy's life
