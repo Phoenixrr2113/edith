@@ -271,6 +271,7 @@ export async function dispatchToClaude(
 			modelUsage,
 			durationApiMs,
 			stopReason,
+			terminalReason,
 			toolCalls,
 		} = await processMessageStream(
 			queryHandle,
@@ -306,6 +307,7 @@ export async function dispatchToClaude(
 			turns,
 			cost: totalCost,
 			stopReason,
+			terminalReason,
 			models: modelUsage,
 			inputTokens: Object.values(modelUsage).reduce((s, m) => s + m.inputTokens, 0),
 			outputTokens: Object.values(modelUsage).reduce((s, m) => s + m.outputTokens, 0),

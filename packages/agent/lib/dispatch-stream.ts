@@ -61,6 +61,7 @@ export interface StreamResult {
 	>;
 	durationApiMs: number;
 	stopReason: string | null;
+	terminalReason: string | null;
 	toolCalls: ToolCallRecord[];
 }
 
@@ -94,6 +95,7 @@ export async function processMessageStream(
 	> = {};
 	let durationApiMs = 0;
 	let stopReason: string | null = null;
+	let terminalReason: string | null = null;
 	const toolCalls: ToolCallRecord[] = [];
 
 	/** Inject a reflection into the running session (non-blocking). */
@@ -251,6 +253,14 @@ export async function processMessageStream(
 					durationApiMs = ((resultMsg as Record<string, unknown>).duration_api_ms as number) ?? 0;
 				if ("stop_reason" in resultMsg)
 					stopReason = (resultMsg as Record<string, unknown>).stop_reason as string | null;
+				// SDK v0.2.91+ exposes why the query loop terminated
+				if ("terminal_reason" in resultMsg) {
+					terminalReason =
+						((resultMsg as Record<string, unknown>).terminal_reason as string) ?? null;
+					if (terminalReason && terminalReason !== "completed") {
+						edithLog.warn("dispatch_terminal_reason", { label, reason: terminalReason });
+					}
+				}
 
 				if ("result" in resultMsg && typeof resultMsg.result === "string") {
 					lastResult = resultMsg.result ?? lastResult;
@@ -299,6 +309,7 @@ export async function processMessageStream(
 		modelUsage,
 		durationApiMs,
 		stopReason,
+		terminalReason,
 		toolCalls,
 	};
 }
