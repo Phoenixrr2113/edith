@@ -194,6 +194,146 @@ export function loadReminders(): Reminder[] {
 		}));
 }
 
+// --- Edith Tasks (self-scheduling task queue) ---
+
+export interface EdithTask {
+	id: string;
+	text: string;
+	prompt?: string;
+	status: "pending" | "in_progress" | "done" | "failed";
+	dueAt?: string;
+	createdBy?: string;
+	context?: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export function createEdithTask(
+	task: Omit<EdithTask, "id" | "createdAt" | "updatedAt" | "status">
+): EdithTask {
+	const db = openDatabase();
+	const now = new Date().toISOString();
+	const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+	const full: EdithTask = { ...task, id, status: "pending", createdAt: now, updatedAt: now };
+	db.run(
+		"INSERT INTO edith_tasks (id, text, prompt, status, due_at, created_by, context, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		[
+			full.id,
+			full.text,
+			full.prompt ?? null,
+			full.status,
+			full.dueAt ?? null,
+			full.createdBy ?? null,
+			full.context ?? null,
+			full.createdAt,
+			full.updatedAt,
+		]
+	);
+	return full;
+}
+
+export function listEdithTasks(status?: string): EdithTask[] {
+	const db = openDatabase();
+	type Row = {
+		id: string;
+		text: string;
+		prompt: string | null;
+		status: string;
+		due_at: string | null;
+		created_by: string | null;
+		context: string | null;
+		created_at: string;
+		updated_at: string;
+	};
+	const sql = status
+		? "SELECT * FROM edith_tasks WHERE status = ? ORDER BY due_at ASC, created_at ASC"
+		: "SELECT * FROM edith_tasks WHERE status != 'done' ORDER BY due_at ASC, created_at ASC";
+	const params = status ? [status] : [];
+	return db.all<Row>(sql, params).map((r) => ({
+		id: r.id,
+		text: r.text,
+		prompt: r.prompt ?? undefined,
+		status: r.status as EdithTask["status"],
+		dueAt: r.due_at ?? undefined,
+		createdBy: r.created_by ?? undefined,
+		context: r.context ?? undefined,
+		createdAt: r.created_at,
+		updatedAt: r.updated_at,
+	}));
+}
+
+export function updateEdithTask(
+	id: string,
+	updates: Partial<Pick<EdithTask, "status" | "text" | "prompt" | "context">>
+): void {
+	const db = openDatabase();
+	const now = new Date().toISOString();
+	const sets: string[] = ["updated_at = ?"];
+	const params: unknown[] = [now];
+	if (updates.status !== undefined) {
+		sets.push("status = ?");
+		params.push(updates.status);
+	}
+	if (updates.text !== undefined) {
+		sets.push("text = ?");
+		params.push(updates.text);
+	}
+	if (updates.prompt !== undefined) {
+		sets.push("prompt = ?");
+		params.push(updates.prompt);
+	}
+	if (updates.context !== undefined) {
+		sets.push("context = ?");
+		params.push(updates.context);
+	}
+	params.push(id);
+	db.run(`UPDATE edith_tasks SET ${sets.join(", ")} WHERE id = ?`, params);
+}
+
+/** Get the next pending task that's due (or has no due date). */
+export function getNextPendingTask(): EdithTask | null {
+	const db = openDatabase();
+	const now = new Date().toISOString();
+	type Row = {
+		id: string;
+		text: string;
+		prompt: string | null;
+		status: string;
+		due_at: string | null;
+		created_by: string | null;
+		context: string | null;
+		created_at: string;
+		updated_at: string;
+	};
+	const row = db.get<Row>(
+		"SELECT * FROM edith_tasks WHERE status = 'pending' AND (due_at IS NULL OR due_at <= ?) ORDER BY due_at ASC, created_at ASC LIMIT 1",
+		[now]
+	);
+	if (!row) return null;
+	return {
+		id: row.id,
+		text: row.text,
+		prompt: row.prompt ?? undefined,
+		status: row.status as EdithTask["status"],
+		dueAt: row.due_at ?? undefined,
+		createdBy: row.created_by ?? undefined,
+		context: row.context ?? undefined,
+		createdAt: row.created_at,
+		updatedAt: row.updated_at,
+	};
+}
+
+/** Check if there are any pending tasks due now. */
+export function hasPendingTasks(): boolean {
+	const db = openDatabase();
+	const now = new Date().toISOString();
+	const row = db.get<{ count: number }>(
+		"SELECT COUNT(*) as count FROM edith_tasks WHERE status = 'pending' AND (due_at IS NULL OR due_at <= ?)",
+		[now]
+	);
+	return (row?.count ?? 0) > 0;
+}
+
 export function saveReminders(reminders: Reminder[]): void {
 	const db = openDatabase();
 	const sql = upsertSql("reminders", "id", [

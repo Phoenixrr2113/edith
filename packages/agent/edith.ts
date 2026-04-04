@@ -20,7 +20,6 @@ import { dispatchToClaude, dispatchToConversation, Priority } from "./lib/dispat
 import { edithLog, pingHeartbeat, rotateEvents } from "./lib/edith-logger";
 import { startHttpServer } from "./lib/http-server";
 import { SIGNAL_FRESH } from "./lib/ipc";
-import { runScheduler } from "./lib/scheduler";
 import { registerShutdownHandlers } from "./lib/shutdown";
 import {
 	clearDeadLetters,
@@ -133,18 +132,28 @@ async function bootstrap(): Promise<void> {
 	if (!sessionId) {
 		if (IS_CLOUD) {
 			// Cloud: skip heavy bootstrap — morning brief runs on its own schedule.
-			// Boot dispatch blocks incoming messages for 5+ min on Railway.
 			edithLog.info("bootstrap_skipped_cloud", {});
 		} else {
 			edithLog.info("bootstrap_start", {});
 			const bootBrief = await buildBrief("boot");
-			await dispatchToClaude(bootBrief, {
-				resume: true,
-				label: "bootstrap",
-				briefType: "boot",
-				priority: Priority.P0_CRITICAL,
-			});
-			edithLog.info("bootstrap_complete", {});
+			// Timeout bootstrap at 3 minutes — if it hangs, log and move on.
+			// The scheduler and proactive loop will handle what bootstrap missed.
+			const BOOTSTRAP_TIMEOUT_MS = 3 * 60 * 1000;
+			const result = await Promise.race([
+				dispatchToClaude(bootBrief, {
+					resume: true,
+					label: "bootstrap",
+					briefType: "boot",
+					priority: Priority.P0_CRITICAL,
+				}),
+				new Promise<string>((resolve) =>
+					setTimeout(() => {
+						edithLog.warn("bootstrap_timeout", { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+						resolve("");
+					}, BOOTSTRAP_TIMEOUT_MS)
+				),
+			]);
+			edithLog.info("bootstrap_complete", { hadResult: !!result });
 		}
 	}
 
@@ -190,19 +199,32 @@ edithLog.info("startup", {
 	betterstack: !!process.env.BETTERSTACK_SOURCE_TOKEN,
 });
 if (!IS_CLOUD) startCaffeinate();
-await bootstrap();
 
-// Scheduler tick
+// Bootstrap runs in background — NEVER blocks the scheduler or Telegram.
+// The old `await bootstrap()` hung 93% of the time (issue #161), preventing
+// the scheduler, proactive loop, and message handling from ever starting.
+bootstrap()
+	.then(() => edithLog.info("bootstrap_background_done", {}))
+	.catch((err) => edithLog.error("bootstrap_background_failed", { error: fmtErr(err) }));
+
+// Scheduler tick — starts IMMEDIATELY, not after bootstrap
+edithLog.info("scheduler_interval_set", { intervalMs: SCHEDULE_CHECK_MS });
 const tickState: TickState = { paused: false };
 let schedulerRunning = false;
+let tickCount = 0;
 setInterval(async () => {
 	if (schedulerRunning) return;
 	schedulerRunning = true;
+	tickCount++;
 	try {
 		setPaused(tickState.paused);
 		await schedulerTick(tickState);
 		setPaused(tickState.paused);
 		pingHeartbeat();
+		// Heartbeat log every 10 ticks (~10 min) for observability
+		if (tickCount % 10 === 0) {
+			edithLog.info("scheduler_heartbeat", { tickCount });
+		}
 	} catch (err) {
 		edithLog.error("scheduler_tick_error", { error: fmtErr(err) });
 	} finally {

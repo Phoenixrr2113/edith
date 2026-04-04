@@ -10,6 +10,7 @@ import { edithLog } from "./edith-logger";
 import { claimTask } from "./schedule-coordinator";
 import { isUserIdle } from "./screenpipe";
 import { hasDueReminders, loadSchedule } from "./storage";
+import { fmtErr } from "./util";
 
 /** Tasks that require local machine access and should not run in cloud mode. */
 const CLOUD_SKIPPED_TASKS = new Set(["proactive-check"]);
@@ -156,10 +157,10 @@ export async function runScheduler(): Promise<void> {
 
 		if (!shouldFire(entry, now, state)) continue;
 
-		// Skip interval tasks when user is idle — no point running proactive/reminder
-		// checks if nobody is at the keyboard. Window tasks (morning/midday/evening)
-		// always fire since they run once at a fixed time.
-		if (entry.intervalMinutes) {
+		// Skip interval tasks when user is idle — except proactive-check which
+		// works the task queue regardless of keyboard activity. Window tasks
+		// (morning/midday/evening) always fire since they run once at a fixed time.
+		if (entry.intervalMinutes && entry.name !== "proactive-check") {
 			if (userIdle === null) userIdle = await isUserIdle();
 			if (userIdle) {
 				edithLog.info("scheduler_skipped_idle", {
@@ -219,18 +220,43 @@ export async function runScheduler(): Promise<void> {
 			continue;
 		}
 
-		const result = await dispatchToClaude(prompt, {
-			resume: false,
-			label: entry.name,
-			skipIfBusy: true,
-			briefType: briefType ?? "scheduled",
-			priority: Priority.P3_BACKGROUND,
-		});
+		// Wrap dispatch in a timeout so a hung task can't block the entire scheduler.
+		// The dispatch has its own internal timeout (QUERY_TIMEOUT_MS) but if the
+		// Agent SDK process never starts, that timeout may not fire.
+		const SCHEDULER_DISPATCH_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+		try {
+			const result = await Promise.race([
+				dispatchToClaude(prompt, {
+					resume: false,
+					label: entry.name,
+					skipIfBusy: true,
+					briefType: briefType ?? "scheduled",
+					priority: Priority.P3_BACKGROUND,
+				}),
+				new Promise<string>((resolve) =>
+					setTimeout(() => {
+						edithLog.warn("scheduler_dispatch_timeout", {
+							task: entry.name,
+							timeoutMs: SCHEDULER_DISPATCH_TIMEOUT_MS,
+						});
+						resolve("");
+					}, SCHEDULER_DISPATCH_TIMEOUT_MS)
+				),
+			]);
 
-		// Save state after dispatch so failed/skipped tasks can retry next tick
-		if (result) {
-			state.lastFired[entry.name] = now.toISOString();
-			saveScheduleState(state);
+			// Save state after dispatch so failed/skipped tasks can retry next tick
+			if (result) {
+				state.lastFired[entry.name] = now.toISOString();
+				saveScheduleState(state);
+			}
+		} catch (err) {
+			edithLog.error("scheduler_dispatch_error", {
+				task: entry.name,
+				error: fmtErr(err),
+			});
 		}
+		// Always mark as fired to prevent rapid-retry loops on persistent failures
+		state.lastFired[entry.name] = now.toISOString();
+		saveScheduleState(state);
 	}
 }

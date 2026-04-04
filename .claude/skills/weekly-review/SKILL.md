@@ -29,10 +29,8 @@ Cover BOTH work and personal/family — not just work.
 1. **Taskboard (current)** — `packages/agent/.state/taskboard.md`, recent entries
 2. **Taskboard (archive)** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for this month; filter to this week's dates
 3. **Activity log** — `get_activity` with `days: 7` — what Randy actually worked on
-4. **Cognee** — search decisions, people, projects, patterns from this week:
-   ```bash
-   bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "this week decisions projects"
-   ```
+4. **CodeGraph** — recall decisions, people, projects, patterns from this week:
+   - `knowledge({ action: "recall", text: "this week decisions projects", semantic: true })`
 5. **Screenpipe** — activity summary for the week; fall back to activity log if unavailable
 6. **Sent emails** — commitments made, follow-ups promised
 7. **Family** — what did Randy do with Phoenix and Diana? Outings, quality time?
@@ -61,12 +59,10 @@ Sections:
 - **Next Week**: Calendar preview, deadlines, meeting prep needed
 - **Wins**: 2-3 things that went well
 
-## Step 4: Cognee
+## Step 4: CodeGraph
 
 Store: decisions made, new contacts, project milestones, family activities, patterns:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
-```
+- `knowledge({ action: "store", text: "...", extract: true })`
 
 ## Step 5: Telegram message
 

@@ -65,6 +65,83 @@ let activeLabel = "";
 let pidCounter = 0;
 
 /**
+ * Concurrent dispatch — runs alongside the main dispatch without touching the busy flag.
+ * Used for P1_USER messages that must not wait behind background tasks.
+ * Always runs with resume:false (ephemeral session) to avoid session conflicts.
+ */
+async function dispatchConcurrent(prompt: string, opts: DispatchOptions): Promise<string> {
+	const label = opts.label ?? "concurrent";
+	const startTime = Date.now();
+	let typingInterval: ReturnType<typeof setInterval> | null = null;
+	const wakeId = `${label}-${Date.now()}`;
+
+	const abortController = new AbortController();
+	const timeoutMs = QUERY_TIMEOUT_MS;
+	const timeoutHandle = setTimeout(() => {
+		edithLog.error("dispatch_concurrent_timeout", { label, timeoutMs });
+		abortController.abort();
+	}, timeoutMs);
+
+	try {
+		edithLog.info("dispatch_concurrent_start", {
+			label,
+			prompt: prompt.slice(0, 1000),
+		});
+
+		// Don't call emitState — would race with main dispatch's state tracking
+
+		const typingChatId = opts.chatId ?? CHAT_ID;
+		if (typingChatId) {
+			sendTyping(typingChatId);
+			typingInterval = setInterval(() => sendTyping(typingChatId), 5_000);
+		}
+
+		startTranscript(wakeId);
+
+		// Force ephemeral session — no shared state
+		const sdkOptions = buildSdkOptions({ ...opts, resume: false }, abortController);
+		const queryHandle = query({ prompt, options: sdkOptions });
+
+		const pseudoPid = ++pidCounter;
+
+		const { lastResult, totalCost, turns, stopReason, toolCalls } = await processMessageStream(
+			queryHandle,
+			label,
+			wakeId,
+			false, // never resume
+			opts,
+			pseudoPid,
+			null, // no reflector for concurrent
+			abortController,
+			prompt.slice(0, 300),
+			true // concurrent — skip global session state
+		);
+
+		edithLog.info("dispatch_concurrent_end", {
+			label,
+			durationMs: Date.now() - startTime,
+			turns,
+			cost: totalCost,
+			stopReason,
+			toolCallCount: toolCalls.length,
+			prompt: prompt.slice(0, 300),
+		});
+
+		return lastResult;
+	} catch (err) {
+		edithLog.error("dispatch_concurrent_error", {
+			label,
+			error: fmtErr(err),
+			elapsedMs: Date.now() - startTime,
+		});
+		return "";
+	} finally {
+		clearTimeout(timeoutHandle);
+		if (typingInterval) clearInterval(typingInterval);
+	}
+}
+
+/**
  * Core dispatch — spawns Agent SDK query() and processes the message stream.
  */
 export async function dispatchToClaude(
@@ -89,9 +166,20 @@ export async function dispatchToClaude(
 	if (busy) {
 		const priority = opts.priority ?? Priority.P2_INTERACTIVE;
 
-		// Don't try streamInput — it's unreliable (undefined in many SDK versions).
-		// Queue the message instead. It'll dispatch with continue:true after the
-		// current task finishes, preserving conversation context.
+		// P1_USER messages bypass the busy flag — they run concurrently in their
+		// own ephemeral session (resume:false) so Randy never waits behind a
+		// background task. P0_CRITICAL (bootstrap) still queues to avoid races.
+		if (priority === Priority.P1_USER) {
+			edithLog.info("dispatch_concurrent", {
+				label,
+				priority,
+				activeLabel,
+				reason: "P1_USER bypasses busy flag",
+				prompt: prompt.slice(0, 200),
+			});
+			// Run concurrently — force ephemeral session to avoid conflicts
+			return dispatchConcurrent(prompt, { ...opts, resume: false, label });
+		}
 
 		if (opts.skipIfBusy) {
 			edithLog.info("dispatch_skipped", {

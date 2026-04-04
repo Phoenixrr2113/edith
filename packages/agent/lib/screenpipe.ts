@@ -209,6 +209,7 @@ function summarizeApps(items: SearchItem[]): AppUsage[] {
 		if (!appMap.has(app_name)) {
 			appMap.set(app_name, { windows: new Set(), content: [], timestamps: [] });
 		}
+		// biome-ignore lint/style/noNonNullAssertion: guaranteed by has() check above
 		const app = appMap.get(app_name)!;
 		if (window_name) app.windows.add(window_name);
 		app.timestamps.push(new Date(timestamp));
@@ -239,6 +240,7 @@ function extractAudio(items: SearchItem[]): AudioTranscript[] {
 		.filter((i) => i.type === "Audio" && i.content.transcription?.trim())
 		.map((i) => ({
 			timestamp: i.content.timestamp,
+			// biome-ignore lint/style/noNonNullAssertion: guaranteed by filter above
 			text: i.content.transcription!,
 		}));
 }

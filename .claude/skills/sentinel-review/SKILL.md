@@ -68,9 +68,7 @@ For each message, assign a score (1-10) and list findings:
 
 Write findings to taskboard so the next scheduled skill is aware.
 
-## Step 6: Cognee
+## Step 6: CodeGraph
 
 Store any new patterns or insights:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "Sentinel finding: [description]"
-```
+- `knowledge({ action: "store", text: "Sentinel finding: [description]", extract: true })`

@@ -146,6 +146,17 @@ const SQLITE_SCHEMA = `
       value      TEXT NOT NULL,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS edith_tasks (
+      id          TEXT PRIMARY KEY,
+      text        TEXT NOT NULL,
+      prompt      TEXT,
+      status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','in_progress','done','failed')),
+      due_at      TEXT,
+      created_by  TEXT,
+      context     TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS migrations (
       name       TEXT PRIMARY KEY,
       applied_at TEXT NOT NULL
@@ -199,6 +210,17 @@ const POSTGRES_SCHEMA = `
       key        TEXT PRIMARY KEY,
       value      TEXT NOT NULL,
       updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS edith_tasks (
+      id          TEXT PRIMARY KEY,
+      text        TEXT NOT NULL,
+      prompt      TEXT,
+      status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','in_progress','done','failed')),
+      due_at      TEXT,
+      created_by  TEXT,
+      context     TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS migrations (
       name       TEXT PRIMARY KEY,

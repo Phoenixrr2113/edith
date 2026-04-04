@@ -29,10 +29,8 @@ Cover work AND personal life. Zoom out.
 1. **Taskboard (current)** — `packages/agent/.state/taskboard.md`
 2. **Taskboard (archive)** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for this month
 3. **Activity log** — `get_activity` with `days: 30`
-4. **Cognee** — all decisions, people, projects, patterns this month:
-   ```bash
-   bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "month decisions projects patterns"
-   ```
+4. **CodeGraph** — all decisions, people, projects, patterns this month:
+   - `knowledge({ action: "recall", text: "month decisions projects patterns", semantic: true })`
 5. **Email** — key threads, commitments, unresolved conversations
 6. **Calendar** — upcoming events (forward only; use taskboard/activity for past)
 7. **Events log** — `packages/agent/.state/events.jsonl`: sum Edith costs by label for the month
@@ -77,12 +75,10 @@ Cover work AND personal life. Zoom out.
 
 ### Next Month (max 3 focus areas)
 
-## Step 3: Cognee
+## Step 3: CodeGraph
 
 Store monthly summary, patterns, goals status, relationship updates:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
-```
+- `knowledge({ action: "store", text: "...", extract: true })`
 
 ## Step 4: Telegram message
 

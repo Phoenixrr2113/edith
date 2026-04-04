@@ -27,17 +27,13 @@ Process a batch of emails: archive noise, draft replies, flag decisions. The `co
 - **Draft reply**: real people, project updates, meeting-related, requests — draft but do NOT send
 - **Flag for Randy**: decisions needed, approvals, financial, legal, sensitive topics
 
-For people you don't recognize → search Cognee for context:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "[person name]"
-```
+For people you don't recognize → search CodeGraph for context:
+- `knowledge({ action: "recall", text: "[person name]", semantic: true })`
 
-## Step 3: Cognee
+## Step 3: CodeGraph
 
 Store new contacts, relationships, project context, commitments made:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
-```
+- `knowledge({ action: "store", text: "...", extract: true })`
 
 ## Step 4: Telegram message (only if actionable)
 

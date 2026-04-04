@@ -14,6 +14,7 @@ import { registerLogTools } from "./tools/logs";
 import { registerMessagingTools } from "./tools/messaging";
 import { registerProactiveTools } from "./tools/proactive";
 import { registerScheduleTools } from "./tools/schedule";
+import { registerTaskTools } from "./tools/tasks";
 
 // --- MCP Server ---
 const server = new McpServer(
@@ -36,6 +37,7 @@ registerProactiveTools(server);
 registerActivityTools(server);
 registerComputerUseTools(server);
 registerLogTools(server);
+registerTaskTools(server);
 
 // ============================================================
 // Start

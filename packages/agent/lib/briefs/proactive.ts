@@ -1,5 +1,6 @@
 /**
- * Proactive brief builder — depends on canIntervene, screenpipe, gemini.
+ * Proactive brief builder — checks task queue, calendar, and screen context.
+ * Primary trigger: pending tasks in edith_tasks. Secondary: screen heuristics.
  * Also exports detectTriggers and gatherScreenContext for unit testing and reuse.
  */
 
@@ -14,6 +15,7 @@ import {
 	type ScreenContext,
 	isAvailable as screenpipeAvailable,
 } from "../screenpipe";
+import { getNextPendingTask, hasPendingTasks, listEdithTasks, updateEdithTask } from "../storage";
 import { getRecentTaskboardEntries } from "../taskboard";
 
 // --- Proactive heuristic triggers ---
@@ -104,7 +106,18 @@ export async function buildProactiveBrief(): Promise<string> {
 
 	const time = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
 
-	// Fetch raw screen context for heuristic check
+	// Check for pending tasks — this is the PRIMARY trigger now
+	const pendingTasks = hasPendingTasks();
+	const nextTask = pendingTasks ? getNextPendingTask() : null;
+	const allPending = pendingTasks ? listEdithTasks("pending") : [];
+
+	// Claim the task immediately so the next cycle doesn't re-dispatch it
+	if (nextTask) {
+		updateEdithTask(nextTask.id, { status: "in_progress" });
+		recordIntervention("task-execution", nextTask.text.slice(0, 200));
+	}
+
+	// Fetch raw screen context for heuristic check (secondary trigger)
 	let rawCtx: ScreenContext | null = null;
 	try {
 		if (await screenpipeAvailable()) {
@@ -123,9 +136,9 @@ export async function buildProactiveBrief(): Promise<string> {
 	// Summarize screen context (also persists to activity log)
 	const screen = await gatherScreenContext(15, true);
 
-	// If no triggers and no screen activity worth analyzing, skip dispatch entirely
-	if (triggers.length === 0 && !screen) {
-		return ""; // empty brief = skip dispatch
+	// Fire if: pending tasks exist OR screen triggers detected OR screen activity
+	if (!pendingTasks && triggers.length === 0 && !screen) {
+		return ""; // nothing to do
 	}
 
 	const taskboard = getRecentTaskboardEntries();
@@ -133,29 +146,62 @@ export async function buildProactiveBrief(): Promise<string> {
 	const sections: string[] = [
 		`Current time: ${time}`,
 		``,
-		`You are Randy's personal assistant. Think about the next few hours of his life.`,
-		``,
-		`**Step 1 — Gather context.** Do all of these:`,
-		`- Pull today's calendar: manage_calendar action=get, hoursAhead=8, includeAllDay=true`,
-		`- Search CodeGraph knowledge for anything relevant to what's coming up (people, routines, preferences, family)`,
-		`- Check proactive_history to see what you've already told him recently`,
-		``,
-		`**Step 2 — Think.** With everything in front of you, reason about Randy's life right now:`,
-		`- What's coming up and what does he need to be ready for it?`,
-		`- What's happening with his family? School pickup, dinner, evening plans?`,
-		`- Is there something nearby worth doing? A local event, a restaurant, an activity for Phoenix?`,
-		`- Is he stuck, burnt out, forgetting to eat, or about to miss something?`,
-		`- Is there an email or message he should know about?`,
-		`- What would a thoughtful human assistant who genuinely cares about this person do right now?`,
-		``,
-		`Use WebSearch if it would help — local events, restaurant ideas, weather, whatever's relevant. Use CodeGraph knowledge to remember what you know about the people and places in his life. Actually think about this.`,
-		``,
-		`**Step 3 — Act or stay silent.** If you have something genuinely useful, reach out:`,
-		`- Quick heads-up or suggestion → send_notification channel=desktop`,
-		`- Something that needs a real response → send_message`,
-		`- After acting: call record_intervention so you don't repeat yourself`,
-		`- If you have nothing useful to add right now — exit silently. No "nothing to report."`,
+		`You are Randy's personal assistant. You have pending work to do.`,
 	];
+
+	// Primary: work the task queue
+	if (nextTask) {
+		sections.push(
+			``,
+			`## 🎯 Task to Execute`,
+			``,
+			`You created this task for yourself. Now execute it.`,
+			``,
+			`- **Task:** ${nextTask.text}`,
+			`- **ID:** ${nextTask.id}`,
+			nextTask.context ? `- **Context:** ${nextTask.context}` : "",
+			nextTask.createdBy ? `- **Created by:** ${nextTask.createdBy}` : "",
+			nextTask.prompt ? `- **Instructions:** ${nextTask.prompt}` : "",
+			``,
+			`**Execute this task now.** Use browser automation, CLI tools, web search, APIs — whatever gets it done.`,
+			`- If simple and reversible → do it silently, then mark done via update_edith_task`,
+			`- If it needs Randy's approval → send_message with one-line ask, mark in_progress`,
+			`- If it fails → mark failed via update_edith_task with context explaining why`,
+			``,
+			`After completing this task, check if there are more pending tasks via list_edith_tasks.`
+		);
+
+		if (allPending.length > 1) {
+			sections.push(
+				``,
+				`### Other pending tasks (${allPending.length - 1} more):`,
+				...allPending
+					.filter((t) => t.id !== nextTask.id)
+					.slice(0, 5)
+					.map((t) => `- ${t.text}${t.dueAt ? ` (due: ${t.dueAt})` : ""}`)
+			);
+		}
+	}
+
+	// Secondary: think about Randy's life
+	if (!nextTask || triggers.length > 0) {
+		sections.push(
+			``,
+			`## 🔍 Proactive Check`,
+			``,
+			`Think about the next few hours of Randy's life:`,
+			`- Pull today's calendar: manage_calendar action=get, hoursAhead=8, includeAllDay=true`,
+			`- Check for meetings < 2h away that need prep`,
+			`- Check for deadlines < 24h that need work`,
+			`- Search CodeGraph knowledge for anything relevant`,
+			``,
+			`**Act or stay silent.** If you find something actionable:`,
+			`- Can do now → do it, then send_message with what you did`,
+			`- Needs more time → create_edith_task for later`,
+			`- Needs Randy's input → send_message with one-line ask`,
+			`- Nothing useful → exit silently. No "nothing to report."`
+		);
+	}
 
 	if (triggers.length > 0) {
 		sections.push(`\n## ⚡ Triggered Heuristics`);

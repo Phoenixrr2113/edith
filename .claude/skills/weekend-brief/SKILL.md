@@ -25,10 +25,8 @@ It's the weekend. Randy is with Diana and Phoenix (tween, 10-13). Family time is
 
 ## Step 1: Gather context
 
-- **Cognee**: search for Phoenix interests, family plans, recent activities, health goals
-  ```bash
-  bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "Phoenix family weekend activities"
-  ```
+- **CodeGraph**: recall Phoenix interests, family plans, recent activities, health goals
+  - `knowledge({ action: "recall", text: "Phoenix family weekend activities", semantic: true })`
 - **Calendar**: today + tomorrow — any family plans, birthday parties, appointments? (`manage_calendar`)
 - **Reminders**: anything due today/tomorrow? (`list_reminders`)
 - **Email**: scan lightly — only flag genuinely urgent items (legal, financial, health). Don't draft replies.
@@ -98,10 +96,8 @@ Full guide → [Google Doc link]
 - Only mention work if something truly can't wait until Monday
 - The Google Doc has all details — Telegram is just the highlight reel
 
-## Step 5: Taskboard + Cognee
+## Step 5: Taskboard + CodeGraph
 
 - Taskboard: write `## [ISO-timestamp] — weekend-brief`
-- Cognee: store activities suggested, new local spots discovered
-  ```bash
-  bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
-  ```
+- **CodeGraph**: store activities suggested, new local spots discovered
+  - `knowledge({ action: "store", text: "...", extract: true })`

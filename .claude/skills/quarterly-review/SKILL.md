@@ -26,10 +26,8 @@ Runs 1st of Jan/Apr/Jul/Oct.
 
 ## Step 1: Gather context
 
-1. **Cognee** — all decisions, milestones, patterns, people from last 3 months:
-   ```bash
-   bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh search "quarter decisions milestones patterns"
-   ```
+1. **CodeGraph** — all decisions, milestones, patterns, people from last 3 months:
+   - `knowledge({ action: "recall", text: "quarter decisions milestones patterns", semantic: true })`
 2. **Monthly reviews** — Bash to find this quarter's monthly review docs, or `manage_docs` search; fall back to taskboard archives
 3. **Taskboard archives** — `packages/agent/.state/taskboard-archive/YYYY-MM.md` for each month of the quarter
 4. **Activity log** — `get_activity` with `days: 90`
@@ -78,12 +76,10 @@ Runs 1st of Jan/Apr/Jul/Oct.
 
 ### Next Quarter (max 3 goals)
 
-## Step 3: Cognee
+## Step 3: CodeGraph
 
 Store quarterly summary milestone, updated goals/trajectory, relationship insights, patterns:
-```bash
-bash /Users/randywilson/Desktop/edith-v3/mcp/cognee-direct.sh save "..."
-```
+- `knowledge({ action: "store", text: "...", extract: true })`
 
 ## Step 4: Telegram message
 

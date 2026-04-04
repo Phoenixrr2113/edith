@@ -74,7 +74,9 @@ export async function processMessageStream(
 	_pseudoPid: number,
 	reflector: ReflectorSession | null,
 	_abortController?: AbortController,
-	promptPreview?: string
+	promptPreview?: string,
+	/** When true, skip global session state (setActiveQuery/setActiveSessionId) to avoid races with main dispatch. */
+	concurrent?: boolean
 ): Promise<StreamResult> {
 	let turns = 0;
 	let lastResult = "";
@@ -127,8 +129,8 @@ export async function processMessageStream(
 		for await (const message of queryHandle) {
 			appendTranscript(wakeId, message);
 
-			// Track session ID
-			if ("session_id" in message && message.session_id && resume) {
+			// Track session ID (skip for concurrent dispatches to avoid racing the main session)
+			if ("session_id" in message && message.session_id && resume && !concurrent) {
 				if (message.session_id !== newSessionId) {
 					newSessionId = message.session_id;
 					setActiveSessionId(newSessionId);
@@ -282,8 +284,10 @@ export async function processMessageStream(
 			}
 		}
 	} finally {
-		setActiveQuery(null);
-		setActiveSessionId("");
+		if (!concurrent) {
+			setActiveQuery(null);
+			setActiveSessionId("");
+		}
 	}
 
 	return {
