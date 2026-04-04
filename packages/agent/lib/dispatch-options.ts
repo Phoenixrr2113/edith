@@ -143,15 +143,27 @@ export function buildSdkOptions(opts: DispatchOptions, abortController: AbortCon
 	const { resume = true } = opts;
 	const systemPrompt = assembleSystemPrompt();
 
-	// Resolve CLI path explicitly — Bun uses symlinks in node_modules/.bun/
-	// and the SDK's internal check fails on these. We resolve the real path.
-	const { existsSync, realpathSync } = require("node:fs") as typeof import("node:fs");
-	const { join } = require("node:path") as typeof import("node:path");
+	// Point SDK to the native Claude Code binary. The SDK's bundled cli.js
+	// fails to spawn on Bun due to ENOENT on symlinked .bun/ paths. The
+	// native binary (installed by Claude Desktop) works directly.
+	const { existsSync, readdirSync } = require("node:fs") as typeof import("node:fs");
+	const { join: joinPath } = require("node:path") as typeof import("node:path");
 	let cliPath: string | undefined;
 	try {
-		const sdkDir = join(PROJECT_ROOT, "node_modules/@anthropic-ai/claude-agent-sdk");
-		const candidate = join(sdkDir, "cli.js");
-		if (existsSync(candidate)) cliPath = realpathSync(candidate);
+		const ccDir = joinPath(
+			process.env.HOME ?? "",
+			"Library/Application Support/Claude/claude-code"
+		);
+		if (existsSync(ccDir)) {
+			const versions = readdirSync(ccDir).sort().reverse();
+			for (const ver of versions) {
+				const bin = joinPath(ccDir, ver, "claude.app/Contents/MacOS/claude");
+				if (existsSync(bin)) {
+					cliPath = bin;
+					break;
+				}
+			}
+		}
 	} catch {}
 
 	const sdkOptions: Options = {
