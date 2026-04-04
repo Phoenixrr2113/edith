@@ -249,9 +249,11 @@ export async function dispatchToClaude(
 
 		const pseudoPid = ++pidCounter;
 
-		// Start reflector for this session — randomly assign A/B mode
-		const reflectorMode: ReflectorMode =
-			Math.random() < REFLECTOR_EVAL_ONLY_RATIO ? "eval-only" : "active";
+		// Start reflector for this session — eval-only until SDK supports streamInput()
+		// Mid-session injection requires streamInput() which isn't available in SDK v0.2.83.
+		// Once the SDK adds it, restore A/B testing:
+		//   const reflectorMode = Math.random() < REFLECTOR_EVAL_ONLY_RATIO ? "eval-only" : "active";
+		const reflectorMode: ReflectorMode = "eval-only";
 		const reflector = DEFAULT_REFLECTOR_CONFIG.enabled
 			? new ReflectorSession(prompt, label, { mode: reflectorMode })
 			: null;

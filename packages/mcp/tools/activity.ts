@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getRecentActivity, readActivity } from "../../lib/activity";
-import { textResponse } from "../../lib/mcp-helpers";
+import { getRecentActivity, readActivity } from "../../agent/lib/activity";
+import { textResponse } from "../../agent/lib/mcp-helpers";
 
 export function registerActivityTools(server: McpServer): void {
 	// ============================================================

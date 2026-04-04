@@ -16,7 +16,7 @@
 		},
 		"edith": {
 			"command": "bash",
-			"args": ["mcp/start.sh"]
+			"args": ["../mcp/start.sh"]
 		},
 		"computer-use": {
 			"command": "npx",

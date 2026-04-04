@@ -1,8 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { textResponse } from "../../lib/mcp-helpers";
-import { loadLocations, loadReminders, saveLocations, saveReminders } from "../../lib/storage";
-import type { LocationEntry, Reminder } from "../types";
+import { textResponse } from "../../agent/lib/mcp-helpers";
+import {
+	loadLocations,
+	loadReminders,
+	saveLocations,
+	saveReminders,
+} from "../../agent/lib/storage";
+import type { LocationEntry, Reminder } from "../../agent/lib/mcp-types";
 
 export function registerLocationTools(server: McpServer): void {
 	// ============================================================

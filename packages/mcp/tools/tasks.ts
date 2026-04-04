@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { textResponse } from "../../lib/mcp-helpers";
-import { createEdithTask, listEdithTasks, updateEdithTask } from "../../lib/storage";
+import { textResponse } from "../../agent/lib/mcp-helpers";
+import { createEdithTask, listEdithTasks, updateEdithTask } from "../../agent/lib/storage";
 
 export function registerTaskTools(server: McpServer): void {
 	server.registerTool(

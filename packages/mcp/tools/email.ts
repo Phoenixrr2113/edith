@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { edithLog } from "../../lib/edith-logger";
-import { batchManage, manageEmail, searchAllAccounts } from "../../lib/gmail";
-import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
+import { edithLog } from "../../agent/lib/edith-logger";
+import { batchManage, manageEmail, searchAllAccounts } from "../../agent/lib/gmail";
+import { jsonResponse, textResponse } from "../../agent/lib/mcp-helpers";
 
 // ============================================================
 // Email — manage_emails (get + manage + batch, one tool)

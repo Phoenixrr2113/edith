@@ -9,8 +9,8 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { capabilityRouter } from "../../lib/capability-router";
-import { textResponse } from "../../lib/mcp-helpers";
+import { capabilityRouter } from "../../agent/lib/capability-router";
+import { textResponse } from "../../agent/lib/mcp-helpers";
 
 export function registerComputerUseTools(server: McpServer): void {
 	server.registerTool(

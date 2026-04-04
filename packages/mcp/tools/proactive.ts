@@ -1,7 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { textResponse } from "../../lib/mcp-helpers";
-import { canIntervene, getInterventionHistory, recordIntervention } from "../../lib/proactive";
+import { textResponse } from "../../agent/lib/mcp-helpers";
+import {
+	canIntervene,
+	getInterventionHistory,
+	recordIntervention,
+} from "../../agent/lib/proactive";
 
 export function registerProactiveTools(server: McpServer): void {
 	// ============================================================

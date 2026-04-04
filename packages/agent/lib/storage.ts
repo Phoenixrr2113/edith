@@ -3,9 +3,9 @@
  * Database is the sole store (SQLite local, Postgres cloud).
  */
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import type { LocationEntry, Reminder, ScheduleEntry } from "../mcp/types";
 import { openDatabase, upsertSql } from "./db";
 import { edithLog } from "./edith-logger";
+import type { LocationEntry, Reminder, ScheduleEntry } from "./mcp-types";
 
 // --- Generic helpers ---
 

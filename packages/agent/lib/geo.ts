@@ -2,8 +2,8 @@
  * Geofence utilities — haversine distance, reminder checking, location transitions.
  */
 
-import type { LocationEntry, Reminder } from "../mcp/types";
 import { openDatabase, upsertSql } from "./db";
+import type { LocationEntry, Reminder } from "./mcp-types";
 import { loadLocations, loadReminders, saveReminders } from "./storage";
 
 export type { LocationEntry, Reminder };

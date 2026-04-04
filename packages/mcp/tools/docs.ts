@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createDoc } from "../../lib/gdocs";
-import { generateImages } from "../../lib/gemini";
-import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
-import { fmtErr } from "../../lib/util";
+import { createDoc } from "../../agent/lib/gdocs";
+import { generateImages } from "../../agent/lib/gemini";
+import { jsonResponse, textResponse } from "../../agent/lib/mcp-helpers";
+import { fmtErr } from "../../agent/lib/util";
 
 export function registerDocsTools(server: McpServer): void {
 	// ============================================================

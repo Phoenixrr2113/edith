@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { edithLog } from "../../lib/edith-logger";
-import { createEvent, deleteEvent, getEvents, updateEvent } from "../../lib/gcal";
-import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
+import { edithLog } from "../../agent/lib/edith-logger";
+import { createEvent, deleteEvent, getEvents, updateEvent } from "../../agent/lib/gcal";
+import { jsonResponse, textResponse } from "../../agent/lib/mcp-helpers";
 
 export function registerCalendarTools(server: McpServer): void {
 	// ============================================================

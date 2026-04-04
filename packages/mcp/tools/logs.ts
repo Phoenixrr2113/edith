@@ -6,8 +6,8 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { queryEvents } from "../../lib/edith-logger";
-import { jsonResponse, textResponse } from "../../lib/mcp-helpers";
+import { queryEvents } from "../../agent/lib/edith-logger";
+import { jsonResponse, textResponse } from "../../agent/lib/mcp-helpers";
 
 export function registerLogTools(server: McpServer): void {
 	server.registerTool(

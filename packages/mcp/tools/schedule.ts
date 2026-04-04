@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { textResponse } from "../../lib/mcp-helpers";
-import { loadSchedule, saveSchedule } from "../../lib/storage";
-import type { ScheduleEntry } from "../types";
+import { textResponse } from "../../agent/lib/mcp-helpers";
+import { loadSchedule, saveSchedule } from "../../agent/lib/storage";
+import type { ScheduleEntry } from "../../agent/lib/mcp-types";
 
 export function registerScheduleTools(server: McpServer): void {
 	// ============================================================

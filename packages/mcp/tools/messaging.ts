@@ -1,15 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { CHAT_ID, TWILIO_SMS_FROM, TWILIO_WA_FROM } from "../../lib/config";
-import { edithLog } from "../../lib/edith-logger";
-import { sendEmail } from "../../lib/gmail";
-import { textResponse } from "../../lib/mcp-helpers";
-import { showDialog, showNotification } from "../../lib/notify";
-import { pushNotification } from "../../lib/ntfy";
-import { evaluateOutboundMessage } from "../../lib/sentinel";
-import { sendMessage, sendPhoto, tgCall } from "../../lib/telegram";
-import { sendTwilio } from "../../lib/twilio";
-import { fmtErr } from "../../lib/util";
+import { CHAT_ID, TWILIO_SMS_FROM, TWILIO_WA_FROM } from "../../agent/lib/config";
+import { edithLog } from "../../agent/lib/edith-logger";
+import { sendEmail } from "../../agent/lib/gmail";
+import { textResponse } from "../../agent/lib/mcp-helpers";
+import { showDialog, showNotification } from "../../agent/lib/notify";
+import { pushNotification } from "../../agent/lib/ntfy";
+import { evaluateOutboundMessage } from "../../agent/lib/sentinel";
+import { sendMessage, sendPhoto, tgCall } from "../../agent/lib/telegram";
+import { sendTwilio } from "../../agent/lib/twilio";
+import { fmtErr } from "../../agent/lib/util";
 
 const ALLOWED_CHAT = CHAT_ID;
 
