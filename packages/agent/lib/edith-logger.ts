@@ -21,6 +21,11 @@ const heartbeatUrl = process.env.BETTERSTACK_HEARTBEAT_URL;
 const logtail = bsToken ? new Logtail(bsToken) : null;
 const EDITH_MODE = IS_CLOUD ? "cloud" : "local";
 
+/** Skip file/remote writes during tests to avoid polluting production events.jsonl. */
+function isTestEnv(): boolean {
+	return process.env.NODE_ENV === "test";
+}
+
 // --- Types ---
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -81,6 +86,9 @@ function getCaller(_depth = 3): CallerInfo {
 
 // --- Core write ---
 function writeEvent(entry: LogEntry): void {
+	// Skip file and remote writes during tests
+	if (isTestEnv()) return;
+
 	// Write to local events.jsonl
 	try {
 		appendFileSync(EVENTS_FILE, `${JSON.stringify(entry)}\n`, "utf-8");
