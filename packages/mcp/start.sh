@@ -1,5 +1,6 @@
 #!/bin/bash
 # Load env vars and start the MCP tool server
+export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [ -f "$ROOT_DIR/.env" ]; then

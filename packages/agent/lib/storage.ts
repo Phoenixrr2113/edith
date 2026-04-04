@@ -59,7 +59,7 @@ const DEFAULT_SCHEDULE: ScheduleEntry[] = [
 	{
 		name: "proactive-check",
 		prompt: "/proactive-check",
-		intervalMinutes: 10,
+		intervalMinutes: 5,
 		quietStart: 21,
 		quietEnd: 7,
 	},

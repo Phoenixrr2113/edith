@@ -85,8 +85,8 @@ export const LIGHTWEIGHT_TIMEOUT_MS = IS_CLOUD ? 3 * 60 * 1000 : 90 * 1000; // c
 export const INTER_DISPATCH_DELAY_MS = 3_000;
 
 // --- Proactive limits ---
-export const PROACTIVE_MAX_PER_HOUR = 2;
-export const PROACTIVE_COOLDOWN_MINUTES = 60;
+export const PROACTIVE_MAX_PER_HOUR = 6;
+export const PROACTIVE_COOLDOWN_MINUTES = 10;
 export const PROACTIVE_QUIET_START = 22;
 export const PROACTIVE_QUIET_END = 8;
 
