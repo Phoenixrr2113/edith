@@ -611,6 +611,9 @@ describe("manageEmail routing", () => {
 	});
 
 	test("trash propagates error on non-ok response", async () => {
+		// First attempt (primary) returns 404 → triggers fallback
+		pushFetchHandler(async () => makeErrorResponse(404, "Not Found"));
+		// Fallback attempt (secondary) also returns 404
 		pushFetchHandler(async () => makeErrorResponse(404, "Not Found"));
 		await expect(manageEmail("m9", "trash")).rejects.toThrow(/trash failed/);
 	});

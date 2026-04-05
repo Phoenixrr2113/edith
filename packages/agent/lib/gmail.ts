@@ -321,23 +321,37 @@ export async function manageEmail(
 	label?: string,
 	provider = "google"
 ): Promise<void> {
-	switch (action) {
-		case "archive":
-			return archiveEmail(messageId, provider);
-		case "trash":
-			return trashEmail(messageId, provider);
-		case "markAsRead":
-			return markAsRead(messageId, provider);
-		case "addLabel":
-			if (!label) throw new Error("addLabel requires a label name");
-			return addLabel(messageId, label, provider);
-		case "removeLabel":
-			if (!label) throw new Error("removeLabel requires a label name");
-			return removeLabel(messageId, label, provider);
-		default: {
-			const _exhaustive: never = action;
-			throw new Error(`Unknown action: ${_exhaustive}`);
+	const doAction = (p: string) => {
+		switch (action) {
+			case "archive":
+				return archiveEmail(messageId, p);
+			case "trash":
+				return trashEmail(messageId, p);
+			case "markAsRead":
+				return markAsRead(messageId, p);
+			case "addLabel":
+				if (!label) throw new Error("addLabel requires a label name");
+				return addLabel(messageId, label, p);
+			case "removeLabel":
+				if (!label) throw new Error("removeLabel requires a label name");
+				return removeLabel(messageId, label, p);
+			default: {
+				const _exhaustive: never = action;
+				throw new Error(`Unknown action: ${_exhaustive}`);
+			}
 		}
+	};
+
+	try {
+		return await doAction(provider);
+	} catch (err) {
+		// If 404, the messageId might belong to the other account — try it
+		const msg = err instanceof Error ? err.message : String(err);
+		if (msg.includes("404") || msg.includes("Not Found")) {
+			const fallback = provider === "google" ? "google-2" : "google";
+			return doAction(fallback);
+		}
+		throw err;
 	}
 }
 
