@@ -78,9 +78,12 @@ function gatherLocalContext(): {
 	recentErrors: string[];
 	currentTime: string;
 	timezone: string;
+	dayOfWeek: string;
 } {
-	const currentTime = new Date().toISOString();
+	const now = new Date();
+	const currentTime = now.toISOString();
 	const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long", timeZone: timezone });
 
 	// Recent message_sent events from events.jsonl (last 2h)
 	const recentMessages: string[] = [];
@@ -123,7 +126,7 @@ function gatherLocalContext(): {
 		// no taskboard yet
 	}
 
-	return { recentMessages, taskboard, recentErrors, currentTime, timezone };
+	return { recentMessages, taskboard, recentErrors, currentTime, timezone, dayOfWeek };
 }
 
 // ---------------------------------------------------------------------------
@@ -311,7 +314,7 @@ function buildSentinelPrompt(
 	);
 
 	sections.push(
-		`## Message Sent\nSkill: ${label}\nTime: ${localContext.currentTime} (${localContext.timezone})\n\n${messageText}`
+		`## Message Sent\nSkill: ${label}\nTime: ${localContext.currentTime} (${localContext.timezone})\nDay of week: ${localContext.dayOfWeek}\n\n${messageText}`
 	);
 
 	if (localContext.recentMessages.length > 0) {

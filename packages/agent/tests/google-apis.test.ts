@@ -395,7 +395,7 @@ describe("gdocs — createDoc", () => {
 		expect(batchCall).toBeDefined();
 		expect(batchCall!.init.method).toBe("POST");
 		const body = JSON.parse(batchCall!.init.body as string);
-		expect(body.requests[0].insertText.text).toBe("Hello world");
+		expect(body.requests[0].insertText.text).toBe("Hello world\n");
 		expect(body.requests[0].insertText.location.index).toBe(1);
 	});
 
