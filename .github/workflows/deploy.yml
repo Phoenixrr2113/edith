@@ -32,6 +32,6 @@ jobs:
           bun test packages/agent/tests/dispatch-integration.test.ts
 
       - name: Deploy
-        run: npx @railway/cli deploy --service edith
+        run: npx @railway/cli up --service edith --ci
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
