@@ -89,6 +89,9 @@ function gatherLocalContext(): {
 	const recentMessages: string[] = [];
 	const recentErrors: string[] = [];
 	const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+	// Exclude the just-sent message: events < 60s old are the current message being evaluated.
+	// Without this cutoff, checkDedup() would always self-match against the message it just fired.
+	const sixtySecondsAgo = Date.now() - 60 * 1000;
 
 	try {
 		const events = readFileSync(EVENTS_FILE, "utf-8").trim().split("\n");
@@ -99,10 +102,13 @@ function gatherLocalContext(): {
 				const ev = JSON.parse(line);
 				const evTime = new Date(ev.ts).getTime();
 				if (evTime < twoHoursAgo) continue;
+				// Skip events that are too recent — the just-sent message has already been
+				// appended to events.jsonl before sentinel runs, causing false-positive dedup.
+				if (evTime > sixtySecondsAgo) continue;
 
 				if (ev.type === "message_sent" || ev.type === "image_sent") {
 					recentMessages.push(
-						`[${ev.ts}] ${ev.type}: ${(ev.text ?? ev.caption ?? "").slice(0, 300)}`
+						`[${ev.ts}] ${ev.type}: ${(ev.text ?? ev.caption ?? "").slice(0, 800)}`
 					);
 				}
 				if (ev.level === "error") {
